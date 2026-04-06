@@ -3,6 +3,7 @@ import { HydratedDocument, Model, Schema, model, models } from "mongoose";
 import type { User } from "../types";
 
 const SALT_ROUNDS = 10;
+const BCRYPT_HASH_PATTERN = /^\$2[aby]\$\d{2}\$.{53}$/;
 
 export type UserDocument = HydratedDocument<User>;
 
@@ -50,7 +51,7 @@ const userSchema = new Schema<User, UserModel>(
 );
 
 userSchema.pre("save", async function () {
-  if (!this.isModified("password")) {
+  if (!this.isModified("password") || BCRYPT_HASH_PATTERN.test(this.password)) {
     return;
   }
 
