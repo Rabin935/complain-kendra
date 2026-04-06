@@ -2,6 +2,8 @@ import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
 import { connectDatabase } from "./config/database";
+import { errorHandler } from "./middlewares/error.middleware";
+import authRouter from "./routes/auth.routes";
 
 dotenv.config();
 
@@ -16,9 +18,13 @@ app.use(
 );
 app.use(express.json());
 
+app.use("/api/auth", authRouter);
+
 app.get("/api/health", (_request, response) => {
   response.status(200).json({ status: "ok" });
 });
+
+app.use(errorHandler);
 
 async function startServer(): Promise<void> {
   try {
