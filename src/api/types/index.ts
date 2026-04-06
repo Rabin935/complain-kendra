@@ -21,3 +21,11 @@ export interface LoginDto {
   email: string;
   password: string;
 }
+
+export interface JwtUserPayload {
+  userId: string;
+  email: string;
+  role: UserRole;
+  iat?: number;
+  exp?: number;
+}
