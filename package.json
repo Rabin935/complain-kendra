@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
+    "@google/generative-ai": "^0.24.1",
     "@react-navigation/native": "^7.1.8",
     "@supabase/supabase-js": "^2.101.1",
     "expo": "~54.0.33",
