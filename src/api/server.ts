@@ -1,6 +1,7 @@
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
+import { connectDatabase } from "./config/database";
 
 dotenv.config();
 
@@ -19,6 +20,17 @@ app.get("/api/health", (_request, response) => {
   response.status(200).json({ status: "ok" });
 });
 
-app.listen(PORT, () => {
-  console.log(`API server running on http://localhost:${PORT}`);
-});
+async function startServer(): Promise<void> {
+  try {
+    await connectDatabase();
+
+    app.listen(PORT, () => {
+      console.log(`API server running on http://localhost:${PORT}`);
+    });
+  } catch (error) {
+    console.error("Server startup failed.", error);
+    process.exit(1);
+  }
+}
+
+void startServer();
