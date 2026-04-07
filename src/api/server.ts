@@ -8,11 +8,19 @@ import authRouter from "./routes/auth.routes";
 dotenv.config();
 
 const app = express();
-const PORT = Number(process.env.PORT) || 5000;
+const parsedPort = Number.parseInt(process.env.PORT ?? "", 10);
+const PORT = Number.isNaN(parsedPort) ? 5000 : parsedPort;
 
 app.use(
   cors({
-    origin: "http://localhost:8081",
+    origin(origin, callback) {
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      callback(null, true);
+    },
     credentials: true,
   }),
 );
@@ -30,7 +38,7 @@ async function startServer(): Promise<void> {
   try {
     await connectDatabase();
 
-    app.listen(PORT, () => {
+    app.listen(PORT, "0.0.0.0", () => {
       console.log(`API server running on http://localhost:${PORT}`);
     });
   } catch (error) {

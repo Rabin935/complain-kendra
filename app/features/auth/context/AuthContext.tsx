@@ -40,15 +40,15 @@ function isStoredToken(token: string | null): token is string {
 }
 
 async function persistSession(token: string, user: AuthUser): Promise<void> {
-  await AsyncStorage.setMany({
-    [TOKEN_STORAGE_KEY]: token,
-    [USER_STORAGE_KEY]: JSON.stringify(user),
-  });
+  await AsyncStorage.multiSet([
+    [TOKEN_STORAGE_KEY, token],
+    [USER_STORAGE_KEY, JSON.stringify(user)],
+  ]);
   setAuthToken(token);
 }
 
 async function clearPersistedSession(): Promise<void> {
-  await AsyncStorage.removeMany([TOKEN_STORAGE_KEY, USER_STORAGE_KEY]);
+  await AsyncStorage.multiRemove([TOKEN_STORAGE_KEY, USER_STORAGE_KEY]);
   setAuthToken(null);
 }
 
@@ -61,12 +61,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     async function restoreSession() {
       try {
-        const storedSession = await AsyncStorage.getMany([
+        const storedSession = await AsyncStorage.multiGet([
           TOKEN_STORAGE_KEY,
           USER_STORAGE_KEY,
         ]);
-        const storedToken = storedSession[TOKEN_STORAGE_KEY];
-        const storedUser = storedSession[USER_STORAGE_KEY];
+        const storedEntries = Object.fromEntries(storedSession);
+        const storedToken = storedEntries[TOKEN_STORAGE_KEY] ?? null;
+        const storedUser = storedEntries[USER_STORAGE_KEY];
 
         if (!isStoredToken(storedToken) || !storedUser) {
           await clearPersistedSession();
