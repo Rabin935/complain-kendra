@@ -49,15 +49,11 @@ export interface AuthContextValue {
   loading: boolean;
   initializing: boolean;
   login: (payload: LoginPayload) => Promise<void>;
-  register: (payload: RegisterPayload) => Promise<void>;
+  register: (payload: RegisterPayload) => Promise<string>;
   logout: () => Promise<void>;
 }
 
 export type AuthStackParamList = {
   Login: undefined;
   Register: undefined;
-};
-
-export type MainTabParamList = {
-  Home: undefined;
 };

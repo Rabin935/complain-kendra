@@ -114,19 +114,17 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
   }
 
-  async function register(payload: RegisterPayload): Promise<void> {
+  async function register(payload: RegisterPayload): Promise<string> {
     setLoading(true);
 
     try {
       const response = await authService.register(payload);
 
-      if (!response.token || !response.user) {
-        throw new Error("Registration completed, but sign-in failed.");
+      if (!response.success) {
+        throw new Error(response.message ?? "Registration failed. Please try again.");
       }
 
-      await persistSession(response.token, response.user);
-      setToken(response.token);
-      setUser(response.user);
+      return response.message ?? "Registration successful. Please login to continue.";
     } catch (error) {
       throw new Error(getApiErrorMessage(error));
     } finally {

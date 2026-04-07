@@ -1,5 +1,5 @@
-import { Alert } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { Alert } from "react-native";
 import AuthForm from "../components/AuthForm";
 import { useAuth } from "../context/AuthContext";
 import type { AuthFormValues, AuthStackParamList } from "../types/auth.types";
@@ -11,12 +11,19 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
 
   async function handleRegister(values: AuthFormValues): Promise<void> {
     try {
-      await register({
+      const message = await register({
         name: values.name,
         email: values.email,
         password: values.password,
         phone: values.phone || undefined,
       });
+
+      Alert.alert("Registration successful", message, [
+        {
+          text: "Go to Login",
+          onPress: () => navigation.replace("Login"),
+        },
+      ]);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unable to create your account right now.";
@@ -30,7 +37,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
       mode="register"
       loading={loading}
       onSubmit={handleRegister}
-      onToggleMode={() => navigation.navigate("Login")}
+      onToggleMode={() => navigation.replace("Login")}
     />
   );
 }
