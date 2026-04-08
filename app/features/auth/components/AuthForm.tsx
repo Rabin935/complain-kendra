@@ -35,6 +35,7 @@ export default function AuthForm({
 }: AuthFormProps) {
   const [values, setValues] = useState<AuthFormValues>(initialValues);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [activeAction, setActiveAction] = useState<"submit" | "google" | null>(null);
 
   const isRegisterMode = mode === "register";
   const title = isRegisterMode ? "Create your account" : "Welcome back";
@@ -47,6 +48,9 @@ export default function AuthForm({
     : "Don't have an account?";
   const footerAction = isRegisterMode ? "Login" : "Create one";
   const showGoogleButton = Boolean(onGoogleSignIn);
+  const googleButtonLabel = isRegisterMode ? "Sign up with Google" : "Sign in with Google";
+  const isSubmitLoading = loading && activeAction !== "google";
+  const isGoogleLoading = loading && activeAction === "google";
 
   function updateField(field: keyof AuthFormValues, value: string) {
     setValidationError(null);
@@ -111,40 +115,6 @@ export default function AuthForm({
           </View>
 
           {combinedError ? <Text style={styles.errorText}>{combinedError}</Text> : null}
-
-          {showGoogleButton ? (
-            <>
-              <Pressable
-                onPress={() => {
-                  setValidationError(null);
-                  void onGoogleSignIn?.().catch(() => undefined);
-                }}
-                disabled={loading}
-                style={({ pressed }) => [
-                  styles.googleButton,
-                  pressed && !loading ? styles.googleButtonPressed : null,
-                  loading ? styles.googleButtonDisabled : null,
-                ]}
-              >
-                {loading ? (
-                  <ActivityIndicator color={colors.text} />
-                ) : (
-                  <>
-                    <MaterialCommunityIcons name="google" size={18} color={colors.text} />
-                    <Text style={styles.googleButtonText}>Continue with Google</Text>
-                  </>
-                )}
-              </Pressable>
-
-              <View style={styles.dividerRow}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>or continue with email</Text>
-                <View style={styles.dividerLine} />
-              </View>
-            </>
-          ) : null}
-
-          {googleSignInHint ? <Text style={styles.helperText}>{googleSignInHint}</Text> : null}
 
           {isRegisterMode ? (
             <View style={styles.fieldGroup}>
@@ -212,7 +182,10 @@ export default function AuthForm({
 
           <Pressable
             onPress={() => {
-              void handleSubmit().catch(() => undefined);
+              setActiveAction("submit");
+              void handleSubmit().finally(() => {
+                setActiveAction(null);
+              });
             }}
             disabled={loading}
             style={({ pressed }) => [
@@ -221,12 +194,58 @@ export default function AuthForm({
               loading ? styles.submitButtonDisabled : null,
             ]}
           >
-            {loading ? (
+            {isSubmitLoading ? (
               <ActivityIndicator color={colors.surface} />
             ) : (
               <Text style={styles.submitButtonText}>{submitLabel}</Text>
             )}
           </Pressable>
+
+          {showGoogleButton ? (
+            <>
+              <View style={styles.dividerRow}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>or</Text>
+                <View style={styles.dividerLine} />
+              </View>
+
+              <Pressable
+                onPress={() => {
+                  setValidationError(null);
+                  setActiveAction("google");
+                  const googleSignInRequest = onGoogleSignIn?.();
+
+                  if (!googleSignInRequest) {
+                    setActiveAction(null);
+                    return;
+                  }
+
+                  void googleSignInRequest.finally(() => {
+                    setActiveAction(null);
+                  });
+                }}
+                disabled={loading}
+                style={({ pressed }) => [
+                  styles.googleButton,
+                  pressed && !loading ? styles.googleButtonPressed : null,
+                  loading ? styles.googleButtonDisabled : null,
+                ]}
+              >
+                {isGoogleLoading ? (
+                  <ActivityIndicator color={colors.primaryDark} />
+                ) : (
+                  <>
+                    <View style={styles.googleIconBadge}>
+                      <MaterialCommunityIcons name="google" size={18} color={colors.primaryDark} />
+                    </View>
+                    <Text style={styles.googleButtonText}>{googleButtonLabel}</Text>
+                  </>
+                )}
+              </Pressable>
+            </>
+          ) : null}
+
+          {googleSignInHint ? <Text style={styles.helperText}>{googleSignInHint}</Text> : null}
 
           <View style={styles.footer}>
             <Text style={styles.footerText}>{footerLabel}</Text>
@@ -301,12 +320,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 16,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#F9FBFC",
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
     gap: 10,
-    marginBottom: 16,
+    marginTop: 2,
   },
   googleButtonPressed: {
     opacity: 0.94,
@@ -319,11 +338,22 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
   },
+  googleIconBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
   dividerRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    marginBottom: 18,
+    marginTop: 18,
+    marginBottom: 16,
   },
   dividerLine: {
     flex: 1,
@@ -340,7 +370,7 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: 13,
     lineHeight: 18,
-    marginBottom: 18,
+    marginTop: 12,
   },
   fieldGroup: {
     marginBottom: 16,
