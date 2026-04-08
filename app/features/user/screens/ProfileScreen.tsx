@@ -1,105 +1,244 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../../../constants/colors";
 import { useAuth } from "../../auth/context/AuthContext";
-import DashboardScaffold from "../components/DashboardScaffold";
 
 export default function ProfileScreen() {
   const { user, logout, loading } = useAuth();
 
+  // Get initials from user name
+  const getInitials = (name: string | undefined): string => {
+    if (!name) return "U";
+    return name
+      .split(" ")
+      .map((part) => part[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  const handleMenuItem = (action: string) => {
+    switch (action) {
+      case "complaints":
+        break;
+      case "notifications":
+        break;
+      case "language":
+        break;
+      case "logout":
+        void logout();
+        break;
+    }
+  };
+
   return (
-    <DashboardScaffold
-      badge="Profile"
-      title={user?.name ?? "Citizen account"}
-      description="Keep account information visible and easy to manage so users always know which email and role are attached to their complaints."
-      sectionTitle="Account overview"
-      sectionDescription="Your details and sign-out action stay in one place for a cleaner user experience."
-      metrics={[
-        {
-          label: "Role",
-          value: user?.role === "admin" ? "Admin" : "User",
-          caption: "Current access level for this account.",
-        },
-        {
-          label: "Status",
-          value: "Active",
-          caption: "The account is ready to submit and track complaints.",
-        },
-      ]}
-      shortcuts={[
-        {
-          title: user?.email ?? "No email found",
-          description: "Primary email used for login and future notification updates.",
-          icon: "email-outline",
-          tone: "neutral",
-        },
-        {
-          title: user?.phone ?? "Phone not added yet",
-          description: "Optional contact number for complaint follow-up when needed.",
-          icon: "phone-outline",
-          tone: "primary",
-        },
-      ]}
-      footer={
-        <View style={styles.footerCard}>
-          <Text style={styles.footerTitle}>Need to leave for now?</Text>
-          <Text style={styles.footerText}>
-            You can sign back in any time and continue from the same dashboard.
-          </Text>
-          <Pressable
-            onPress={() => {
-              void logout();
-            }}
-            disabled={loading}
-            style={({ pressed }) => [
-              styles.logoutButton,
-              pressed && !loading ? styles.logoutButtonPressed : null,
-              loading ? styles.logoutButtonDisabled : null,
-            ]}
-          >
-            <Text style={styles.logoutButtonText}>{loading ? "Signing out..." : "Logout"}</Text>
-          </Pressable>
+    <SafeAreaView edges={["top"]} style={styles.container}>
+      <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollView}>
+        {/* Profile Header Card */}
+        <View style={styles.profileHeader}>
+          {/* Avatar */}
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{getInitials(user?.name)}</Text>
+          </View>
+
+          {/* User Info */}
+          <Text style={styles.userName}>{user?.name ?? "Citizen"}</Text>
+          <Text style={styles.userSubtitle}>Member since Jan 2025 · Kathmandu Ward 12</Text>
+
+          {/* Stats Section */}
+          <View style={styles.statsContainer}>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>5</Text>
+              <Text style={styles.statLabel}>Complaints</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>3</Text>
+              <Text style={styles.statLabel}>Resolved</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>42</Text>
+              <Text style={styles.statLabel}>Upvotes given</Text>
+            </View>
+          </View>
+
+          {/* Badge */}
+          <View style={styles.badgeContainer}>
+            <Text style={styles.badgeTitle}>Community Champion</Text>
+            <Text style={styles.badgeDescription}>You're in the top 5% of reporters in your ward!</Text>
+          </View>
         </View>
-      }
-    />
+
+        {/* Menu Items */}
+        <Pressable
+          style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}
+          onPress={() => handleMenuItem("complaints")}
+        >
+          <View style={styles.menuContent}>
+            <MaterialCommunityIcons name="clipboard-outline" size={18} color={colors.text} />
+            <Text style={styles.menuTitle}>My complaints</Text>
+          </View>
+          <Text style={styles.menuArrow}>›</Text>
+        </Pressable>
+
+        <Pressable
+          style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}
+          onPress={() => handleMenuItem("notifications")}
+        >
+          <View style={styles.menuContent}>
+            <MaterialCommunityIcons name="bell-outline" size={18} color={colors.text} />
+            <Text style={styles.menuTitle}>Notifications</Text>
+          </View>
+          <Text style={styles.menuArrow}>›</Text>
+        </Pressable>
+
+        <Pressable
+          style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}
+          onPress={() => handleMenuItem("language")}
+        >
+          <View style={styles.menuContent}>
+            <MaterialCommunityIcons name="globe" size={18} color={colors.text} />
+            <Text style={styles.menuTitle}>Language</Text>
+          </View>
+          <Text style={styles.menuArrow}>›</Text>
+        </Pressable>
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.menuItem,
+            styles.menuItemLast,
+            pressed && styles.menuItemPressed,
+          ]}
+          onPress={() => handleMenuItem("logout")}
+          disabled={loading}
+        >
+          <View style={styles.menuContent}>
+            <MaterialCommunityIcons name="logout" size={18} color={colors.error} />
+            <Text style={[styles.menuTitle, styles.menuTitleError]}>
+              {loading ? "Signing out..." : "Sign out"}
+            </Text>
+          </View>
+          <Text style={[styles.menuArrow, styles.menuArrowError]}>›</Text>
+        </Pressable>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  footerCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 24,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: colors.border,
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
   },
-  footerTitle: {
-    color: colors.text,
-    fontSize: 18,
-    fontWeight: "800",
-    marginBottom: 8,
+  scrollView: {
+    flex: 1,
   },
-  footerText: {
-    color: colors.textMuted,
-    fontSize: 14,
-    lineHeight: 21,
-    marginBottom: 18,
+  profileHeader: {
+    alignItems: "center",
+    paddingTop: 20,
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+    borderBottomWidth: 0.5,
+    borderBottomColor: colors.border,
   },
-  logoutButton: {
+  avatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#E6F1FB",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.primary,
-    borderRadius: 16,
-    paddingVertical: 15,
+    marginBottom: 10,
   },
-  logoutButtonPressed: {
-    opacity: 0.92,
+  avatarText: {
+    fontSize: 22,
+    fontWeight: "500",
+    color: "#185FA5",
   },
-  logoutButtonDisabled: {
+  userName: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: colors.text,
+  },
+  userSubtitle: {
+    fontSize: 12,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
+  statsContainer: {
+    display: "flex",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 20,
+    marginTop: 14,
+  },
+  statItem: {
+    alignItems: "center",
+  },
+  statValue: {
+    fontSize: 18,
+    fontWeight: "500",
+    color: colors.text,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
+  badgeContainer: {
+    marginTop: 8,
+    marginHorizontal: 12,
+    backgroundColor: "#EAF3DE",
+    borderWidth: 0.5,
+    borderColor: "#C0DD97",
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  badgeTitle: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#27500A",
+  },
+  badgeDescription: {
+    fontSize: 11,
+    color: "#3B6D11",
+    marginTop: 3,
+  },
+  menuItem: {
+    display: "flex",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: 0.5,
+    borderBottomColor: colors.border,
+  },
+  menuItemLast: {
+    borderBottomWidth: 0,
+  },
+  menuItemPressed: {
     opacity: 0.7,
   },
-  logoutButtonText: {
-    color: colors.surface,
-    fontSize: 15,
-    fontWeight: "800",
+  menuContent: {
+    display: "flex",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  menuTitle: {
+    fontSize: 14,
+    color: colors.text,
+  },
+  menuTitleError: {
+    color: colors.error,
+  },
+  menuArrow: {
+    fontSize: 12,
+    color: colors.textMuted,
+  },
+  menuArrowError: {
+    color: colors.error,
   },
 });
