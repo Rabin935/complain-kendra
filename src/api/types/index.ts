@@ -7,6 +7,7 @@ export interface User {
   phone?: string;
   role: UserRole;
   googleId?: string;
+  isGoogleUser: boolean;
   avatarUrl?: string;
   createdAt: Date;
 }
@@ -17,6 +18,7 @@ export interface CreateUserDto {
   password: string;
   phone?: string;
   googleId?: string;
+  isGoogleUser?: boolean;
   avatarUrl?: string;
 }
 
@@ -35,6 +37,7 @@ export interface AuthUser {
   email: string;
   role: UserRole;
   phone?: string;
+  isGoogleUser?: boolean;
   avatarUrl?: string;
   createdAt?: Date;
 }

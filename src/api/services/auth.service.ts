@@ -64,6 +64,7 @@ function toSafeUser(user: {
   email: string;
   role: "user" | "admin";
   phone?: string;
+  isGoogleUser?: boolean;
   avatarUrl?: string;
   createdAt?: Date;
 }): AuthUser {
@@ -73,6 +74,7 @@ function toSafeUser(user: {
     email: user.email,
     role: user.role,
     phone: user.phone,
+    isGoogleUser: user.isGoogleUser,
     avatarUrl: user.avatarUrl,
     createdAt: user.createdAt,
   };
@@ -114,6 +116,7 @@ export async function registerUser(payload: CreateUserDto): Promise<AuthUser> {
     email: normalizedEmail,
     password: hashedPassword,
     phone: payload.phone?.trim() ? normalizeText(payload.phone) : undefined,
+    isGoogleUser: false,
   });
 
   return toSafeUser(createdUser);
@@ -143,10 +146,10 @@ export async function loginUser(payload: LoginDto): Promise<LoginResult> {
   };
 }
 
-export async function loginWithGoogle(payload: GoogleLoginDto): Promise<LoginResult> {
-  validateGoogleLoginInput(payload);
+export async function googleLogin(idToken: string): Promise<LoginResult> {
+  validateGoogleLoginInput({ idToken });
 
-  const googleProfile = await verifyGoogleIdToken(normalizeText(payload.idToken));
+  const googleProfile = await verifyGoogleIdToken(normalizeText(idToken));
   let user = await findUserByGoogleId(googleProfile.googleId);
 
   if (!user) {
@@ -164,6 +167,11 @@ export async function loginWithGoogle(payload: GoogleLoginDto): Promise<LoginRes
         shouldPersistGoogleProfile = true;
       }
 
+      if (!user.isGoogleUser) {
+        user.isGoogleUser = true;
+        shouldPersistGoogleProfile = true;
+      }
+
       if (googleProfile.avatarUrl && user.avatarUrl !== googleProfile.avatarUrl) {
         user.avatarUrl = googleProfile.avatarUrl;
         shouldPersistGoogleProfile = true;
@@ -178,12 +186,26 @@ export async function loginWithGoogle(payload: GoogleLoginDto): Promise<LoginRes
         email: googleProfile.email,
         password: createGooglePlaceholderPassword(),
         googleId: googleProfile.googleId,
+        isGoogleUser: true,
         avatarUrl: googleProfile.avatarUrl,
       });
     }
-  } else if (googleProfile.avatarUrl && user.avatarUrl !== googleProfile.avatarUrl) {
-    user.avatarUrl = googleProfile.avatarUrl;
-    await user.save();
+  } else {
+    let shouldPersistGoogleProfile = false;
+
+    if (!user.isGoogleUser) {
+      user.isGoogleUser = true;
+      shouldPersistGoogleProfile = true;
+    }
+
+    if (googleProfile.avatarUrl && user.avatarUrl !== googleProfile.avatarUrl) {
+      user.avatarUrl = googleProfile.avatarUrl;
+      shouldPersistGoogleProfile = true;
+    }
+
+    if (shouldPersistGoogleProfile) {
+      await user.save();
+    }
   }
 
   return {

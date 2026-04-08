@@ -46,6 +46,11 @@ const userSchema = new Schema<User, UserModel>(
       sparse: true,
       default: undefined,
     },
+    isGoogleUser: {
+      type: Boolean,
+      default: false,
+      required: true,
+    },
     avatarUrl: {
       type: String,
       trim: true,

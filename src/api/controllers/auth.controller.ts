@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import { loginUser, loginWithGoogle, registerUser } from "../services/auth.service";
+import { googleLogin, loginUser, registerUser } from "../services/auth.service";
 import type { AuthResponse, CreateUserDto, GoogleLoginDto, LoginDto } from "../types";
 
 export async function register(
@@ -39,13 +39,13 @@ export async function login(
   }
 }
 
-export async function googleLogin(
+export async function googleAuth(
   request: Request<Record<string, never>, unknown, Partial<GoogleLoginDto>>,
   response: Response<AuthResponse>,
   next: NextFunction,
 ): Promise<void> {
   try {
-    const result = await loginWithGoogle(request.body as GoogleLoginDto);
+    const result = await googleLogin((request.body as GoogleLoginDto).idToken);
 
     response.status(200).json({
       success: true,
