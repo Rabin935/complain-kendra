@@ -7,6 +7,11 @@ import {
   useState,
 } from "react";
 import { getApiErrorMessage, setAuthToken } from "../../../utils/api";
+import {
+  getGoogleSignInAvailabilityMessage,
+  requestGoogleIdToken,
+  signOutFromGoogle,
+} from "../services/google-signin.service";
 import type {
   AuthContextValue,
   AuthUser,
@@ -31,6 +36,7 @@ function isAuthUser(value: unknown): value is AuthUser {
     typeof candidate.id === "string" &&
     typeof candidate.name === "string" &&
     typeof candidate.email === "string" &&
+    (candidate.avatarUrl === undefined || typeof candidate.avatarUrl === "string") &&
     (candidate.role === "user" || candidate.role === "admin")
   );
 }
@@ -57,6 +63,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [initializing, setInitializing] = useState(true);
+  const googleSignInHint = getGoogleSignInAvailabilityMessage();
+  const googleSignInAvailable = googleSignInHint === null;
 
   useEffect(() => {
     async function restoreSession() {
@@ -132,10 +140,37 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
   }
 
+  async function loginWithGoogle(): Promise<void> {
+    setLoading(true);
+
+    try {
+      const idToken = await requestGoogleIdToken();
+
+      if (!idToken) {
+        return;
+      }
+
+      const response = await authService.loginWithGoogle({ idToken });
+
+      if (!response.token || !response.user) {
+        throw new Error("Google login failed. Please try again.");
+      }
+
+      await persistSession(response.token, response.user);
+      setToken(response.token);
+      setUser(response.user);
+    } catch (error) {
+      throw new Error(getApiErrorMessage(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function logout(): Promise<void> {
     setLoading(true);
 
     try {
+      await signOutFromGoogle();
       await clearPersistedSession();
       setToken(null);
       setUser(null);
@@ -152,8 +187,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
         loading,
         initializing,
         login,
+        loginWithGoogle,
         register,
         logout,
+        googleSignInAvailable,
+        googleSignInHint,
       }}
     >
       {children}

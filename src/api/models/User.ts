@@ -39,6 +39,18 @@ const userSchema = new Schema<User, UserModel>(
       default: "user",
       required: true,
     },
+    googleId: {
+      type: String,
+      trim: true,
+      unique: true,
+      sparse: true,
+      default: undefined,
+    },
+    avatarUrl: {
+      type: String,
+      trim: true,
+      default: undefined,
+    },
     createdAt: {
       type: Date,
       default: Date.now,

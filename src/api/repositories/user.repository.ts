@@ -8,3 +8,7 @@ export async function createUser(userData: CreateUserDto): Promise<UserDocument>
 export async function findUserByEmail(email: string): Promise<UserDocument | null> {
   return UserModel.findOne({ email: email.trim().toLowerCase() });
 }
+
+export async function findUserByGoogleId(googleId: string): Promise<UserDocument | null> {
+  return UserModel.findOne({ googleId: googleId.trim() });
+}

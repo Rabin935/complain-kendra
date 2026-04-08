@@ -34,6 +34,10 @@ server.log
 # local env files
 .env*.local
 .env
+.env.example
+
+google-services.json
+GoogleService-Info.plist
 
 # typescript
 *.tsbuildinfo

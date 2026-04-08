@@ -1,3 +1,4 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -29,6 +30,8 @@ export default function AuthForm({
   onSubmit,
   onToggleMode,
   onForgotPassword,
+  onGoogleSignIn,
+  googleSignInHint,
 }: AuthFormProps) {
   const [values, setValues] = useState<AuthFormValues>(initialValues);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -43,6 +46,7 @@ export default function AuthForm({
     ? "Already have an account?"
     : "Don't have an account?";
   const footerAction = isRegisterMode ? "Login" : "Create one";
+  const showGoogleButton = Boolean(onGoogleSignIn);
 
   function updateField(field: keyof AuthFormValues, value: string) {
     setValidationError(null);
@@ -107,6 +111,40 @@ export default function AuthForm({
           </View>
 
           {combinedError ? <Text style={styles.errorText}>{combinedError}</Text> : null}
+
+          {showGoogleButton ? (
+            <>
+              <Pressable
+                onPress={() => {
+                  setValidationError(null);
+                  void onGoogleSignIn?.().catch(() => undefined);
+                }}
+                disabled={loading}
+                style={({ pressed }) => [
+                  styles.googleButton,
+                  pressed && !loading ? styles.googleButtonPressed : null,
+                  loading ? styles.googleButtonDisabled : null,
+                ]}
+              >
+                {loading ? (
+                  <ActivityIndicator color={colors.text} />
+                ) : (
+                  <>
+                    <MaterialCommunityIcons name="google" size={18} color={colors.text} />
+                    <Text style={styles.googleButtonText}>Continue with Google</Text>
+                  </>
+                )}
+              </Pressable>
+
+              <View style={styles.dividerRow}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>or continue with email</Text>
+                <View style={styles.dividerLine} />
+              </View>
+            </>
+          ) : null}
+
+          {googleSignInHint ? <Text style={styles.helperText}>{googleSignInHint}</Text> : null}
 
           {isRegisterMode ? (
             <View style={styles.fieldGroup}>
@@ -174,7 +212,7 @@ export default function AuthForm({
 
           <Pressable
             onPress={() => {
-              void handleSubmit();
+              void handleSubmit().catch(() => undefined);
             }}
             disabled={loading}
             style={({ pressed }) => [
@@ -257,6 +295,52 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     marginBottom: 18,
     fontSize: 14,
+  },
+  googleButton: {
+    minHeight: 54,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 16,
+  },
+  googleButtonPressed: {
+    opacity: 0.94,
+  },
+  googleButtonDisabled: {
+    opacity: 0.7,
+  },
+  googleButtonText: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  dividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 18,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border,
+  },
+  dividerText: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: "600",
+    textTransform: "uppercase",
+  },
+  helperText: {
+    color: colors.textMuted,
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 18,
   },
   fieldGroup: {
     marginBottom: 16,

@@ -6,6 +6,7 @@ export interface AuthUser {
   email: string;
   role: UserRole;
   phone?: string;
+  avatarUrl?: string;
 }
 
 export interface AuthResponse {
@@ -27,6 +28,10 @@ export interface RegisterPayload {
   phone?: string;
 }
 
+export interface GoogleLoginPayload {
+  idToken: string;
+}
+
 export interface AuthFormValues {
   name: string;
   email: string;
@@ -41,6 +46,8 @@ export interface AuthFormProps {
   onSubmit: (values: AuthFormValues) => Promise<void>;
   onToggleMode: () => void;
   onForgotPassword?: () => void;
+  onGoogleSignIn?: () => Promise<void>;
+  googleSignInHint?: string | null;
 }
 
 export interface AuthContextValue {
@@ -49,8 +56,11 @@ export interface AuthContextValue {
   loading: boolean;
   initializing: boolean;
   login: (payload: LoginPayload) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   register: (payload: RegisterPayload) => Promise<string>;
   logout: () => Promise<void>;
+  googleSignInAvailable: boolean;
+  googleSignInHint: string | null;
 }
 
 export type AuthStackParamList = {

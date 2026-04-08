@@ -7,7 +7,8 @@ import type { AuthFormValues, AuthStackParamList } from "../types/auth.types";
 type RegisterScreenProps = NativeStackScreenProps<AuthStackParamList, "Register">;
 
 export default function RegisterScreen({ navigation }: RegisterScreenProps) {
-  const { register, loading } = useAuth();
+  const { register, loginWithGoogle, loading, googleSignInAvailable, googleSignInHint } =
+    useAuth();
 
   async function handleRegister(values: AuthFormValues): Promise<void> {
     try {
@@ -32,11 +33,24 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
     }
   }
 
+  async function handleGoogleRegister(): Promise<void> {
+    try {
+      await loginWithGoogle();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to continue with Google right now.";
+      Alert.alert("Google Sign-In failed", message);
+      throw error;
+    }
+  }
+
   return (
     <AuthForm
       mode="register"
       loading={loading}
       onSubmit={handleRegister}
+      onGoogleSignIn={googleSignInAvailable ? handleGoogleRegister : undefined}
+      googleSignInHint={googleSignInHint}
       onToggleMode={() => navigation.replace("Login")}
     />
   );

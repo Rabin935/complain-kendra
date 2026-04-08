@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
-import { loginUser, registerUser } from "../services/auth.service";
-import type { AuthResponse, CreateUserDto, LoginDto } from "../types";
+import { loginUser, loginWithGoogle, registerUser } from "../services/auth.service";
+import type { AuthResponse, CreateUserDto, GoogleLoginDto, LoginDto } from "../types";
 
 export async function register(
   request: Request<Record<string, never>, unknown, Partial<CreateUserDto>>,
@@ -31,6 +31,25 @@ export async function login(
     response.status(200).json({
       success: true,
       message: "Login successful.",
+      token: result.token,
+      user: result.user,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function googleLogin(
+  request: Request<Record<string, never>, unknown, Partial<GoogleLoginDto>>,
+  response: Response<AuthResponse>,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const result = await loginWithGoogle(request.body as GoogleLoginDto);
+
+    response.status(200).json({
+      success: true,
+      message: "Google login successful.",
       token: result.token,
       user: result.user,
     });

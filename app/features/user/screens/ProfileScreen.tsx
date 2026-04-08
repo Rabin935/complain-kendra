@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../../../constants/colors";
 import { useAuth } from "../../auth/context/AuthContext";
@@ -39,12 +39,16 @@ export default function ProfileScreen() {
         <View style={styles.profileHeader}>
           {/* Avatar */}
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{getInitials(user?.name)}</Text>
+            {user?.avatarUrl ? (
+              <Image source={{ uri: user.avatarUrl }} style={styles.avatarImage} />
+            ) : (
+              <Text style={styles.avatarText}>{getInitials(user?.name)}</Text>
+            )}
           </View>
 
           {/* User Info */}
           <Text style={styles.userName}>{user?.name ?? "Citizen"}</Text>
-          <Text style={styles.userSubtitle}>Member since Jan 2025 · Kathmandu Ward 12</Text>
+          <Text style={styles.userSubtitle}>{user?.email ?? "Signed in citizen"}</Text>
 
           {/* Stats Section */}
           <View style={styles.statsContainer}>
@@ -97,7 +101,7 @@ export default function ProfileScreen() {
           onPress={() => handleMenuItem("language")}
         >
           <View style={styles.menuContent}>
-            <MaterialCommunityIcons name="globe" size={18} color={colors.text} />
+            <MaterialCommunityIcons name="earth" size={18} color={colors.text} />
             <Text style={styles.menuTitle}>Language</Text>
           </View>
           <Text style={styles.menuArrow}>›</Text>
@@ -149,6 +153,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 10,
+    overflow: "hidden",
+  },
+  avatarImage: {
+    width: "100%",
+    height: "100%",
   },
   avatarText: {
     fontSize: 22,

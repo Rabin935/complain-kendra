@@ -6,6 +6,8 @@ export interface User {
   password: string;
   phone?: string;
   role: UserRole;
+  googleId?: string;
+  avatarUrl?: string;
   createdAt: Date;
 }
 
@@ -14,11 +16,17 @@ export interface CreateUserDto {
   email: string;
   password: string;
   phone?: string;
+  googleId?: string;
+  avatarUrl?: string;
 }
 
 export interface LoginDto {
   email: string;
   password: string;
+}
+
+export interface GoogleLoginDto {
+  idToken: string;
 }
 
 export interface AuthUser {
@@ -27,6 +35,7 @@ export interface AuthUser {
   email: string;
   role: UserRole;
   phone?: string;
+  avatarUrl?: string;
   createdAt?: Date;
 }
 
