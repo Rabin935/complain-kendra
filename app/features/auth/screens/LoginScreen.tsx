@@ -7,7 +7,8 @@ import type { AuthFormValues, AuthStackParamList } from "../types/auth.types";
 type LoginScreenProps = NativeStackScreenProps<AuthStackParamList, "Login">;
 
 export default function LoginScreen({ navigation }: LoginScreenProps) {
-  const { login, loginWithGoogle, loading, googleSignInAvailable, googleSignInHint } = useAuth();
+  const { login, signInWithGoogle, loading, googleSignInAvailable, googleSignInHint } =
+    useAuth();
 
   async function handleLogin(values: AuthFormValues): Promise<void> {
     try {
@@ -24,7 +25,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
 
   async function handleGoogleLogin(): Promise<void> {
     try {
-      await loginWithGoogle();
+      await signInWithGoogle();
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unable to login with Google right now.";

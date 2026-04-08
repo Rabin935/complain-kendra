@@ -7,11 +7,7 @@ import {
   useState,
 } from "react";
 import { getApiErrorMessage, setAuthToken } from "../../../utils/api";
-import {
-  getGoogleSignInAvailabilityMessage,
-  requestGoogleIdToken,
-  signOutFromGoogle,
-} from "../services/google-signin.service";
+import { getGoogleSignInAvailabilityMessage } from "../../../../src/features/auth/config/google.config";
 import type {
   AuthContextValue,
   AuthUser,
@@ -140,17 +136,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
   }
 
-  async function loginWithGoogle(): Promise<void> {
+  async function signInWithGoogle(): Promise<void> {
     setLoading(true);
 
     try {
-      const idToken = await requestGoogleIdToken();
+      const response = await authService.signInWithGoogle();
 
-      if (!idToken) {
+      if (!response) {
         return;
       }
-
-      const response = await authService.loginWithGoogle({ idToken });
 
       if (!response.token || !response.user) {
         throw new Error("Google login failed. Please try again.");
@@ -170,7 +164,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     setLoading(true);
 
     try {
-      await signOutFromGoogle();
+      await authService.signOutFromGoogle();
       await clearPersistedSession();
       setToken(null);
       setUser(null);
@@ -187,7 +181,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         loading,
         initializing,
         login,
-        loginWithGoogle,
+        signInWithGoogle,
         register,
         logout,
         googleSignInAvailable,

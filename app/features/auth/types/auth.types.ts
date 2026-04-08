@@ -28,10 +28,6 @@ export interface RegisterPayload {
   phone?: string;
 }
 
-export interface GoogleLoginPayload {
-  idToken: string;
-}
-
 export interface AuthFormValues {
   name: string;
   email: string;
@@ -56,7 +52,7 @@ export interface AuthContextValue {
   loading: boolean;
   initializing: boolean;
   login: (payload: LoginPayload) => Promise<void>;
-  loginWithGoogle: () => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   register: (payload: RegisterPayload) => Promise<string>;
   logout: () => Promise<void>;
   googleSignInAvailable: boolean;
