@@ -44,6 +44,7 @@ export interface AuthFormProps {
   onForgotPassword?: () => void;
   onGoogleSignIn?: () => Promise<void>;
   googleSignInHint?: string | null;
+  googleNote?: string;
 }
 
 export interface AuthContextValue {

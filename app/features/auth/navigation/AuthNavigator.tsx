@@ -5,9 +5,14 @@ import type { AuthStackParamList } from "../types/auth.types";
 
 const Stack = createNativeStackNavigator<AuthStackParamList>();
 
-export default function AuthNavigator() {
+interface AuthNavigatorProps {
+  flowKey?: string;
+}
+
+export default function AuthNavigator({ flowKey = "auth-flow" }: AuthNavigatorProps) {
   return (
     <Stack.Navigator
+      key={flowKey}
       initialRouteName="Login"
       screenOptions={{
         headerShown: false,

@@ -32,6 +32,7 @@ export default function AuthForm({
   onForgotPassword,
   onGoogleSignIn,
   googleSignInHint,
+  googleNote,
 }: AuthFormProps) {
   const [values, setValues] = useState<AuthFormValues>(initialValues);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -205,7 +206,7 @@ export default function AuthForm({
             <>
               <View style={styles.dividerRow}>
                 <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>or</Text>
+                <Text style={styles.dividerText}>{googleNote ?? "Or continue with Google"}</Text>
                 <View style={styles.dividerLine} />
               </View>
 

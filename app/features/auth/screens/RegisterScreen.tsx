@@ -51,6 +51,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
       onSubmit={handleRegister}
       onGoogleSignIn={googleSignInAvailable ? handleGoogleRegister : undefined}
       googleSignInHint={googleSignInHint}
+      googleNote="Or continue with Google"
       onToggleMode={() => navigation.replace("Login")}
     />
   );

@@ -28,14 +28,16 @@ function LoadingScreen() {
 
 export default function AppNavigator() {
   const { token, initializing } = useAuth();
+  const isAuthenticated = Boolean(token);
+  const navigatorKey = isAuthenticated ? "main-app" : "auth-flow";
 
   if (initializing) {
     return <LoadingScreen />;
   }
 
   return (
-    <NavigationContainer theme={navigationTheme}>
-      {token ? <UserNavigator /> : <AuthNavigator />}
+    <NavigationContainer key={navigatorKey} theme={navigationTheme}>
+      {isAuthenticated ? <UserNavigator key="main-app" /> : <AuthNavigator flowKey={navigatorKey} />}
     </NavigationContainer>
   );
 }

@@ -41,6 +41,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
       onSubmit={handleLogin}
       onGoogleSignIn={googleSignInAvailable ? handleGoogleLogin : undefined}
       googleSignInHint={googleSignInHint}
+      googleNote="Or continue with Google"
       onToggleMode={() => navigation.navigate("Register")}
       onForgotPassword={() =>
         Alert.alert("Forgot Password", "Password recovery will be available soon.")

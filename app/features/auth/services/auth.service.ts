@@ -1,7 +1,60 @@
+import axios from "axios";
 import { Platform } from "react-native";
 import { apiClient } from "../../../utils/api";
 import { getConfiguredGoogleSignin } from "../../../../src/features/auth/config/google.config";
 import type { AuthResponse, LoginPayload, RegisterPayload } from "../types/auth.types";
+
+function getGoogleSignInErrorMessage(error: unknown, googleStatusCodes?: Record<string, string>): string {
+  if (axios.isAxiosError<{ message?: string }>(error)) {
+    if (error.response?.data?.message) {
+      return error.response.data.message;
+    }
+
+    if (error.code === "ERR_NETWORK" || error.message === "Network Error") {
+      return "Network error. Check your internet connection and try Google Sign-In again.";
+    }
+
+    if (error.code === "ECONNABORTED") {
+      return "Google Sign-In timed out. Please try again.";
+    }
+  }
+
+  if (error && typeof error === "object" && "code" in error) {
+    const code = String((error as { code?: unknown }).code ?? "");
+
+    if (
+      code === googleStatusCodes?.SIGN_IN_CANCELLED ||
+      code === "SIGN_IN_CANCELLED"
+    ) {
+      return "Google Sign-In cancelled.";
+    }
+
+    if (code === googleStatusCodes?.IN_PROGRESS || code === "IN_PROGRESS") {
+      return "Google Sign-In is already in progress.";
+    }
+
+    if (
+      code === googleStatusCodes?.PLAY_SERVICES_NOT_AVAILABLE ||
+      code === "PLAY_SERVICES_NOT_AVAILABLE"
+    ) {
+      return "Google Play Services are unavailable or need an update on this device.";
+    }
+
+    if (code === googleStatusCodes?.SIGN_IN_REQUIRED || code === "SIGN_IN_REQUIRED") {
+      return "Please select a Google account to continue.";
+    }
+  }
+
+  if (error instanceof Error) {
+    if (error.message.toLowerCase().includes("network")) {
+      return "Network error. Check your internet connection and try Google Sign-In again.";
+    }
+
+    return error.message;
+  }
+
+  return "Google Sign-In failed. Please try again.";
+}
 
 export async function login(payload: LoginPayload): Promise<AuthResponse> {
   const { data } = await apiClient.post<AuthResponse>("/api/auth/login", payload);
@@ -14,30 +67,37 @@ export async function register(payload: RegisterPayload): Promise<AuthResponse> 
 }
 
 export async function signInWithGoogle(): Promise<AuthResponse | null> {
-  const googleSignIn = await getConfiguredGoogleSignin();
+  let googleStatusCodes: Record<string, string> | undefined;
 
-  if (Platform.OS === "android") {
-    await googleSignIn.GoogleSignin.hasPlayServices({
-      showPlayServicesUpdateDialog: true,
-    });
+  try {
+    const googleSignIn = await getConfiguredGoogleSignin();
+    googleStatusCodes = googleSignIn.statusCodes as Record<string, string>;
+
+    if (Platform.OS === "android") {
+      await googleSignIn.GoogleSignin.hasPlayServices({
+        showPlayServicesUpdateDialog: true,
+      });
+    }
+
+    const signInResponse = await googleSignIn.GoogleSignin.signIn();
+
+    if (!googleSignIn.isSuccessResponse(signInResponse)) {
+      throw new Error("Google Sign-In cancelled.");
+    }
+
+    const idToken = signInResponse.data.idToken;
+
+    if (!idToken) {
+      throw new Error(
+        "Google Sign-In completed, but no ID token was returned. Check your Google client IDs.",
+      );
+    }
+
+    const { data } = await apiClient.post<AuthResponse>("/api/auth/google", { idToken });
+    return data;
+  } catch (error) {
+    throw new Error(getGoogleSignInErrorMessage(error, googleStatusCodes));
   }
-
-  const signInResponse = await googleSignIn.GoogleSignin.signIn();
-
-  if (!googleSignIn.isSuccessResponse(signInResponse)) {
-    return null;
-  }
-
-  const idToken = signInResponse.data.idToken;
-
-  if (!idToken) {
-    throw new Error(
-      "Google Sign-In completed, but no ID token was returned. Check your Google client IDs.",
-    );
-  }
-
-  const { data } = await apiClient.post<AuthResponse>("/api/auth/google", { idToken });
-  return data;
 }
 
 export async function signOutFromGoogle(): Promise<void> {
