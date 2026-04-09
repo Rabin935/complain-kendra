@@ -1,7 +1,9 @@
 import axios from "axios";
 import { Platform } from "react-native";
 import { apiClient } from "../../../utils/api";
-import { getConfiguredGoogleSignin } from "../../../../src/features/auth/config/google.config";
+import {
+  getConfiguredGoogleSignin,
+} from "../../../../src/features/auth/config/google.config";
 import type { AuthResponse, LoginPayload, RegisterPayload } from "../types/auth.types";
 
 function getGoogleSignInErrorMessage(error: unknown, googleStatusCodes?: Record<string, string>): string {
@@ -56,6 +58,15 @@ function getGoogleSignInErrorMessage(error: unknown, googleStatusCodes?: Record<
   return "Google Sign-In failed. Please try again.";
 }
 
+async function exchangeGoogleIdToken(idToken: string): Promise<AuthResponse> {
+  if (!idToken) {
+    throw new Error("Google Sign-In completed, but no ID token was returned.");
+  }
+
+  const { data } = await apiClient.post<AuthResponse>("/api/auth/google", { idToken });
+  return data;
+}
+
 export async function login(payload: LoginPayload): Promise<AuthResponse> {
   const { data } = await apiClient.post<AuthResponse>("/api/auth/login", payload);
   return data;
@@ -66,10 +77,20 @@ export async function register(payload: RegisterPayload): Promise<AuthResponse> 
   return data;
 }
 
-export async function signInWithGoogle(): Promise<AuthResponse | null> {
+export async function signInWithGoogle(googleIdToken?: string): Promise<AuthResponse | null> {
   let googleStatusCodes: Record<string, string> | undefined;
 
   try {
+    if (Platform.OS === "web") {
+      if (!googleIdToken) {
+        throw new Error(
+          "Use the Google web sign-in button to continue. Make sure http://localhost and http://localhost:3000 are listed in Google Cloud Console Authorized JavaScript origins.",
+        );
+      }
+
+      return await exchangeGoogleIdToken(googleIdToken);
+    }
+
     const googleSignIn = await getConfiguredGoogleSignin();
     googleStatusCodes = googleSignIn.statusCodes as Record<string, string>;
 
@@ -85,16 +106,15 @@ export async function signInWithGoogle(): Promise<AuthResponse | null> {
       throw new Error("Google Sign-In cancelled.");
     }
 
-    const idToken = signInResponse.data.idToken;
+    const nativeIdToken = signInResponse.data.idToken;
 
-    if (!idToken) {
+    if (!nativeIdToken) {
       throw new Error(
         "Google Sign-In completed, but no ID token was returned. Check your Google client IDs.",
       );
     }
 
-    const { data } = await apiClient.post<AuthResponse>("/api/auth/google", { idToken });
-    return data;
+    return await exchangeGoogleIdToken(nativeIdToken);
   } catch (error) {
     throw new Error(getGoogleSignInErrorMessage(error, googleStatusCodes));
   }

@@ -11,21 +11,27 @@ export interface VerifiedGoogleProfile {
 }
 
 function getGoogleAudiences(): string[] {
-  const configuredAudience =
-    process.env.GOOGLE_WEB_CLIENT_ID?.trim() ||
-    process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID?.trim();
+  const configuredAudiences = [
+    process.env.GOOGLE_WEB_CLIENT_ID?.trim(),
+    process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID?.trim(),
+  ].filter(Boolean) as string[];
 
-  if (!configuredAudience) {
+  if (configuredAudiences.length === 0) {
     throw new AppError(
       "GOOGLE_WEB_CLIENT_ID is not configured. Add the Google OAuth web client ID to the environment before using Google Sign-In.",
       500,
     );
   }
 
-  return configuredAudience
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean);
+  return [
+    ...new Set(
+      configuredAudiences
+        .join(",")
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  ];
 }
 
 export async function verifyGoogleIdToken(idToken: string): Promise<VerifiedGoogleProfile> {

@@ -136,11 +136,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
   }
 
-  async function signInWithGoogle(): Promise<void> {
+  async function signInWithGoogle(idToken?: string): Promise<void> {
     setLoading(true);
 
     try {
-      const response = await authService.signInWithGoogle();
+      const response = await authService.signInWithGoogle(idToken);
 
       if (!response) {
         return;

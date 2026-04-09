@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { colors } from "../../../constants/colors";
+import GoogleWebSignInButton from "./GoogleWebSignInButton";
 import type { AuthFormProps, AuthFormValues } from "../types/auth.types";
 
 const initialValues: AuthFormValues = {
@@ -59,6 +60,21 @@ export default function AuthForm({
       ...currentValues,
       [field]: value,
     }));
+  }
+
+  function startGoogleSignIn(idToken?: string) {
+    setValidationError(null);
+    setActiveAction("google");
+    const googleSignInRequest = onGoogleSignIn?.(idToken);
+
+    if (!googleSignInRequest) {
+      setActiveAction(null);
+      return;
+    }
+
+    void googleSignInRequest.finally(() => {
+      setActiveAction(null);
+    });
   }
 
   async function handleSubmit() {
@@ -210,39 +226,42 @@ export default function AuthForm({
                 <View style={styles.dividerLine} />
               </View>
 
-              <Pressable
-                onPress={() => {
-                  setValidationError(null);
-                  setActiveAction("google");
-                  const googleSignInRequest = onGoogleSignIn?.();
-
-                  if (!googleSignInRequest) {
+              {Platform.OS === "web" ? (
+                <GoogleWebSignInButton
+                  mode={mode}
+                  loading={isGoogleLoading}
+                  onSuccess={(idToken) => {
+                    startGoogleSignIn(idToken);
+                  }}
+                  onError={(message) => {
                     setActiveAction(null);
-                    return;
-                  }
-
-                  void googleSignInRequest.finally(() => {
-                    setActiveAction(null);
-                  });
-                }}
-                disabled={loading}
-                style={({ pressed }) => [
-                  styles.googleButton,
-                  pressed && !loading ? styles.googleButtonPressed : null,
-                  loading ? styles.googleButtonDisabled : null,
-                ]}
-              >
-                {isGoogleLoading ? (
-                  <ActivityIndicator color={colors.primaryDark} />
-                ) : (
-                  <>
-                    <View style={styles.googleIconBadge}>
-                      <MaterialCommunityIcons name="google" size={18} color={colors.primaryDark} />
-                    </View>
-                    <Text style={styles.googleButtonText}>{googleButtonLabel}</Text>
-                  </>
-                )}
-              </Pressable>
+                    setValidationError(message);
+                  }}
+                />
+              ) : (
+                <Pressable
+                  onPress={() => {
+                    startGoogleSignIn();
+                  }}
+                  disabled={loading}
+                  style={({ pressed }) => [
+                    styles.googleButton,
+                    pressed && !loading ? styles.googleButtonPressed : null,
+                    loading ? styles.googleButtonDisabled : null,
+                  ]}
+                >
+                  {isGoogleLoading ? (
+                    <ActivityIndicator color={colors.primaryDark} />
+                  ) : (
+                    <>
+                      <View style={styles.googleIconBadge}>
+                        <MaterialCommunityIcons name="google" size={18} color={colors.primaryDark} />
+                      </View>
+                      <Text style={styles.googleButtonText}>{googleButtonLabel}</Text>
+                    </>
+                  )}
+                </Pressable>
+              )}
             </>
           ) : null}
 

@@ -42,7 +42,7 @@ export interface AuthFormProps {
   onSubmit: (values: AuthFormValues) => Promise<void>;
   onToggleMode: () => void;
   onForgotPassword?: () => void;
-  onGoogleSignIn?: () => Promise<void>;
+  onGoogleSignIn?: (idToken?: string) => Promise<void>;
   googleSignInHint?: string | null;
   googleNote?: string;
 }
@@ -53,7 +53,7 @@ export interface AuthContextValue {
   loading: boolean;
   initializing: boolean;
   login: (payload: LoginPayload) => Promise<void>;
-  signInWithGoogle: () => Promise<void>;
+  signInWithGoogle: (idToken?: string) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<string>;
   logout: () => Promise<void>;
   googleSignInAvailable: boolean;
