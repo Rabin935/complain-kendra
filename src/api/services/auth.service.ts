@@ -3,11 +3,13 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { createUser, findUserByEmail, findUserByGoogleId } from "../repositories/user.repository";
 import { verifyGoogleIdToken } from "./google-auth.service";
-import type { AuthUser, CreateUserDto, GoogleLoginDto, LoginDto } from "../types";
+import { sendPasswordResetEmail } from "./email.service";
+import type { AuthUser, CreateUserDto, ForgotPasswordDto, GoogleLoginDto, LoginDto } from "../types";
 import { AppError } from "../utils/appError";
 
 const SALT_ROUNDS = 10;
 const TOKEN_EXPIRES_IN = "7d";
+const RESET_TOKEN_EXPIRES_IN = "15m";
 
 export interface LoginResult {
   token: string;
@@ -58,6 +60,16 @@ function validateGoogleLoginInput(payload: GoogleLoginDto): void {
   }
 }
 
+function validateForgotPasswordInput(payload: ForgotPasswordDto): void {
+  if (!payload || typeof payload !== "object") {
+    throw new AppError("Invalid forgot password payload.", 400);
+  }
+
+  if (!payload.email?.trim()) {
+    throw new AppError("Email is required.", 400);
+  }
+}
+
 function toSafeUser(user: {
   _id: { toString(): string };
   name: string;
@@ -93,6 +105,21 @@ function createAuthToken(user: {
     },
     getJwtSecret(),
     { expiresIn: TOKEN_EXPIRES_IN },
+  );
+}
+
+function createPasswordResetToken(user: {
+  _id: { toString(): string };
+  email: string;
+}): string {
+  return jwt.sign(
+    {
+      userId: user._id.toString(),
+      email: user.email,
+      type: "password-reset",
+    },
+    getJwtSecret(),
+    { expiresIn: RESET_TOKEN_EXPIRES_IN },
   );
 }
 
@@ -144,6 +171,20 @@ export async function loginUser(payload: LoginDto): Promise<LoginResult> {
     token,
     user: toSafeUser(user),
   };
+}
+
+export async function forgotPassword(email: string): Promise<void> {
+  validateForgotPasswordInput({ email });
+
+  const normalizedEmail = normalizeText(email).toLowerCase();
+  const user = await findUserByEmail(normalizedEmail);
+
+  if (!user) {
+    return;
+  }
+
+  const resetToken = createPasswordResetToken(user);
+  await sendPasswordResetEmail(user.email, resetToken);
 }
 
 export async function googleLogin(idToken: string): Promise<LoginResult> {

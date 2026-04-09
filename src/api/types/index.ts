@@ -31,6 +31,10 @@ export interface GoogleLoginDto {
   idToken: string;
 }
 
+export interface ForgotPasswordDto {
+  email: string;
+}
+
 export interface AuthUser {
   id: string;
   name: string;
