@@ -12,3 +12,7 @@ export async function findUserByEmail(email: string): Promise<UserDocument | nul
 export async function findUserByGoogleId(googleId: string): Promise<UserDocument | null> {
   return UserModel.findOne({ googleId: googleId.trim() });
 }
+
+export async function findUserById(userId: string): Promise<UserDocument | null> {
+  return UserModel.findById(userId.trim());
+}

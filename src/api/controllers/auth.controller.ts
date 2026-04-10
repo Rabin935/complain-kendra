@@ -1,6 +1,19 @@
 import type { NextFunction, Request, Response } from "express";
-import { forgotPassword as forgotPasswordService, googleLogin, loginUser, registerUser } from "../services/auth.service";
-import type { AuthResponse, CreateUserDto, ForgotPasswordDto, GoogleLoginDto, LoginDto } from "../types";
+import {
+  forgotPassword as forgotPasswordService,
+  googleLogin,
+  loginUser,
+  registerUser,
+  resetPassword as resetPasswordService,
+} from "../services/auth.service";
+import type {
+  AuthResponse,
+  CreateUserDto,
+  ForgotPasswordDto,
+  GoogleLoginDto,
+  LoginDto,
+  ResetPasswordDto,
+} from "../types";
 
 export async function register(
   request: Request<Record<string, never>, unknown, Partial<CreateUserDto>>,
@@ -69,6 +82,24 @@ export async function forgotPassword(
     response.status(200).json({
       success: true,
       message: "If an account with that email exists, a password reset link has been sent.",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function resetPassword(
+  request: Request<Record<string, never>, unknown, Partial<ResetPasswordDto>>,
+  response: Response<AuthResponse>,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const { token, newPassword } = request.body as ResetPasswordDto;
+    await resetPasswordService(token, newPassword);
+
+    response.status(200).json({
+      success: true,
+      message: "Password has been reset successfully.",
     });
   } catch (error) {
     next(error);
