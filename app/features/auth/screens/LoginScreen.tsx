@@ -42,9 +42,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
       googleSignInHint={googleSignInHint}
       googleNote="Or continue with Google"
       onToggleMode={() => navigation.navigate("Register")}
-      onForgotPassword={() =>
-        Alert.alert("Forgot Password", "Password recovery will be available soon.")
-      }
+      onForgotPassword={() => navigation.navigate("ForgotPassword")}
     />
   );
 }

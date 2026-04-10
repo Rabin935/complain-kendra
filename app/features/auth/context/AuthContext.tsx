@@ -11,8 +11,10 @@ import { getGoogleSignInAvailabilityMessage } from "../../../../src/features/aut
 import type {
   AuthContextValue,
   AuthUser,
+  ForgotPasswordPayload,
   LoginPayload,
   RegisterPayload,
+  ResetPasswordPayload,
 } from "../types/auth.types";
 import * as authService from "../services/auth.service";
 
@@ -136,6 +138,42 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
   }
 
+  async function forgotPassword(payload: ForgotPasswordPayload): Promise<string> {
+    setLoading(true);
+
+    try {
+      const response = await authService.forgotPassword(payload);
+
+      if (!response.success) {
+        throw new Error(response.message ?? "Unable to send a reset link right now.");
+      }
+
+      return response.message ?? "If your email exists, a reset link has been sent";
+    } catch (error) {
+      throw new Error(getApiErrorMessage(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function resetPassword(payload: ResetPasswordPayload): Promise<string> {
+    setLoading(true);
+
+    try {
+      const response = await authService.resetPassword(payload);
+
+      if (!response.success) {
+        throw new Error(response.message ?? "Unable to reset your password right now.");
+      }
+
+      return response.message ?? "Password has been reset successfully.";
+    } catch (error) {
+      throw new Error(getApiErrorMessage(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function signInWithGoogle(idToken?: string): Promise<void> {
     setLoading(true);
 
@@ -181,6 +219,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
         loading,
         initializing,
         login,
+        forgotPassword,
+        resetPassword,
         signInWithGoogle,
         register,
         logout,

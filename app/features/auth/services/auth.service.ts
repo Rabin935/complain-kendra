@@ -4,7 +4,13 @@ import { apiClient } from "../../../utils/api";
 import {
   getConfiguredGoogleSignin,
 } from "../../../../src/features/auth/config/google.config";
-import type { AuthResponse, LoginPayload, RegisterPayload } from "../types/auth.types";
+import type {
+  AuthResponse,
+  ForgotPasswordPayload,
+  LoginPayload,
+  RegisterPayload,
+  ResetPasswordPayload,
+} from "../types/auth.types";
 
 function getGoogleSignInErrorMessage(error: unknown, googleStatusCodes?: Record<string, string>): string {
   if (axios.isAxiosError<{ message?: string }>(error)) {
@@ -74,6 +80,16 @@ export async function login(payload: LoginPayload): Promise<AuthResponse> {
 
 export async function register(payload: RegisterPayload): Promise<AuthResponse> {
   const { data } = await apiClient.post<AuthResponse>("/api/auth/register", payload);
+  return data;
+}
+
+export async function forgotPassword(payload: ForgotPasswordPayload): Promise<AuthResponse> {
+  const { data } = await apiClient.post<AuthResponse>("/api/auth/forgot-password", payload);
+  return data;
+}
+
+export async function resetPassword(payload: ResetPasswordPayload): Promise<AuthResponse> {
+  const { data } = await apiClient.post<AuthResponse>("/api/auth/reset-password", payload);
   return data;
 }
 

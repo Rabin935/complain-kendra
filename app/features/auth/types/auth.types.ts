@@ -21,11 +21,20 @@ export interface LoginPayload {
   password: string;
 }
 
+export interface ForgotPasswordPayload {
+  email: string;
+}
+
 export interface RegisterPayload {
   name: string;
   email: string;
   password: string;
   phone?: string;
+}
+
+export interface ResetPasswordPayload {
+  token: string;
+  newPassword: string;
 }
 
 export interface AuthFormValues {
@@ -53,6 +62,8 @@ export interface AuthContextValue {
   loading: boolean;
   initializing: boolean;
   login: (payload: LoginPayload) => Promise<void>;
+  forgotPassword: (payload: ForgotPasswordPayload) => Promise<string>;
+  resetPassword: (payload: ResetPasswordPayload) => Promise<string>;
   signInWithGoogle: (idToken?: string) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<string>;
   logout: () => Promise<void>;
@@ -63,4 +74,8 @@ export interface AuthContextValue {
 export type AuthStackParamList = {
   Login: undefined;
   Register: undefined;
+  ForgotPassword: undefined;
+  ResetPassword: {
+    token?: string;
+  } | undefined;
 };
