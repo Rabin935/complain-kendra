@@ -1,4 +1,21 @@
+import type { Types } from "mongoose";
+
 export type UserRole = "user" | "admin";
+
+export const COMPLAINT_CATEGORIES = [
+  "Road Damage",
+  "Garbage",
+  "Water Supply",
+  "Electricity",
+  "Drainage",
+  "Other",
+] as const;
+
+export type ComplaintCategory = (typeof COMPLAINT_CATEGORIES)[number];
+
+export const COMPLAINT_STATUSES = ["Pending", "In Progress", "Resolved"] as const;
+
+export type ComplaintStatus = (typeof COMPLAINT_STATUSES)[number];
 
 export interface User {
   name: string;
@@ -10,6 +27,30 @@ export interface User {
   isGoogleUser: boolean;
   avatarUrl?: string;
   createdAt: Date;
+}
+
+export interface ComplaintLocation {
+  lat?: number;
+  lng?: number;
+  address?: string;
+  ward?: string;
+}
+
+export interface Complaint {
+  userId: Types.ObjectId | string;
+  title: string;
+  description: string;
+  location?: ComplaintLocation;
+  photo?: string;
+  category: ComplaintCategory;
+  status: ComplaintStatus;
+  aiSuggestedCategory?: string;
+  aiSeverity?: number;
+  aiSummary?: string;
+  aiKeywords: string[];
+  embedding: number[];
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface CreateUserDto {
@@ -40,6 +81,40 @@ export interface ResetPasswordDto {
   newPassword: string;
 }
 
+export interface CreateComplaintDto {
+  title: string;
+  description: string;
+  location?: ComplaintLocation;
+  photo?: string;
+  category: ComplaintCategory;
+  status?: ComplaintStatus;
+  aiSuggestedCategory?: string;
+  aiSeverity?: number;
+  aiSummary?: string;
+  aiKeywords?: string[];
+  embedding?: number[];
+}
+
+export interface UpdateComplaintDto {
+  title?: string;
+  description?: string;
+  location?: ComplaintLocation;
+  photo?: string;
+  category?: ComplaintCategory;
+  status?: ComplaintStatus;
+  aiSuggestedCategory?: string;
+  aiSeverity?: number;
+  aiSummary?: string;
+  aiKeywords?: string[];
+  embedding?: number[];
+}
+
+export interface ComplaintFilterDto {
+  ward?: string;
+  category?: ComplaintCategory;
+  status?: ComplaintStatus;
+}
+
 export interface AuthUser {
   id: string;
   name: string;
@@ -64,4 +139,34 @@ export interface JwtUserPayload {
   role: UserRole;
   iat?: number;
   exp?: number;
+}
+
+export interface ComplaintPayload {
+  id: string;
+  userId: string;
+  title: string;
+  description: string;
+  location?: ComplaintLocation;
+  photo?: string;
+  category: ComplaintCategory;
+  status: ComplaintStatus;
+  aiSuggestedCategory?: string;
+  aiSeverity?: number;
+  aiSummary?: string;
+  aiKeywords: string[];
+  embedding: number[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ComplaintResponse {
+  success: boolean;
+  complaint?: ComplaintPayload;
+  message?: string;
+}
+
+export interface ComplaintsResponse {
+  success: boolean;
+  complaints?: ComplaintPayload[];
+  message?: string;
 }

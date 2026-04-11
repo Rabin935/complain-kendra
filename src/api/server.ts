@@ -4,6 +4,7 @@ import express from "express";
 import { connectDatabase } from "./config/database";
 import { errorHandler } from "./middlewares/error.middleware";
 import authRouter from "./routes/auth.routes";
+import complaintRouter from "./routes/complaint.routes";
 
 dotenv.config();
 
@@ -27,6 +28,7 @@ app.use(
 app.use(express.json());
 
 app.use("/api/auth", authRouter);
+app.use("/api/complaints", complaintRouter);
 
 app.get("/api/health", (_request, response) => {
   response.status(200).json({ status: "ok" });
