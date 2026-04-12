@@ -170,3 +170,9 @@ export interface ComplaintsResponse {
   complaints?: ComplaintPayload[];
   message?: string;
 }
+
+export interface UploadPhotoResponse {
+  success: boolean;
+  photoUrl?: string;
+  message?: string;
+}

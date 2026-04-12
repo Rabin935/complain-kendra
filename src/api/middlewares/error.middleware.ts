@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
+import { MulterError } from "multer";
 import { AppError } from "../utils/appError";
 
 export function errorHandler(
@@ -11,6 +12,20 @@ export function errorHandler(
     response.status(error.statusCode).json({
       success: false,
       message: error.message,
+    });
+    return;
+  }
+
+  if (error instanceof MulterError) {
+    const statusCode = error.code === "LIMIT_FILE_SIZE" ? 413 : 400;
+    const message =
+      error.code === "LIMIT_FILE_SIZE"
+        ? "Photo must be 10 MB or smaller."
+        : error.message;
+
+    response.status(statusCode).json({
+      success: false,
+      message,
     });
     return;
   }

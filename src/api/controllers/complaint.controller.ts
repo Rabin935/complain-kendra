@@ -5,6 +5,7 @@ import {
   getAllComplaints as getAllComplaintsService,
   getComplaintById as getComplaintByIdService,
   getMyComplaints as getMyComplaintsService,
+  uploadComplaintPhoto as uploadComplaintPhotoService,
   updateComplaint as updateComplaintService,
 } from "../services/complaint.service";
 import type {
@@ -13,6 +14,7 @@ import type {
   ComplaintsResponse,
   CreateComplaintDto,
   JwtUserPayload,
+  UploadPhotoResponse,
   UpdateComplaintDto,
 } from "../types";
 import { AppError } from "../utils/appError";
@@ -52,6 +54,30 @@ export async function create(
       success: true,
       message: "Complaint created successfully.",
       complaint,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function uploadPhoto(
+  request: Request,
+  response: Response<UploadPhotoResponse>,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    requireAuthenticatedUser(request);
+
+    if (!request.file) {
+      throw new AppError("Photo file is required.", 400);
+    }
+
+    const photoUrl = await uploadComplaintPhotoService(request.file);
+
+    response.status(200).json({
+      success: true,
+      message: "Photo uploaded successfully.",
+      photoUrl,
     });
   } catch (error) {
     next(error);

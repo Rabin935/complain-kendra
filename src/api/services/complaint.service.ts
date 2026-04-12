@@ -21,9 +21,15 @@ import {
   type JwtUserPayload,
   type UpdateComplaintDto,
 } from "../types";
+import { uploadToCloudinary } from "../utils/upload.utils";
 import { AppError } from "../utils/appError";
 
 type InputRecord = Record<string, unknown>;
+type UploadedComplaintPhoto = {
+  buffer: Buffer;
+  mimetype: string;
+  size: number;
+};
 
 function isPlainObject(value: unknown): value is InputRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -405,6 +411,19 @@ export async function createComplaint(
   );
 
   return toComplaintPayload(complaint);
+}
+
+export async function uploadComplaintPhoto(
+  file: UploadedComplaintPhoto,
+): Promise<string> {
+  if (file.size <= 0) {
+    throw new AppError("Photo file is required.", 400);
+  }
+
+  return uploadToCloudinary({
+    buffer: file.buffer,
+    mimeType: file.mimetype,
+  });
 }
 
 export async function getAllComplaints(
