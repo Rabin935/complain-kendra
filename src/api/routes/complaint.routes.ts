@@ -1,6 +1,7 @@
 import { Router } from "express";
 import multer from "multer";
 import {
+  analyze,
   create,
   delete as deleteComplaint,
   getAll,
@@ -32,6 +33,7 @@ complaintRouter.use(protect);
 complaintRouter.get("/", getAll);
 complaintRouter.get("/my", getMy);
 complaintRouter.post("/upload-photo", photoUpload.single("photo"), uploadPhoto);
+complaintRouter.post("/analyze", analyze);
 complaintRouter.post("/", create);
 complaintRouter.get("/:id", getById);
 complaintRouter.put("/:id", update);

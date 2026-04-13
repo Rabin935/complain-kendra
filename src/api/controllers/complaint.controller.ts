@@ -8,6 +8,7 @@ import {
   uploadComplaintPhoto as uploadComplaintPhotoService,
   updateComplaint as updateComplaintService,
 } from "../services/complaint.service";
+import { analyzeComplaint as analyzeComplaintService } from "../services/ai.service";
 import type {
   ComplaintFilterDto,
   ComplaintResponse,
@@ -158,6 +159,36 @@ export async function update(
       success: true,
       message: "Complaint updated successfully.",
       complaint,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function analyze(
+  request: Request<
+    Record<string, never>,
+    unknown,
+    { description: string; photoUrl?: string }
+  >,
+  response: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    requireAuthenticatedUser(request);
+
+    const { description, photoUrl } = request.body;
+
+    if (!description || typeof description !== "string") {
+      throw new AppError("Description is required for analysis.", 400);
+    }
+
+    const analysis = await analyzeComplaintService(description, photoUrl);
+
+    response.status(200).json({
+      success: true,
+      message: "Complaint analyzed successfully.",
+      analyze: analysis,
     });
   } catch (error) {
     next(error);

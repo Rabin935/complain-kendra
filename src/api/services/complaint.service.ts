@@ -23,6 +23,7 @@ import {
 } from "../types";
 import { uploadToCloudinary } from "../utils/upload.utils";
 import { AppError } from "../utils/appError";
+import { analyzeComplaint } from "./ai.service";
 
 type InputRecord = Record<string, unknown>;
 type UploadedComplaintPhoto = {
@@ -405,9 +406,29 @@ export async function createComplaint(
   const normalizedUserId = normalizeObjectId(userId, "user id");
   await getExistingUser(normalizedUserId);
 
+  const normalizedPayload = normalizeCreateComplaintInput(payload);
+
+  // Analyze complaint using AI
+  try {
+    const analysis = await analyzeComplaint(
+      normalizedPayload.description,
+      normalizedPayload.photo,
+    );
+
+    // Add AI analysis results to payload
+    normalizedPayload.aiSuggestedCategory = analysis.category;
+    normalizedPayload.aiSeverity = analysis.severity;
+    normalizedPayload.aiSummary = analysis.summary;
+    normalizedPayload.aiKeywords = analysis.keywords;
+  } catch (error) {
+    // Log the error but don't fail the complaint creation
+    console.error("AI analysis failed:", error);
+    // Continue with complaint creation without AI data
+  }
+
   const complaint = await createComplaintRecord(
     normalizedUserId,
-    normalizeCreateComplaintInput(payload),
+    normalizedPayload,
   );
 
   return toComplaintPayload(complaint);
