@@ -2,13 +2,10 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { StyleSheet, Text } from "react-native";
 import { colors } from "../../../constants/colors";
 import UserTabIcon from "../components/UserTabIcon";
-import BrowseScreen from "../screens/BrowseScreen";
 import HomeScreen from "../screens/HomeScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import ReportScreen from "../screens/ReportScreen";
-import TrackScreen from "../screens/TrackScreen";
 import MyComplaintsScreen from "../../complaints/screens/MyComplaintsScreen";
-import BrowseComplaintsScreen from "../../complaints/screens/BrowseComplaintsScreen";
 import type { UserTabParamList } from "../types/user.types";
 
 const Tabs = createBottomTabNavigator<UserTabParamList>();
@@ -21,22 +18,18 @@ const tabConfig: Record<
     emphasized?: boolean;
   }
 > = {
-  Home: {
-    label: "Home",
+  Dashboard: {
+    label: "Dashboard",
     icon: "view-grid-outline",
   },
-  Browse: {
-    label: "Browse",
-    icon: "compass-outline",
+  Complaints: {
+    label: "Complaints",
+    icon: "file-document-outline",
   },
   Report: {
     label: "Report",
     icon: "plus",
     emphasized: true,
-  },
-  Track: {
-    label: "Track",
-    icon: "arrow-top-right",
   },
   Profile: {
     label: "Profile",
@@ -71,10 +64,9 @@ export default function UserNavigator() {
         };
       }}
     >
-      <Tabs.Screen name="Home" component={HomeScreen} />
-      <Tabs.Screen name="Browse" component={BrowseScreen} />
+      <Tabs.Screen name="Dashboard" component={HomeScreen} />
+      <Tabs.Screen name="Complaints" component={MyComplaintsScreen} />
       <Tabs.Screen name="Report" component={ReportScreen} />
-      <Tabs.Screen name="Track" component={TrackScreen} />
       <Tabs.Screen name="Profile" component={ProfileScreen} />
     </Tabs.Navigator>
   );

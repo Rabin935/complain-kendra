@@ -12,9 +12,8 @@ export interface DashboardShortcut {
 }
 
 export type UserTabParamList = {
-  Home: undefined;
-  Browse: undefined;
+  Dashboard: undefined;
+  Complaints: undefined;
   Report: undefined;
-  Track: undefined;
   Profile: undefined;
 };
