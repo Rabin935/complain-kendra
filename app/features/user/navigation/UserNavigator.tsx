@@ -7,6 +7,8 @@ import HomeScreen from "../screens/HomeScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import ReportScreen from "../screens/ReportScreen";
 import TrackScreen from "../screens/TrackScreen";
+import MyComplaintsScreen from "../../complaints/screens/MyComplaintsScreen";
+import BrowseComplaintsScreen from "../../complaints/screens/BrowseComplaintsScreen";
 import type { UserTabParamList } from "../types/user.types";
 
 const Tabs = createBottomTabNavigator<UserTabParamList>();
