@@ -2,23 +2,23 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 import { colors } from "../../../constants/colors";
 import { useAuth } from "../../auth/context/AuthContext";
 import {
-  analyzeComplaint,
-  createComplaint,
-  uploadPhoto,
+    analyzeComplaint,
+    createComplaint,
+    uploadPhoto,
 } from "../services/complaint.service";
 import type { ComplaintCategory, CreateComplaintData } from "../types/complaint.types";
 

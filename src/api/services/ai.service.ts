@@ -1,6 +1,6 @@
 import { geminiModel } from "../config/gemini";
-import { AppError } from "../utils/appError";
 import type { COMPLAINT_CATEGORIES } from "../types";
+import { AppError } from "../utils/appError";
 
 interface AnalysisResult {
   suggestedTitle: string;

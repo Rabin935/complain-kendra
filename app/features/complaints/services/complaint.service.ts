@@ -1,5 +1,5 @@
 import { baseURL } from "../../../utils/api";
-import type { AnalyzeResponse, ComplaintsListResponse, ComplaintResponse, CreateComplaintData } from "../types/complaint.types";
+import type { AnalyzeResponse, ComplaintResponse, ComplaintsListResponse, CreateComplaintData } from "../types/complaint.types";
 
 export interface UploadPhotoInput {
   photo: {

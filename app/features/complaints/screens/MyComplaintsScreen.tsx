@@ -2,19 +2,18 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useCallback, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    FlatList,
+    Pressable,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TextInput,
+    View
 } from "react-native";
 import { colors } from "../../../constants/colors";
 import { useAuth } from "../../auth/context/AuthContext";
-import { getMyComplaints, getAllComplaints } from "../services/complaint.service";
+import { getAllComplaints, getMyComplaints } from "../services/complaint.service";
 import type { Complaint } from "../types/complaint.types";
 
 type ViewMode = "my" | "browse";

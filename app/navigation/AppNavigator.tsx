@@ -1,9 +1,12 @@
 import { DefaultTheme, NavigationContainer } from "@react-navigation/native";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
 import { colors } from "../constants/colors";
+import StartupSplashScreen from "../components/StartupSplashScreen";
 import { useAuth } from "../features/auth/context/AuthContext";
 import AuthNavigator from "../features/auth/navigation/AuthNavigator";
 import UserNavigator from "../features/user/navigation/UserNavigator";
+
+const MIN_SPLASH_DURATION_MS = 1500;
 
 const navigationTheme = {
   ...DefaultTheme,
@@ -17,42 +20,46 @@ const navigationTheme = {
   },
 };
 
-function LoadingScreen() {
-  return (
-    <View style={styles.loadingScreen}>
-      <ActivityIndicator size="large" color={colors.primary} />
-      <Text style={styles.loadingText}>Loading your session...</Text>
-    </View>
-  );
-}
-
 export default function AppNavigator() {
   const { token, initializing } = useAuth();
+  const [showSplash, setShowSplash] = useState(true);
+  const splashStartedAt = useRef(Date.now());
   const isAuthenticated = Boolean(token);
   const navigatorKey = isAuthenticated ? "main-app" : "auth-flow";
 
-  if (initializing) {
-    return <LoadingScreen />;
+  useEffect(() => {
+    if (initializing) {
+      return;
+    }
+
+    const elapsed = Date.now() - splashStartedAt.current;
+    const remainingTime = Math.max(MIN_SPLASH_DURATION_MS - elapsed, 0);
+    const timeoutId = setTimeout(() => {
+      setShowSplash(false);
+    }, remainingTime);
+
+    return () => clearTimeout(timeoutId);
+  }, [initializing]);
+
+  if (showSplash) {
+    return (
+      <StartupSplashScreen
+        message={
+          initializing
+            ? "Checking your saved session..."
+            : "Opening your complaint dashboard..."
+        }
+      />
+    );
   }
 
   return (
     <NavigationContainer key={navigatorKey} theme={navigationTheme}>
-      {isAuthenticated ? <UserNavigator key="main-app" /> : <AuthNavigator flowKey={navigatorKey} />}
+      {isAuthenticated ? (
+        <UserNavigator key="main-app" />
+      ) : (
+        <AuthNavigator flowKey={navigatorKey} />
+      )}
     </NavigationContainer>
   );
 }
-
-const styles = StyleSheet.create({
-  loadingScreen: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: colors.background,
-    gap: 12,
-  },
-  loadingText: {
-    color: colors.textMuted,
-    fontSize: 15,
-    fontWeight: "600",
-  },
-});

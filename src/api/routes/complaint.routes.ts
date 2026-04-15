@@ -1,14 +1,14 @@
 import { Router } from "express";
 import multer from "multer";
 import {
-  analyze,
-  create,
-  delete as deleteComplaint,
-  getAll,
-  getById,
-  getMy,
-  uploadPhoto,
-  update,
+    analyze,
+    create,
+    delete as deleteComplaint,
+    getAll,
+    getById,
+    getMy,
+    update,
+    uploadPhoto,
 } from "../controllers/complaint.controller";
 import { protect } from "../middlewares/auth.middleware";
 import { AppError } from "../utils/appError";

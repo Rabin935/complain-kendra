@@ -1,11 +1,11 @@
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { StyleSheet, Text } from "react-native";
 import { colors } from "../../../constants/colors";
+import MyComplaintsScreen from "../../complaints/screens/MyComplaintsScreen";
 import UserTabIcon from "../components/UserTabIcon";
 import HomeScreen from "../screens/HomeScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import ReportScreen from "../screens/ReportScreen";
-import MyComplaintsScreen from "../../complaints/screens/MyComplaintsScreen";
 import type { UserTabParamList } from "../types/user.types";
 
 const Tabs = createBottomTabNavigator<UserTabParamList>();

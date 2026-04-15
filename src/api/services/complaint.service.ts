@@ -21,8 +21,8 @@ import {
   type JwtUserPayload,
   type UpdateComplaintDto,
 } from "../types";
-import { uploadToCloudinary } from "../utils/upload.utils";
 import { AppError } from "../utils/appError";
+import { uploadToCloudinary } from "../utils/upload.utils";
 import { analyzeComplaint } from "./ai.service";
 
 type InputRecord = Record<string, unknown>;
