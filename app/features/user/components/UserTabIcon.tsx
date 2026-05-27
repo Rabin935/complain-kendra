@@ -21,10 +21,11 @@ export default function UserTabIcon({
         focused ? styles.iconShellFocused : styles.iconShellIdle,
       ]}
     >
+      {emphasized ? <View style={styles.plusGlow} /> : null}
       <MaterialCommunityIcons
         name={icon as keyof typeof MaterialCommunityIcons.glyphMap}
-        size={emphasized ? 24 : 21}
-        color={focused ? colors.primaryLight : "#ECF5F5"}
+        size={emphasized ? 30 : 21}
+        color={emphasized || focused ? colors.surface : colors.textMuted}
       />
     </View>
   );
@@ -34,28 +35,44 @@ const styles = StyleSheet.create({
   iconShell: {
     alignItems: "center",
     justifyContent: "center",
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     borderWidth: 1,
   },
   iconShellEmphasized: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    marginTop: -6,
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    marginTop: -28,
+    backgroundColor: colors.primary,
+    borderColor: "rgba(255,255,255,0.64)",
+    shadowColor: colors.primary,
+    shadowOpacity: 0.32,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 14 },
+    elevation: 12,
   },
   iconShellFocused: {
     backgroundColor: colors.primary,
-    borderColor: "rgba(255,255,255,0.22)",
+    borderColor: colors.primary,
     shadowColor: colors.primary,
-    shadowOpacity: 0.28,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
     elevation: 6,
   },
   iconShellIdle: {
-    backgroundColor: "#1F2E39",
-    borderColor: "rgba(255,255,255,0.12)",
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.border,
+  },
+  plusGlow: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    right: 8,
+    height: 18,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.2)",
   },
 });

@@ -1,3 +1,5 @@
+import type { CitizenComplaintCategory } from "./citizen.types";
+
 export interface DashboardMetric {
   label: string;
   value: string;
@@ -12,8 +14,9 @@ export interface DashboardShortcut {
 }
 
 export type UserTabParamList = {
-  Dashboard: undefined;
-  Complaints: undefined;
-  Report: undefined;
+  Home: undefined;
+  Mine: undefined;
+  Report: { category?: CitizenComplaintCategory } | undefined;
+  Browse: undefined;
   Profile: undefined;
 };

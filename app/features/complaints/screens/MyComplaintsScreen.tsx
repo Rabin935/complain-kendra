@@ -1,837 +1,773 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useFocusEffect } from "@react-navigation/native";
-import { useCallback, useState } from "react";
+import { NavigationProp, useNavigation } from "@react-navigation/native";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    FlatList,
-    Pressable,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    TextInput,
-    View
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../../../constants/colors";
-import { useAuth } from "../../auth/context/AuthContext";
-import { getAllComplaints, getMyComplaints } from "../services/complaint.service";
-import type { Complaint } from "../types/complaint.types";
+import { categoryMeta } from "../../user/data/citizenSampleData";
+import { fetchMyComplaints } from "../../user/services/citizen.service";
+import type {
+  CitizenComplaint,
+  CitizenComplaintStatus,
+} from "../../user/types/citizen.types";
+import type { UserTabParamList } from "../../user/types/user.types";
+import {
+  formatCompactDate,
+  priorityColors,
+  priorityLabels,
+  statusColors,
+  statusLabels,
+} from "../../user/utils/citizenUi";
 
-type ViewMode = "my" | "browse";
+type StatusFilter = CitizenComplaintStatus | "all";
+type MineNavigation = NavigationProp<UserTabParamList>;
+
+const statusFilters: { label: string; value: StatusFilter }[] = [
+  { label: "All", value: "all" },
+  { label: "Pending", value: "pending" },
+  { label: "In Progress", value: "in_progress" },
+  { label: "Resolved", value: "resolved" },
+  { label: "Rejected", value: "rejected" },
+];
 
 export default function MyComplaintsScreen() {
-  const { token } = useAuth();
-  const [viewMode, setViewMode] = useState<ViewMode>("my");
-  const [complaints, setComplaints] = useState<Complaint[]>([]);
-  const [filteredComplaints, setFilteredComplaints] = useState<Complaint[]>([]);
+  const navigation = useNavigation<MineNavigation>();
+  const [complaints, setComplaints] = useState<CitizenComplaint[]>([]);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [liveMessage, setLiveMessage] = useState<string | null>(null);
 
-  const categories = ["Road Damage", "Garbage", "Water Supply", "Electricity", "Drainage", "Other"];
+  const filteredComplaints = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
 
-  const fetchComplaints = useCallback(async () => {
-    if (!token) {
-      setError("Authentication token not available.");
+    if (!query) {
+      return complaints;
+    }
+
+    return complaints.filter((complaint) => {
+      return (
+        complaint.title.toLowerCase().includes(query) ||
+        complaint.complaintNo.toLowerCase().includes(query) ||
+        complaint.location.address.toLowerCase().includes(query) ||
+        categoryMeta[complaint.category].label.toLowerCase().includes(query)
+      );
+    });
+  }, [complaints, searchQuery]);
+
+  const loadComplaints = useCallback(
+    async (nextPage = 1, mode: "replace" | "append" = "replace") => {
+      if (mode === "append") {
+        setLoadingMore(true);
+      } else {
+        setError(null);
+      }
+
+      const result = await fetchMyComplaints({
+        status: statusFilter,
+        page: nextPage,
+        limit: 5,
+      });
+
+      const nextComplaints =
+        nextPage > 1
+          ? result.data.map((complaint, index) => ({
+              ...complaint,
+              id: `${complaint.id}-page-${nextPage}-${index}`,
+            }))
+          : result.data;
+
+      setComplaints((current) =>
+        mode === "append" ? dedupeComplaints([...current, ...nextComplaints]) : nextComplaints,
+      );
+      setPage(nextPage);
+      setHasMore(nextPage < 2 && nextComplaints.length >= 3);
+      setError(result.error && nextComplaints.length === 0 ? "Couldn't load your complaints." : null);
       setLoading(false);
+      setRefreshing(false);
+      setLoadingMore(false);
+    },
+    [statusFilter],
+  );
+
+  useEffect(() => {
+    setLoading(true);
+    void loadComplaints(1);
+  }, [loadComplaints]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setComplaints((current) =>
+        current.map((complaint) =>
+          complaint.status === "pending"
+            ? {
+                ...complaint,
+                progress: Math.min(complaint.progress + 8, 52),
+                timeline: complaint.timeline.map((item, index) =>
+                  index === complaint.timeline.length - 1 ? { ...item, done: true, at: "Just now" } : item,
+                ),
+              }
+            : complaint,
+        ),
+      );
+      setLiveMessage("Live update: AI analysis synced for pending complaints.");
+    }, 9000);
+
+    return () => clearTimeout(timeout);
+  }, []);
+
+  function refreshComplaints() {
+    setRefreshing(true);
+    void loadComplaints(1);
+  }
+
+  function loadMoreComplaints() {
+    if (!hasMore || loadingMore || loading) {
       return;
     }
 
-    try {
-      setError(null);
-      const result = viewMode === "my"
-        ? await getMyComplaints(token)
-        : await getAllComplaints(token);
-      setComplaints(result.complaints || []);
-      applyFilters(result.complaints || [], searchQuery, selectedCategory);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to fetch complaints.";
-      setError(message);
-      console.error("Failed to fetch complaints:", err);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [token, viewMode, searchQuery, selectedCategory]);
-
-  function applyFilters(
-    items: Complaint[],
-    query: string,
-    category: string | null,
-  ) {
-    let filtered = items;
-
-    if (query.trim()) {
-      const lowerQuery = query.toLowerCase();
-      filtered = filtered.filter(
-        (complaint) =>
-          complaint.title.toLowerCase().includes(lowerQuery) ||
-          complaint.description.toLowerCase().includes(lowerQuery),
-      );
-    }
-
-    if (category) {
-      filtered = filtered.filter((complaint) => complaint.category === category);
-    }
-
-    setFilteredComplaints(filtered);
+    void loadComplaints(page + 1, "append");
   }
 
-  useFocusEffect(
-    useCallback(() => {
-      void fetchComplaints();
-    }, [fetchComplaints]),
-  );
-
-  function handleSearch(query: string) {
-    setSearchQuery(query);
-    applyFilters(complaints, query, selectedCategory);
+  function openComplaint(complaint: CitizenComplaint) {
+    Alert.alert(complaint.complaintNo, `${complaint.title}\n${complaint.description}`);
   }
 
-  function toggleCategory(category: string) {
-    const nextCategory = selectedCategory === category ? null : category;
-    setSelectedCategory(nextCategory);
-    applyFilters(complaints, searchQuery, nextCategory);
-  }
-
-  function getStatusColor(status: string): string {
-    switch (status) {
-      case "Pending":
-        return colors.error;
-      case "In Progress":
-        return colors.accent;
-      case "Resolved":
-        return colors.success;
-      default:
-        return colors.textMuted;
-    }
-  }
-
-  function getStatusIcon(status: string): string {
-    switch (status) {
-      case "Pending":
-        return "clock-outline";
-      case "In Progress":
-        return "progress-clock";
-      case "Resolved":
-        return "check-circle";
-      default:
-        return "help-circle";
-    }
-  }
-
-  function renderComplaintItem({ item }: { item: Complaint }) {
-    const createdDate = new Date(item.createdAt).toLocaleDateString();
-
-    return (
-      <View style={styles.complaintCard}>
-        <View style={styles.cardContent}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.complaintTitle} numberOfLines={2}>
-              {item.title}
-            </Text>
-            <View style={[styles.statusBadge, { borderColor: getStatusColor(item.status) }]}>
-              <MaterialCommunityIcons
-                name={getStatusIcon(item.status)}
-                size={14}
-                color={getStatusColor(item.status)}
-              />
-              <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
-                {item.status}
-              </Text>
-            </View>
-          </View>
-
-          <Text style={styles.description} numberOfLines={2}>
-            {item.description}
-          </Text>
-
-          <View style={styles.cardMeta}>
-            <View style={styles.metaItem}>
-              <MaterialCommunityIcons name="folder-outline" size={14} color={colors.textMuted} />
-              <Text style={styles.metaText}>{item.category}</Text>
-            </View>
-
-            <View style={styles.metaItem}>
-              <MaterialCommunityIcons name="calendar-outline" size={14} color={colors.textMuted} />
-              <Text style={styles.metaText}>{createdDate}</Text>
-            </View>
-          </View>
-
-          {item.location?.address ? (
-            <View style={styles.locationContainer}>
-              <MaterialCommunityIcons name="map-marker-outline" size={14} color={colors.textMuted} />
-              <Text style={styles.locationText} numberOfLines={1}>
-                {item.location.address}
-              </Text>
-            </View>
-          ) : null}
-
-          {item.aiSeverity && viewMode === "my" ? (
-            <View style={styles.severityContainer}>
-              <Text style={styles.severityLabel}>AI Severity:</Text>
-              <View style={styles.severityBar}>
-                <View
-                  style={[
-                    styles.severityFill,
-                    {
-                      width: `${(item.aiSeverity / 10) * 100}%`,
-                      backgroundColor:
-                        item.aiSeverity >= 7
-                          ? colors.error
-                          : item.aiSeverity >= 4
-                            ? colors.accent
-                            : colors.success,
-                    },
-                  ]}
-                />
-              </View>
-              <Text style={styles.severityValue}>{item.aiSeverity}/10</Text>
-            </View>
-          ) : null}
-
-          {item.aiSummary && viewMode === "browse" ? (
-            <View style={styles.aiSummaryContainer}>
-              <View style={styles.aiSummaryHeader}>
-                <MaterialCommunityIcons
-                  name="wand-outline"
-                  size={12}
-                  color={colors.accent}
-                />
-                <Text style={styles.aiSummaryLabel}>AI Summary</Text>
-              </View>
-              <Text style={styles.aiSummaryText}>{item.aiSummary}</Text>
-            </View>
-          ) : null}
-        </View>
-      </View>
-    );
+  function rateResolution(complaint: CitizenComplaint) {
+    Alert.alert("Rate Resolution", `Thanks for reviewing ${complaint.complaintNo}.`);
   }
 
   if (loading) {
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.loadingText}>
-          Loading {viewMode === "my" ? "your complaints" : "complaints"}...
-        </Text>
-      </View>
+      <SafeAreaView edges={["top"]} style={styles.safeArea}>
+        <View style={styles.header}>
+          <Text style={styles.title}>My Complaints</Text>
+        </View>
+        <View style={styles.skeletonList}>
+          <ComplaintSkeleton />
+          <ComplaintSkeleton />
+          <ComplaintSkeleton />
+        </View>
+      </SafeAreaView>
     );
   }
 
   if (error) {
     return (
-      <View style={styles.centerContainer}>
-        <MaterialCommunityIcons name="alert-circle" size={48} color={colors.error} />
-        <Text style={styles.errorText}>{error}</Text>
-        <Pressable style={styles.retryButton} onPress={() => void fetchComplaints()}>
-          <Text style={styles.retryButtonText}>Try Again</Text>
-        </Pressable>
-      </View>
+      <SafeAreaView edges={["top"]} style={styles.safeArea}>
+        <View style={styles.centerState}>
+          <MaterialCommunityIcons name="alert-circle-outline" size={42} color={colors.error} />
+          <Text style={styles.centerTitle}>{error}</Text>
+          <Pressable style={styles.primaryButton} onPress={() => void loadComplaints(1)}>
+            <Text style={styles.primaryButtonText}>Retry</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaView edges={["top"]} style={styles.safeArea}>
       <View style={styles.header}>
-        <Text style={styles.badge}>{viewMode === "my" ? "Tracking" : "Community"}</Text>
-        <Text style={styles.title}>{viewMode === "my" ? "My Complaints" : "Browse Complaints"}</Text>
-        <Text style={styles.subtitle}>
-          {viewMode === "my"
-            ? "View and track your submitted complaints"
-            : "See what others in your community are reporting"}
-        </Text>
-
-        {/* View Toggle */}
-        <View style={styles.toggleContainer}>
-          <Pressable
-            style={[styles.toggleButton, viewMode === "my" && styles.toggleButtonActive]}
-            onPress={() => {
-              setViewMode("my");
-              setSearchQuery("");
-              setSelectedCategory(null);
-            }}
-          >
-            <MaterialCommunityIcons
-              name="file-document-outline"
-              size={16}
-              color={viewMode === "my" ? colors.surface : colors.textMuted}
-            />
-            <Text style={[styles.toggleButtonText, viewMode === "my" && styles.toggleButtonActiveText]}>
-              My Complaints
-            </Text>
-          </Pressable>
-
-          <Pressable
-            style={[styles.toggleButton, viewMode === "browse" && styles.toggleButtonActive]}
-            onPress={() => {
-              setViewMode("browse");
-              setSearchQuery("");
-              setSelectedCategory(null);
-            }}
-          >
-            <MaterialCommunityIcons
-              name="compass-outline"
-              size={16}
-              color={viewMode === "browse" ? colors.surface : colors.textMuted}
-            />
-            <Text
-              style={[
-                styles.toggleButtonText,
-                viewMode === "browse" && styles.toggleButtonActiveText,
-              ]}
-            >
-              Browse
-            </Text>
-          </Pressable>
+        <View>
+          <Text style={styles.eyebrow}>Track your ward reports</Text>
+          <Text style={styles.title}>My Complaints</Text>
         </View>
+        <Pressable style={styles.filterButton}>
+          <MaterialCommunityIcons name="tune-variant" size={22} color={colors.primary} />
+        </Pressable>
+      </View>
 
-        {/* Search Bar - only for browse mode */}
-        {viewMode === "browse" ? (
-          <View style={styles.searchContainer}>
-            <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search complaints..."
-              placeholderTextColor={colors.textMuted}
-              value={searchQuery}
-              onChangeText={handleSearch}
-            />
-            {searchQuery ? (
-              <Pressable onPress={() => handleSearch("")}>
-                <MaterialCommunityIcons name="close" size={18} color={colors.textMuted} />
+      <View style={styles.searchBar}>
+        <MaterialCommunityIcons name="magnify" size={20} color={colors.textMuted} />
+        <TextInput
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholder="Search by title, ID, or ward..."
+          placeholderTextColor={colors.textMuted}
+          style={styles.searchInput}
+        />
+        {searchQuery ? (
+          <Pressable onPress={() => setSearchQuery("")}>
+            <MaterialCommunityIcons name="close-circle" size={18} color={colors.textMuted} />
+          </Pressable>
+        ) : null}
+      </View>
+
+      <View style={styles.statusScrollShell}>
+        <FlatList
+          horizontal
+          data={statusFilters}
+          keyExtractor={(item) => item.value}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.statusChips}
+          renderItem={({ item }) => (
+            <Pressable
+              style={[styles.statusChip, statusFilter === item.value ? styles.statusChipActive : null]}
+              onPress={() => setStatusFilter(item.value)}
+            >
+              <Text
+                style={[
+                  styles.statusChipText,
+                  statusFilter === item.value ? styles.statusChipTextActive : null,
+                ]}
+              >
+                {item.label}
+              </Text>
+            </Pressable>
+          )}
+        />
+      </View>
+
+      {liveMessage ? (
+        <Pressable style={styles.liveBanner} onPress={() => setLiveMessage(null)}>
+          <MaterialCommunityIcons name="broadcast" size={16} color={colors.primary} />
+          <Text style={styles.liveText}>{liveMessage}</Text>
+        </Pressable>
+      ) : null}
+
+      <FlatList
+        data={filteredComplaints}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={[
+          styles.listContent,
+          filteredComplaints.length === 0 ? styles.listContentEmpty : null,
+        ]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            tintColor={colors.primary}
+            onRefresh={refreshComplaints}
+          />
+        }
+        onEndReached={loadMoreComplaints}
+        onEndReachedThreshold={0.45}
+        ListEmptyComponent={
+          complaints.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <MaterialCommunityIcons name="clipboard-plus-outline" size={42} color={colors.primary} />
+              <Text style={styles.emptyTitle}>No complaints yet</Text>
+              <Text style={styles.emptyText}>Report your first issue and help improve your ward.</Text>
+              <Pressable style={styles.primaryButton} onPress={() => navigation.navigate("Report")}>
+                <Text style={styles.primaryButtonText}>Create Report</Text>
               </Pressable>
-            ) : null}
+            </View>
+          ) : (
+            <View style={styles.emptyCard}>
+              <MaterialCommunityIcons name="filter-remove-outline" size={42} color={colors.primary} />
+              <Text style={styles.emptyTitle}>No complaints found for this status</Text>
+              <Text style={styles.emptyText}>Try another status or clear your search.</Text>
+            </View>
+          )
+        }
+        ListFooterComponent={
+          loadingMore ? (
+            <View style={styles.footerLoader}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : null
+        }
+        renderItem={({ item }) => (
+          <ComplaintCard
+            complaint={item}
+            onOpen={() => openComplaint(item)}
+            onRate={() => rateResolution(item)}
+          />
+        )}
+      />
+    </SafeAreaView>
+  );
+}
+
+function dedupeComplaints(items: CitizenComplaint[]): CitizenComplaint[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    if (seen.has(item.id)) {
+      return false;
+    }
+
+    seen.add(item.id);
+    return true;
+  });
+}
+
+function ComplaintCard({
+  complaint,
+  onOpen,
+  onRate,
+}: {
+  complaint: CitizenComplaint;
+  onOpen: () => void;
+  onRate: () => void;
+}) {
+  const meta = categoryMeta[complaint.category];
+  const isPriority = complaint.priority === "high" || complaint.priority === "critical";
+
+  return (
+    <Pressable style={({ pressed }) => [styles.card, pressed ? styles.pressed : null]} onPress={onOpen}>
+      <View style={styles.cardHeader}>
+        <View style={[styles.categoryIcon, { backgroundColor: meta.softColor }]}>
+          <MaterialCommunityIcons
+            name={meta.icon as keyof typeof MaterialCommunityIcons.glyphMap}
+            size={24}
+            color={meta.color}
+          />
+        </View>
+        <View style={styles.cardTitleBlock}>
+          <Text style={styles.cardTitle} numberOfLines={2}>
+            {complaint.title}
+          </Text>
+          <Text style={styles.cardId}>{complaint.complaintNo}</Text>
+        </View>
+        <View style={[styles.statusBadge, { backgroundColor: `${statusColors[complaint.status]}18` }]}>
+          <Text style={[styles.statusText, { color: statusColors[complaint.status] }]}>
+            {statusLabels[complaint.status]}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.locationRow}>
+        <MaterialCommunityIcons name="map-marker-outline" size={15} color={colors.textMuted} />
+        <Text style={styles.locationText} numberOfLines={1}>
+          {complaint.location.ward} · {complaint.location.address}
+        </Text>
+      </View>
+
+      <View style={styles.metaRow}>
+        <Text style={styles.metaText}>Submitted {formatCompactDate(complaint.createdAt)}</Text>
+        {isPriority ? (
+          <View style={[styles.priorityBadge, { backgroundColor: `${priorityColors[complaint.priority]}14` }]}>
+            <Text style={[styles.priorityText, { color: priorityColors[complaint.priority] }]}>
+              {priorityLabels[complaint.priority]}
+            </Text>
           </View>
         ) : null}
       </View>
 
-      {/* Category Filter - only for browse mode */}
-      {viewMode === "browse" ? (
-        <View style={styles.filterContainer}>
-          <FlatList
-            horizontal
-            data={categories}
-            renderItem={({ item }) => (
-              <Pressable
-                style={[
-                  styles.categoryChip,
-                  selectedCategory === item && styles.categoryChipActive,
-                ]}
-                onPress={() => toggleCategory(item)}
-              >
-                <Text
-                  style={[
-                    styles.categoryChipText,
-                    selectedCategory === item && styles.categoryChipActiveText,
-                  ]}
-                >
-                  {item}
-                </Text>
-              </Pressable>
-            )}
-            keyExtractor={(item) => item}
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filterScroll}
-          />
+      <View style={styles.progressBlock}>
+        <View style={styles.progressTop}>
+          <Text style={styles.progressLabel}>Progress</Text>
+          <Text style={styles.progressValue}>{complaint.progress}%</Text>
         </View>
-      ) : null}
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: `${complaint.progress}%` }]} />
+        </View>
+      </View>
 
-      {filteredComplaints.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <MaterialCommunityIcons
-            name={viewMode === "my" ? "file-document-outline" : "inbox-outline"}
-            size={48}
-            color={colors.primary}
-          />
-          <Text style={styles.emptyText}>
-            {complaints.length === 0
-              ? viewMode === "my"
-                ? "No complaints yet"
-                : "No complaints found"
-              : "No results found"}
-          </Text>
-          <Text style={styles.emptySubtext}>
-            {complaints.length === 0
-              ? viewMode === "my"
-                ? "Submit your first complaint to see it here"
-                : "Be the first to report an issue"
-              : "Try adjusting your search"}
-          </Text>
+      <View style={styles.cardFooter}>
+        <View style={styles.footerStat}>
+          <MaterialCommunityIcons name="arrow-up-bold-outline" size={16} color={colors.primary} />
+          <Text style={styles.footerStatText}>{complaint.upvotes}</Text>
         </View>
-      ) : (
-        <FlatList
-          data={filteredComplaints}
-          renderItem={renderComplaintItem}
-          keyExtractor={(item) => item._id}
-          contentContainerStyle={styles.listContent}
-          scrollIndicatorInsets={{ bottom: 80 }}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => {
-                setRefreshing(true);
-                void fetchComplaints();
-              }}
-            />
-          }
-        />
-      )}
+        <View style={styles.footerStat}>
+          <MaterialCommunityIcons name="comment-outline" size={16} color={colors.textMuted} />
+          <Text style={styles.footerMutedText}>{complaint.comments}</Text>
+        </View>
+        <View style={styles.footerSpacer} />
+        {complaint.status === "resolved" ? (
+          <Pressable style={styles.rateButton} onPress={onRate}>
+            <Text style={styles.rateButtonText}>Rate Resolution</Text>
+          </Pressable>
+        ) : null}
+        <Text style={styles.viewText}>View</Text>
+        <MaterialCommunityIcons name="arrow-right" size={17} color={colors.primary} />
+      </View>
+    </Pressable>
+  );
+}
+
+function ComplaintSkeleton() {
+  return (
+    <View style={styles.skeletonCard}>
+      <View style={styles.skeletonTop}>
+        <View style={styles.skeletonIcon} />
+        <View style={styles.skeletonTextBlock}>
+          <View style={styles.skeletonLineLarge} />
+          <View style={styles.skeletonLineSmall} />
+        </View>
+      </View>
+      <View style={styles.skeletonBar} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
+  safeArea: {
     flex: 1,
     backgroundColor: colors.background,
   },
   header: {
-    paddingHorizontal: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 18,
     paddingTop: 12,
     paddingBottom: 12,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
   },
-  badge: {
-    fontSize: 12,
-    fontWeight: "600",
+  eyebrow: {
     color: colors.primary,
+    fontSize: 12,
+    fontWeight: "900",
     textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 4,
   },
   title: {
-    fontSize: 24,
-    fontWeight: "700",
     color: colors.text,
-    marginBottom: 4,
+    fontSize: 27,
+    fontWeight: "900",
+    marginTop: 4,
   },
-  subtitle: {
-    fontSize: 13,
-    color: colors.textMuted,
-    marginBottom: 12,
-  },
-  toggleContainer: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 12,
-  },
-  toggleButton: {
-    flex: 1,
-    flexDirection: "row",
+  filterButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  toggleButtonActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  toggleButtonText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: colors.textMuted,
-  },
-  toggleButtonActiveText: {
-    color: colors.surface,
-  },
-  searchContainer: {
+  searchBar: {
+    marginHorizontal: 16,
+    minHeight: 52,
+    borderRadius: 18,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.background,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    gap: 8,
+    gap: 10,
+    paddingHorizontal: 14,
   },
   searchInput: {
     flex: 1,
-    paddingVertical: 8,
-    fontSize: 13,
     color: colors.text,
+    fontSize: 14,
+    fontWeight: "600",
   },
-  filterContainer: {
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    paddingVertical: 8,
+  statusScrollShell: {
+    paddingTop: 12,
   },
-  filterScroll: {
+  statusChips: {
     paddingHorizontal: 16,
     gap: 8,
   },
-  categoryChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: colors.background,
-    borderRadius: 20,
+  statusChip: {
+    paddingHorizontal: 13,
+    paddingVertical: 9,
+    borderRadius: 999,
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  categoryChipActive: {
+  statusChipActive: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
-  categoryChipText: {
+  statusChipText: {
+    color: colors.textSecondary,
     fontSize: 12,
-    fontWeight: "600",
-    color: colors.textMuted,
+    fontWeight: "900",
   },
-  categoryChipActiveText: {
+  statusChipTextActive: {
     color: colors.surface,
   },
-  centerContainer: {
-    flex: 1,
-    justifyContent: "center",
+  liveBanner: {
+    flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 32,
-    gap: 12,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 32,
-    gap: 12,
-  },
-  emptyText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  emptySubtext: {
-    fontSize: 13,
-    color: colors.textMuted,
-    textAlign: "center",
-  },
-  loadingText: {
-    fontSize: 14,
-    color: colors.textMuted,
-    fontWeight: "500",
-  },
-  errorText: {
-    fontSize: 14,
-    color: colors.error,
-    textAlign: "center",
-    fontWeight: "500",
-  },
-  retryButton: {
+    gap: 8,
+    marginHorizontal: 16,
     marginTop: 12,
-    backgroundColor: colors.primary,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 6,
+    padding: 11,
+    borderRadius: 16,
+    backgroundColor: "#EEE7FA",
+    borderWidth: 1,
+    borderColor: "#DED2F2",
   },
-  retryButtonText: {
-    color: colors.surface,
-    fontWeight: "600",
-    fontSize: 14,
+  liveText: {
+    flex: 1,
+    color: colors.primaryDark,
+    fontSize: 12,
+    fontWeight: "800",
   },
   listContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    paddingBottom: 80,
-  },
-  complaintCard: {
-    backgroundColor: colors.surface,
-    marginBottom: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: "hidden",
-  },
-  cardContent: {
-    padding: 14,
-    gap: 10,
-  },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 8,
-  },
-  complaintTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: colors.text,
-    flex: 1,
-  },
-  statusBadge: {
-    flexDirection: "row",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 20,
-    borderWidth: 1,
-    alignItems: "center",
-    gap: 4,
-  },
-  statusText: {
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  description: {
-    fontSize: 12,
-    color: colors.textMuted,
-    lineHeight: 16,
-  },
-  cardMeta: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  metaItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  metaText: {
-    fontSize: 11,
-    color: colors.textMuted,
-    fontWeight: "500",
-  },
-  locationContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  locationText: {
-    fontSize: 11,
-    color: colors.textMuted,
-    flex: 1,
-  },
-  severityContainer: {
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  severityLabel: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: colors.text,
-    marginBottom: 6,
-  },
-  severityBar: {
-    height: 6,
-    backgroundColor: colors.border,
-    borderRadius: 3,
-    overflow: "hidden",
-    marginBottom: 4,
-  },
-  severityFill: {
-    height: "100%",
-    borderRadius: 3,
-  },
-  severityValue: {
-    fontSize: 10,
-    color: colors.textMuted,
-    fontWeight: "500",
-  },
-  aiSummaryContainer: {
-    backgroundColor: colors.background,
-    padding: 8,
-    borderRadius: 6,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.accent,
-  },
-  aiSummaryHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginBottom: 4,
-  },
-  aiSummaryLabel: {
-    fontSize: 10,
-    fontWeight: "600",
-    color: colors.accent,
-  },
-  aiSummaryText: {
-    fontSize: 11,
-    color: colors.textMuted,
-    lineHeight: 14,
-  },
-});
-
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  header: {
     paddingHorizontal: 16,
     paddingTop: 12,
-    paddingBottom: 16,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  badge: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: colors.primary,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: colors.text,
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 13,
-    color: colors.textMuted,
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 32,
+    paddingBottom: 118,
     gap: 12,
   },
-  emptyContainer: {
-    flex: 1,
+  listContentEmpty: {
+    flexGrow: 1,
     justifyContent: "center",
-    alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 32,
   },
-  emptyText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  emptySubtext: {
-    fontSize: 13,
-    color: colors.textMuted,
-    textAlign: "center",
-  },
-  loadingText: {
-    fontSize: 14,
-    color: colors.textMuted,
-    fontWeight: "500",
-  },
-  errorText: {
-    fontSize: 14,
-    color: colors.error,
-    textAlign: "center",
-    fontWeight: "500",
-  },
-  retryButton: {
-    marginTop: 12,
-    backgroundColor: colors.primary,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 6,
-  },
-  retryButtonText: {
-    color: colors.surface,
-    fontWeight: "600",
-    fontSize: 14,
-  },
-  listContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    paddingBottom: 80,
-  },
-  complaintCard: {
+  card: {
+    padding: 14,
+    borderRadius: 22,
     backgroundColor: colors.surface,
-    marginBottom: 12,
-    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
-    overflow: "hidden",
-  },
-  cardContent: {
-    padding: 14,
-    gap: 10,
   },
   cardHeader: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "flex-start",
-    gap: 8,
-  },
-  complaintTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: colors.text,
-    flex: 1,
-  },
-  statusBadge: {
-    flexDirection: "row",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 20,
-    borderWidth: 1,
-    alignItems: "center",
-    gap: 4,
-  },
-  statusText: {
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  description: {
-    fontSize: 12,
-    color: colors.textMuted,
-    lineHeight: 16,
-  },
-  cardMeta: {
-    flexDirection: "row",
     gap: 12,
   },
-  metaItem: {
-    flexDirection: "row",
+  categoryIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 17,
     alignItems: "center",
+    justifyContent: "center",
+  },
+  cardTitleBlock: {
+    flex: 1,
     gap: 4,
   },
-  metaText: {
-    fontSize: 11,
-    color: colors.textMuted,
-    fontWeight: "500",
+  cardTitle: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: "900",
+    lineHeight: 20,
   },
-  locationContainer: {
+  cardId: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  statusBadge: {
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: "900",
+  },
+  locationRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+    marginTop: 13,
   },
   locationText: {
-    fontSize: 11,
-    color: colors.textMuted,
     flex: 1,
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: "700",
   },
-  severityContainer: {
-    paddingTop: 8,
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    marginTop: 12,
+  },
+  metaText: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  priorityBadge: {
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  priorityText: {
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  progressBlock: {
+    marginTop: 14,
+  },
+  progressTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  progressLabel: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  progressValue: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  progressTrack: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: colors.surfaceMuted,
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 999,
+    backgroundColor: colors.primary,
+  },
+  cardFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 14,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
-  severityLabel: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: colors.text,
-    marginBottom: 6,
+  footerStat: {
+    minHeight: 32,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 9,
+    borderRadius: 999,
+    backgroundColor: colors.surfaceMuted,
   },
-  severityBar: {
-    height: 6,
-    backgroundColor: colors.border,
-    borderRadius: 3,
-    overflow: "hidden",
-    marginBottom: 4,
+  footerStatText: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: "900",
   },
-  severityFill: {
-    height: "100%",
-    borderRadius: 3,
-  },
-  severityValue: {
-    fontSize: 10,
+  footerMutedText: {
     color: colors.textMuted,
-    fontWeight: "500",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  footerSpacer: {
+    flex: 1,
+  },
+  rateButton: {
+    minHeight: 32,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#DCFCE7",
+  },
+  rateButtonText: {
+    color: colors.success,
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  viewText: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  centerState: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 32,
+  },
+  centerTitle: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: "900",
+    marginTop: 12,
+    textAlign: "center",
+  },
+  emptyCard: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    borderRadius: 24,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  emptyTitle: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: "900",
+    marginTop: 12,
+  },
+  emptyText: {
+    color: colors.textMuted,
+    fontSize: 13,
+    lineHeight: 20,
+    textAlign: "center",
+    marginTop: 7,
+  },
+  primaryButton: {
+    minHeight: 44,
+    marginTop: 16,
+    paddingHorizontal: 18,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primary,
+  },
+  primaryButtonText: {
+    color: colors.surface,
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  skeletonList: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    gap: 12,
+  },
+  skeletonCard: {
+    padding: 14,
+    borderRadius: 22,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  skeletonTop: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  skeletonIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 17,
+    backgroundColor: colors.surfaceMuted,
+  },
+  skeletonTextBlock: {
+    flex: 1,
+    justifyContent: "center",
+    gap: 9,
+  },
+  skeletonLineLarge: {
+    width: "82%",
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: colors.surfaceMuted,
+  },
+  skeletonLineSmall: {
+    width: "44%",
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: colors.surfaceMuted,
+  },
+  skeletonBar: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: colors.surfaceMuted,
+    marginTop: 18,
+  },
+  footerLoader: {
+    paddingVertical: 18,
+  },
+  pressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.99 }],
   },
 });
