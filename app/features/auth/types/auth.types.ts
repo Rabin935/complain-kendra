@@ -1,4 +1,4 @@
-export type UserRole = "user" | "admin";
+export type UserRole = "citizen" | "officer" | "supervisor" | "admin";
 
 export interface AuthUser {
   id: string;
@@ -12,6 +12,8 @@ export interface AuthUser {
 export interface AuthResponse {
   success: boolean;
   token?: string;
+  accessToken?: string;
+  refreshToken?: string;
   user?: AuthUser;
   message?: string;
 }
@@ -35,6 +37,19 @@ export interface RegisterPayload {
 export interface ResetPasswordPayload {
   token: string;
   newPassword: string;
+}
+
+export interface SendOtpPayload {
+  email: string;
+}
+
+export interface SendOtpResponse extends AuthResponse {
+  devOtp?: string;
+}
+
+export interface VerifyOtpPayload {
+  email: string;
+  otp: string;
 }
 
 export interface AuthFormValues {
@@ -74,6 +89,11 @@ export interface AuthContextValue {
 export type AuthStackParamList = {
   Login: undefined;
   Register: undefined;
+  OtpVerification: {
+    email: string;
+    message?: string;
+    devOtp?: string;
+  };
   ForgotPassword: undefined;
   ResetPassword: {
     token?: string;
