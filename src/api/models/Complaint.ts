@@ -30,6 +30,16 @@ const complaintLocationSchema = new Schema<ComplaintLocation>(
       trim: true,
       default: undefined,
     },
+    wardId: {
+      type: String,
+      trim: true,
+      default: undefined,
+    },
+    wardName: {
+      type: String,
+      trim: true,
+      default: undefined,
+    },
   },
   {
     _id: false,

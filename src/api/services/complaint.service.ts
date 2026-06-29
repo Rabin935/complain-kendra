@@ -25,6 +25,7 @@ import { AppError } from "../utils/appError";
 import { uploadToCloudinary } from "../utils/upload.utils";
 import { analyzeComplaint } from "./ai.service";
 import { addTimelineEvent, getComplaintTimeline as getComplaintTimelineService } from "./timeline.service";
+import { resolveWardFromCoordinates } from "./ward.service";
 
 type InputRecord = Record<string, unknown>;
 type UploadedComplaintPhoto = {
@@ -219,6 +220,27 @@ function normalizeComplaintLocation(value: unknown): ComplaintLocation | undefin
   return Object.keys(location).length > 0 ? location : undefined;
 }
 
+function assignWardFromCoordinates(
+  location: ComplaintLocation | undefined,
+): ComplaintLocation | undefined {
+  if (!location || typeof location.lat !== "number" || typeof location.lng !== "number") {
+    return location;
+  }
+
+  const wardMatch = resolveWardFromCoordinates(location.lat, location.lng);
+
+  if (!wardMatch) {
+    return location;
+  }
+
+  return {
+    ...location,
+    ward: wardMatch.wardName,
+    wardId: wardMatch.wardId,
+    wardName: wardMatch.wardName,
+  };
+}
+
 function normalizeCreateComplaintInput(payload: CreateComplaintDto): CreateComplaintDto {
   if (!isPlainObject(payload)) {
     throw new AppError("Invalid complaint payload.", 400);
@@ -227,7 +249,7 @@ function normalizeCreateComplaintInput(payload: CreateComplaintDto): CreateCompl
   return {
     title: normalizeRequiredText(payload.title, "Title"),
     description: normalizeRequiredText(payload.description, "Description"),
-    location: normalizeComplaintLocation(payload.location),
+    location: assignWardFromCoordinates(normalizeComplaintLocation(payload.location)),
     photo: normalizeOptionalText(payload.photo, "Photo"),
     category: normalizeCategory(payload.category, "Category", true) as ComplaintCategory,
     status: normalizeStatus(payload.status, "Status", false),
@@ -269,6 +291,7 @@ function normalizeUpdateComplaintInput(
       ...(existingLocation ?? {}),
       ...(locationUpdates ?? {}),
     });
+    updates.location = assignWardFromCoordinates(updates.location);
   }
 
   if (payload.photo !== undefined) {
@@ -352,6 +375,14 @@ function mapComplaintLocation(location: ComplaintDocument["location"]): Complain
 
   if (location.ward) {
     complaintLocation.ward = location.ward;
+  }
+
+  if (location.wardId) {
+    complaintLocation.wardId = location.wardId;
+  }
+
+  if (location.wardName) {
+    complaintLocation.wardName = location.wardName;
   }
 
   return Object.keys(complaintLocation).length > 0 ? complaintLocation : undefined;
