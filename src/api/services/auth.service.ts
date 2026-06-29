@@ -1,14 +1,19 @@
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
+import crypto from "node:crypto";
+import jwt, { SignOptions } from "jsonwebtoken";
+import RefreshTokenModel from "../models/RefreshToken";
 import { createUser, findUserByEmail } from "../repositories/user.repository";
 import type { AuthUser, CreateUserDto, LoginDto } from "../types";
 import { AppError } from "../utils/appError";
 
 const SALT_ROUNDS = 10;
-const TOKEN_EXPIRES_IN = "7d";
+const ACCESS_TOKEN_EXPIRES_IN = (process.env.JWT_ACCESS_EXPIRES_IN ??
+  "15m") as SignOptions["expiresIn"];
+const DEFAULT_REFRESH_TOKEN_DAYS = 30;
 
 export interface LoginResult {
-  token: string;
+  accessToken: string;
+  refreshToken: string;
   user: AuthUser;
 }
 
@@ -24,6 +29,50 @@ function getJwtSecret(): string {
 
 function normalizeText(value: string): string {
   return value.trim();
+}
+
+function getRefreshTokenDays(): number {
+  const configuredDays = Number(process.env.REFRESH_TOKEN_DAYS);
+  return Number.isFinite(configuredDays) && configuredDays > 0
+    ? configuredDays
+    : DEFAULT_REFRESH_TOKEN_DAYS;
+}
+
+function createTokenHash(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+function generateOpaqueToken(): string {
+  return crypto.randomBytes(64).toString("hex");
+}
+
+function createAccessToken(user: {
+  _id: { toString(): string };
+  email: string;
+  role: "user" | "admin";
+}): string {
+  return jwt.sign(
+    {
+      userId: user._id.toString(),
+      email: user.email,
+      role: user.role,
+    },
+    getJwtSecret(),
+    { expiresIn: ACCESS_TOKEN_EXPIRES_IN },
+  );
+}
+
+async function createRefreshToken(userId: string): Promise<string> {
+  const refreshToken = generateOpaqueToken();
+  const expiresAt = new Date(Date.now() + getRefreshTokenDays() * 24 * 60 * 60 * 1000);
+
+  await RefreshTokenModel.create({
+    userId,
+    tokenHash: createTokenHash(refreshToken),
+    expiresAt,
+  });
+
+  return refreshToken;
 }
 
 function validateRegisterInput(payload: CreateUserDto): void {
@@ -101,18 +150,12 @@ export async function loginUser(payload: LoginDto): Promise<LoginResult> {
     throw new AppError("Invalid email or password.", 401);
   }
 
-  const token = jwt.sign(
-    {
-      userId: user._id.toString(),
-      email: user.email,
-      role: user.role,
-    },
-    getJwtSecret(),
-    { expiresIn: TOKEN_EXPIRES_IN },
-  );
+  const accessToken = createAccessToken(user);
+  const refreshToken = await createRefreshToken(user._id.toString());
 
   return {
-    token,
+    accessToken,
+    refreshToken,
     user: {
       id: user._id.toString(),
       name: user.name,
@@ -120,4 +163,75 @@ export async function loginUser(payload: LoginDto): Promise<LoginResult> {
       role: user.role,
     },
   };
+}
+
+export async function refreshSession(refreshToken: string): Promise<LoginResult> {
+  if (!refreshToken?.trim()) {
+    throw new AppError("Refresh token is required.", 400);
+  }
+
+  const tokenHash = createTokenHash(refreshToken.trim());
+  const storedToken = await RefreshTokenModel.findOne({ tokenHash });
+
+  if (!storedToken || storedToken.revokedAt) {
+    throw new AppError("Invalid refresh token.", 401);
+  }
+
+  if (storedToken.expiresAt.getTime() <= Date.now()) {
+    storedToken.revokedAt = new Date();
+    await storedToken.save();
+    throw new AppError("Refresh token has expired.", 401);
+  }
+
+  const user = await storedToken.populate("userId");
+  const authUser = user.userId as unknown as {
+    _id: { toString(): string };
+    name: string;
+    email: string;
+    role: "user" | "admin";
+    phone?: string;
+    createdAt?: Date;
+  };
+
+  if (!authUser?.email) {
+    throw new AppError("Refresh token user no longer exists.", 401);
+  }
+
+  const nextRefreshToken = generateOpaqueToken();
+  const nextRefreshHash = createTokenHash(nextRefreshToken);
+  storedToken.revokedAt = new Date();
+  storedToken.replacedByTokenHash = nextRefreshHash;
+
+  await Promise.all([
+    storedToken.save(),
+    RefreshTokenModel.create({
+      userId: authUser._id.toString(),
+      tokenHash: nextRefreshHash,
+      expiresAt: new Date(Date.now() + getRefreshTokenDays() * 24 * 60 * 60 * 1000),
+    }),
+  ]);
+
+  return {
+    accessToken: createAccessToken(authUser),
+    refreshToken: nextRefreshToken,
+    user: toSafeUser(authUser),
+  };
+}
+
+export async function logoutSession(refreshToken?: string): Promise<void> {
+  if (!refreshToken?.trim()) {
+    return;
+  }
+
+  await RefreshTokenModel.updateOne(
+    {
+      tokenHash: createTokenHash(refreshToken.trim()),
+      revokedAt: undefined,
+    },
+    {
+      $set: {
+        revokedAt: new Date(),
+      },
+    },
+  );
 }

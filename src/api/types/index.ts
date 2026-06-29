@@ -33,6 +33,8 @@ export interface AuthUser {
 export interface AuthResponse {
   success: boolean;
   token?: string;
+  accessToken?: string;
+  refreshToken?: string;
   user?: AuthUser;
   message?: string;
 }
