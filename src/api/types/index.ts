@@ -13,7 +13,12 @@ export const COMPLAINT_CATEGORIES = [
 
 export type ComplaintCategory = (typeof COMPLAINT_CATEGORIES)[number];
 
-export const COMPLAINT_STATUSES = ["Pending", "In Progress", "Resolved"] as const;
+export const COMPLAINT_STATUSES = [
+  "Pending",
+  "In Progress",
+  "Resolved",
+  "Rejected",
+] as const;
 
 export type ComplaintStatus = (typeof COMPLAINT_STATUSES)[number];
 
@@ -213,6 +218,11 @@ export interface UploadPhotoResponse {
   uploads?: UploadedPhotoMetadata[];
   errors?: string[];
   message?: string;
+}
+
+export interface UpdateComplaintStatusDto {
+  status: ComplaintStatus;
+  note?: string;
 }
 
 export interface UploadedPhotoMetadata {

@@ -9,6 +9,7 @@ import {
     getMy,
     timeline,
     update,
+    updateStatus,
     uploadPhoto,
 } from "../controllers/complaint.controller";
 import { protect } from "../middlewares/auth.middleware";
@@ -38,6 +39,7 @@ complaintRouter.post("/upload-photo", photoUpload.array("photo", 4), uploadPhoto
 complaintRouter.post("/analyze", analyze);
 complaintRouter.post("/", create);
 complaintRouter.get("/:id/timeline", timeline);
+complaintRouter.patch("/:id/status", updateStatus);
 complaintRouter.get("/:id", getById);
 complaintRouter.put("/:id", update);
 complaintRouter.delete("/:id", deleteComplaint);

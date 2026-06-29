@@ -8,6 +8,7 @@ import {
   getComplaintTimeline as getComplaintTimelineService,
   getMyComplaints as getMyComplaintsService,
   updateComplaint as updateComplaintService,
+  updateComplaintStatus as updateComplaintStatusService,
   uploadComplaintPhoto as uploadComplaintPhotoService,
 } from "../services/complaint.service";
 import type {
@@ -17,6 +18,7 @@ import type {
   ComplaintsResponse,
   CreateComplaintDto,
   JwtUserPayload,
+  UpdateComplaintStatusDto,
   UpdateComplaintDto,
   UploadPhotoResponse,
 } from "../types";
@@ -192,6 +194,29 @@ export async function update(
     response.status(200).json({
       success: true,
       message: "Complaint updated successfully.",
+      complaint,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function updateStatus(
+  request: Request<{ id: string }, unknown, Partial<UpdateComplaintStatusDto>>,
+  response: Response<ComplaintResponse>,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const complaint = await updateComplaintStatusService(
+      request.params.id,
+      (request.body as UpdateComplaintStatusDto).status,
+      requireAuthenticatedUser(request),
+      (request.body as UpdateComplaintStatusDto).note,
+    );
+
+    response.status(200).json({
+      success: true,
+      message: "Complaint status updated successfully.",
       complaint,
     });
   } catch (error) {

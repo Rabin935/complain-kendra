@@ -30,6 +30,7 @@ import {
 } from "../utils/upload.utils";
 import { analyzeComplaint } from "./ai.service";
 import { allocateComplaintNumber } from "./complaint-number.service";
+import { notifyComplaintStatusChange } from "./notification.service";
 import { addTimelineEvent, getComplaintTimeline as getComplaintTimelineService } from "./timeline.service";
 import { resolveWardFromCoordinates } from "./ward.service";
 
@@ -43,6 +44,12 @@ type UploadedComplaintPhoto = {
 
 const MAX_UPLOAD_COUNT = 4;
 const MAX_UPLOAD_SIZE_IN_BYTES = 10 * 1024 * 1024;
+const COMPLAINT_STATUS_TRANSITIONS: Record<ComplaintStatus, ComplaintStatus[]> = {
+  Pending: ["In Progress", "Rejected"],
+  "In Progress": ["Resolved"],
+  Resolved: [],
+  Rejected: [],
+};
 
 function isPlainObject(value: unknown): value is InputRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -313,7 +320,7 @@ function normalizeUpdateComplaintInput(
   }
 
   if (payload.status !== undefined) {
-    updates.status = normalizeStatus(payload.status, "Status", false);
+    throw new AppError("Use the complaint status endpoint to change status.", 400);
   }
 
   if (payload.aiSuggestedCategory !== undefined) {
@@ -439,6 +446,28 @@ function assertComplaintOwnership(
 
   if (getComplaintOwnerId(complaint) !== actor.userId) {
     throw new AppError("You are not allowed to modify this complaint.", 403);
+  }
+}
+
+function assertStatusWorkflowPermission(actor: JwtUserPayload): void {
+  if (actor.role !== "admin") {
+    throw new AppError("Only admin users can update complaint status.", 403);
+  }
+}
+
+function assertValidStatusTransition(
+  currentStatus: ComplaintStatus,
+  nextStatus: ComplaintStatus,
+): void {
+  if (currentStatus === nextStatus) {
+    throw new AppError(`Complaint is already marked as ${nextStatus}.`, 400);
+  }
+
+  if (!COMPLAINT_STATUS_TRANSITIONS[currentStatus].includes(nextStatus)) {
+    throw new AppError(
+      `Invalid complaint status transition from ${currentStatus} to ${nextStatus}.`,
+      400,
+    );
   }
 }
 
@@ -641,6 +670,80 @@ export async function updateComplaint(
   }
 
   return toComplaintPayload(updatedComplaint);
+}
+
+export async function updateComplaintStatus(
+  id: string,
+  status: ComplaintStatus,
+  actor: JwtUserPayload,
+  note?: string,
+): Promise<ComplaintPayload> {
+  const normalizedComplaintId = normalizeObjectId(id, "complaint id");
+  const normalizedActorId = normalizeObjectId(actor.userId, "user id");
+  const actorUser = await getExistingUser(normalizedActorId);
+  const complaint = await getComplaintRecordById(normalizedComplaintId);
+
+  if (!complaint) {
+    throw new AppError("Complaint not found.", 404);
+  }
+
+  const normalizedActor = {
+    ...actor,
+    userId: normalizedActorId,
+    role: actorUser.role,
+  };
+  const previousStatus = complaint.status;
+  const normalizedStatus = normalizeStatus(status, "Status", true) as ComplaintStatus;
+
+  assertStatusWorkflowPermission(normalizedActor);
+  assertValidStatusTransition(previousStatus, normalizedStatus);
+
+  complaint.status = normalizedStatus;
+  await complaint.save();
+
+  await addTimelineEvent({
+    complaintId: complaint._id.toString(),
+    type: "status_changed",
+    title: `Status changed to ${normalizedStatus}`,
+    message: note,
+    actorType: "officer",
+    actorId: normalizedActorId,
+    metadata: {
+      previousStatus,
+      nextStatus: normalizedStatus,
+    },
+  });
+
+  if (normalizedStatus === "Resolved") {
+    await addTimelineEvent({
+      complaintId: complaint._id.toString(),
+      type: "resolved",
+      title: "Complaint resolved",
+      message: note,
+      actorType: "officer",
+      actorId: normalizedActorId,
+    });
+  }
+
+  if (normalizedStatus === "Rejected") {
+    await addTimelineEvent({
+      complaintId: complaint._id.toString(),
+      type: "rejected",
+      title: "Complaint rejected",
+      message: note,
+      actorType: "officer",
+      actorId: normalizedActorId,
+    });
+  }
+
+  await notifyComplaintStatusChange({
+    userId: getComplaintOwnerId(complaint),
+    complaintId: complaint._id.toString(),
+    complaintNumber: complaint.complaintNumber,
+    status: normalizedStatus,
+  });
+
+  return toComplaintPayload(complaint);
 }
 
 export async function deleteComplaint(
