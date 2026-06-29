@@ -39,6 +39,15 @@ const userSchema = new Schema<User, UserModel>(
       default: "user",
       required: true,
     },
+    passwordResetTokenHash: {
+      type: String,
+      default: undefined,
+      index: true,
+    },
+    passwordResetExpiresAt: {
+      type: Date,
+      default: undefined,
+    },
     createdAt: {
       type: Date,
       default: Date.now,

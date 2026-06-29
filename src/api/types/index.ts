@@ -6,6 +6,8 @@ export interface User {
   password: string;
   phone?: string;
   role: UserRole;
+  passwordResetTokenHash?: string;
+  passwordResetExpiresAt?: Date;
   createdAt: Date;
 }
 

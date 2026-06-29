@@ -5,11 +5,13 @@ import RefreshTokenModel from "../models/RefreshToken";
 import { createUser, findUserByEmail } from "../repositories/user.repository";
 import type { AuthUser, CreateUserDto, LoginDto } from "../types";
 import { AppError } from "../utils/appError";
+import { sendPasswordResetEmail } from "./email.service";
 
 const SALT_ROUNDS = 10;
 const ACCESS_TOKEN_EXPIRES_IN = (process.env.JWT_ACCESS_EXPIRES_IN ??
   "15m") as SignOptions["expiresIn"];
 const DEFAULT_REFRESH_TOKEN_DAYS = 30;
+const PASSWORD_RESET_TOKEN_MINUTES = 30;
 
 export interface LoginResult {
   accessToken: string;
@@ -233,5 +235,68 @@ export async function logoutSession(refreshToken?: string): Promise<void> {
         revokedAt: new Date(),
       },
     },
+  );
+}
+
+export async function requestPasswordReset(email: string): Promise<void> {
+  if (!email?.trim()) {
+    throw new AppError("Email is required.", 400);
+  }
+
+  const normalizedEmail = normalizeText(email).toLowerCase();
+  const user = await findUserByEmail(normalizedEmail);
+
+  if (!user) {
+    return;
+  }
+
+  const resetToken = generateOpaqueToken();
+  user.passwordResetTokenHash = createTokenHash(resetToken);
+  user.passwordResetExpiresAt = new Date(
+    Date.now() + PASSWORD_RESET_TOKEN_MINUTES * 60 * 1000,
+  );
+  await user.save();
+
+  await sendPasswordResetEmail({
+    email: user.email,
+    name: user.name,
+    resetToken,
+  });
+}
+
+export async function resetPassword(input: {
+  token?: string;
+  password?: string;
+}): Promise<void> {
+  const token = input.token?.trim();
+  const password = input.password?.trim();
+
+  if (!token || !password) {
+    throw new AppError("Reset token and new password are required.", 400);
+  }
+
+  if (password.length < 6) {
+    throw new AppError("Password must be at least 6 characters long.", 400);
+  }
+
+  const user = await import("../models/User").then(({ default: UserModel }) =>
+    UserModel.findOne({
+      passwordResetTokenHash: createTokenHash(token),
+      passwordResetExpiresAt: { $gt: new Date() },
+    }),
+  );
+
+  if (!user) {
+    throw new AppError("Invalid or expired reset token.", 400);
+  }
+
+  user.password = await bcrypt.hash(password, SALT_ROUNDS);
+  user.passwordResetTokenHash = undefined;
+  user.passwordResetExpiresAt = undefined;
+  await user.save();
+
+  await RefreshTokenModel.updateMany(
+    { userId: user._id, revokedAt: undefined },
+    { $set: { revokedAt: new Date() } },
   );
 }

@@ -4,6 +4,8 @@ import {
   logoutSession,
   refreshSession,
   registerUser,
+  requestPasswordReset,
+  resetPassword as resetPasswordService,
 } from "../services/auth.service";
 import type { AuthResponse, CreateUserDto, LoginDto } from "../types";
 
@@ -78,6 +80,43 @@ export async function logout(
     response.status(200).json({
       success: true,
       message: "Logout successful.",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function forgotPassword(
+  request: Request<Record<string, never>, unknown, { email?: string }>,
+  response: Response<AuthResponse>,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    await requestPasswordReset(request.body.email ?? "");
+
+    response.status(200).json({
+      success: true,
+      message: "If that email exists, a password reset link has been sent.",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function resetPassword(
+  request: Request<Record<string, never>, unknown, { token?: string; password?: string }>,
+  response: Response<AuthResponse>,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    await resetPasswordService({
+      token: request.body.token,
+      password: request.body.password,
+    });
+
+    response.status(200).json({
+      success: true,
+      message: "Password reset successfully.",
     });
   } catch (error) {
     next(error);
