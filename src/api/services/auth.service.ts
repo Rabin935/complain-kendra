@@ -102,8 +102,11 @@ function toSafeUser(user: {
   name: string;
   email: string;
   role: "user" | "admin";
-  phone?: string;
-  createdAt?: Date;
+    phone?: string;
+    avatarUrl?: string;
+    isPublic?: boolean;
+    language?: "English" | "Nepali";
+    createdAt?: Date;
 }): AuthUser {
   return {
     id: user._id.toString(),
@@ -111,6 +114,9 @@ function toSafeUser(user: {
     email: user.email,
     role: user.role,
     phone: user.phone,
+    avatarUrl: user.avatarUrl,
+    isPublic: user.isPublic,
+    language: user.language,
     createdAt: user.createdAt,
   };
 }
@@ -163,6 +169,10 @@ export async function loginUser(payload: LoginDto): Promise<LoginResult> {
       name: user.name,
       email: user.email,
       role: user.role,
+      phone: user.phone,
+      avatarUrl: user.avatarUrl,
+      isPublic: user.isPublic,
+      language: user.language,
     },
   };
 }

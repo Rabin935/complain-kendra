@@ -5,6 +5,7 @@ import { connectDatabase } from "./config/database";
 import { errorHandler } from "./middlewares/error.middleware";
 import authRouter from "./routes/auth.routes";
 import officerRouter from "./routes/officer.routes";
+import userRouter from "./routes/user.routes";
 
 dotenv.config();
 
@@ -20,6 +21,7 @@ app.use(
 app.use(express.json());
 
 app.use("/api/v1/auth", authRouter);
+app.use("/api/v1/users", userRouter);
 app.use("/api/v1/officer", officerRouter);
 app.use("/api/auth", authRouter);
 

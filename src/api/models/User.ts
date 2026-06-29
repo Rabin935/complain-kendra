@@ -39,6 +39,20 @@ const userSchema = new Schema<User, UserModel>(
       default: "user",
       required: true,
     },
+    avatarUrl: {
+      type: String,
+      trim: true,
+      default: undefined,
+    },
+    isPublic: {
+      type: Boolean,
+      default: true,
+    },
+    language: {
+      type: String,
+      enum: ["English", "Nepali"],
+      default: "English",
+    },
     passwordResetTokenHash: {
       type: String,
       default: undefined,

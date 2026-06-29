@@ -10,6 +10,9 @@ export interface User {
   role: UserRole;
   passwordResetTokenHash?: string;
   passwordResetExpiresAt?: Date;
+  avatarUrl?: string;
+  isPublic?: boolean;
+  language?: "English" | "Nepali";
   createdAt: Date;
 }
 
@@ -48,6 +51,9 @@ export interface AuthUser {
   email: string;
   role: UserRole;
   phone?: string;
+  avatarUrl?: string;
+  isPublic?: boolean;
+  language?: "English" | "Nepali";
   createdAt?: Date;
 }
 
