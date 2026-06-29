@@ -1,0 +1,113 @@
+import type { CSSProperties } from "react";
+
+export const colors = {
+  background: "#fbf9ff",
+  border: "#ded6ec",
+  danger: "#dc2626",
+  muted: "#f6f3fb",
+  primary: "#5b35b1",
+  primaryDark: "#321a70",
+  success: "#15803d",
+  surface: "#ffffff",
+  text: "#1e1930",
+  textMuted: "#6d647d",
+};
+
+export const styles: Record<string, CSSProperties> = {
+  page: {
+    minHeight: "100vh",
+    background: colors.background,
+    color: colors.text,
+    fontFamily:
+      'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  },
+  header: {
+    position: "sticky",
+    top: 0,
+    zIndex: 2,
+    borderBottom: `1px solid ${colors.border}`,
+    background: colors.surface,
+  },
+  topbar: {
+    width: "min(1180px, calc(100% - 24px))",
+    margin: "0 auto",
+    display: "grid",
+    gridTemplateColumns: "1fr minmax(260px, 420px)",
+    gap: 16,
+    alignItems: "center",
+    padding: "14px 0",
+  },
+  main: {
+    width: "min(1180px, calc(100% - 24px))",
+    margin: "0 auto",
+    padding: "18px 0 32px",
+  },
+  tabs: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 14,
+  },
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+    gap: 14,
+  },
+  panel: {
+    border: `1px solid ${colors.border}`,
+    borderRadius: 8,
+    background: colors.surface,
+    padding: 14,
+  },
+  label: {
+    display: "block",
+    marginTop: 8,
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: 700,
+  },
+  input: {
+    width: "100%",
+    minHeight: 38,
+    marginTop: 4,
+    border: `1px solid ${colors.border}`,
+    borderRadius: 6,
+    padding: "8px 10px",
+    background: colors.surface,
+    color: colors.text,
+    font: "inherit",
+    boxSizing: "border-box",
+  },
+  buttonRow: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 10,
+  },
+  status: {
+    minHeight: 40,
+    margin: "0 0 12px",
+    border: `1px solid ${colors.border}`,
+    borderRadius: 8,
+    padding: 10,
+    background: colors.muted,
+    color: colors.primaryDark,
+    fontSize: 13,
+  },
+  output: {
+    maxHeight: 520,
+    overflow: "auto",
+    border: `1px solid ${colors.border}`,
+    borderRadius: 8,
+    padding: 12,
+    background: "#171321",
+    color: "#f8f5ff",
+    fontSize: 12,
+    lineHeight: 1.5,
+  },
+  hint: {
+    color: colors.textMuted,
+    fontSize: 12,
+    margin: "8px 0 0",
+  },
+};
