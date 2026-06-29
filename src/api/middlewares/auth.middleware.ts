@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import jwt, { JwtPayload } from "jsonwebtoken";
-import type { JwtUserPayload } from "../types";
+import type { JwtUserPayload, OfficerRole } from "../types";
 
 function getJwtSecret(): string {
   const jwtSecret = process.env.JWT_SECRET;
@@ -17,7 +17,10 @@ function isJwtUserPayload(payload: string | JwtPayload): payload is JwtUserPaylo
     typeof payload !== "string" &&
     typeof payload.userId === "string" &&
     typeof payload.email === "string" &&
-    (payload.role === "user" || payload.role === "admin")
+    (payload.role === "user" ||
+      payload.role === "officer" ||
+      payload.role === "supervisor" ||
+      payload.role === "admin")
   );
 }
 
@@ -73,4 +76,42 @@ export function protect(request: Request, response: Response, next: NextFunction
       message: "Invalid or expired token.",
     });
   }
+}
+
+export function requireOfficer(
+  request: Request,
+  response: Response,
+  next: NextFunction,
+): void {
+  if (!request.user || request.user.type !== "officer") {
+    response.status(403).json({
+      success: false,
+      message: "Officer access is required.",
+    });
+    return;
+  }
+
+  next();
+}
+
+export function requireOfficerRole(...roles: OfficerRole[]) {
+  return (request: Request, response: Response, next: NextFunction): void => {
+    if (!request.user || request.user.type !== "officer") {
+      response.status(403).json({
+        success: false,
+        message: "Officer access is required.",
+      });
+      return;
+    }
+
+    if (!roles.includes(request.user.role as OfficerRole)) {
+      response.status(403).json({
+        success: false,
+        message: "You do not have permission to access this resource.",
+      });
+      return;
+    }
+
+    next();
+  };
 }
