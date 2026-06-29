@@ -35,7 +35,12 @@ function isAuthUser(value: unknown): value is AuthUser {
     typeof candidate.name === "string" &&
     typeof candidate.email === "string" &&
     (candidate.avatarUrl === undefined || typeof candidate.avatarUrl === "string") &&
-    (candidate.role === "user" || candidate.role === "admin")
+    (
+      candidate.role === "citizen" ||
+      candidate.role === "officer" ||
+      candidate.role === "supervisor" ||
+      candidate.role === "admin"
+    )
   );
 }
 
@@ -106,12 +111,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
     try {
       const response = await authService.login(payload);
 
-      if (!response.token || !response.user) {
+      const accessToken = response.accessToken ?? response.token;
+
+      if (!accessToken || !response.user) {
         throw new Error("Login failed. Please try again.");
       }
 
-      await persistSession(response.token, response.user);
-      setToken(response.token);
+      await persistSession(accessToken, response.user);
+      setToken(accessToken);
       setUser(response.user);
     } catch (error) {
       throw new Error(getApiErrorMessage(error));
@@ -184,12 +191,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
         return;
       }
 
-      if (!response.token || !response.user) {
+      const accessToken = response.accessToken ?? response.token;
+
+      if (!accessToken || !response.user) {
         throw new Error("Google login failed. Please try again.");
       }
 
-      await persistSession(response.token, response.user);
-      setToken(response.token);
+      await persistSession(accessToken, response.user);
+      setToken(accessToken);
       setUser(response.user);
     } catch (error) {
       throw new Error(getApiErrorMessage(error));
