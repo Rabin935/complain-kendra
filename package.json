@@ -8,7 +8,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "server": "nodemon --exec ts-node src/api/server.ts"
+    "server": "nodemon --exec ts-node src/api/server.ts",
+    "seed": "ts-node src/api/seeds/seed.ts"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
