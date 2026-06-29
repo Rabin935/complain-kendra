@@ -15,7 +15,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../../../constants/colors";
 import { useAuth } from "../../auth/context/AuthContext";
-import { categoryMeta, sampleComplaints, sampleProfile, sampleStats } from "../data/citizenSampleData";
+import { categoryMeta, sampleProfile, sampleStats } from "../data/citizenSampleData";
 import {
   fetchCitizenProfile,
   fetchCitizenStats,
@@ -30,10 +30,10 @@ import type {
   CitizenProfile,
   CitizenStats,
 } from "../types/citizen.types";
-import type { UserTabParamList } from "../types/user.types";
+import type { UserStackParamList, UserTabParamList } from "../types/user.types";
 import { formatDistance, statusColors, statusLabels } from "../utils/citizenUi";
 
-type HomeNavigation = NavigationProp<UserTabParamList>;
+type HomeNavigation = NavigationProp<UserTabParamList & UserStackParamList>;
 
 const categoryOrder: CitizenComplaintCategory[] = [
   "road",
@@ -52,7 +52,7 @@ export default function HomeScreen() {
     name: user?.name ?? sampleProfile.name,
   });
   const [stats, setStats] = useState<CitizenStats>(sampleStats);
-  const [nearbyComplaints, setNearbyComplaints] = useState<CitizenComplaint[]>(sampleComplaints);
+  const [nearbyComplaints, setNearbyComplaints] = useState<CitizenComplaint[]>([]);
   const [notifications, setNotifications] = useState<CitizenNotification[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -144,7 +144,7 @@ export default function HomeScreen() {
   }
 
   function openComplaint(complaint: CitizenComplaint) {
-    Alert.alert(complaint.complaintNo, `${complaint.title}\n${complaint.location.address}`);
+    navigation.navigate("ComplaintDetail", { complaintId: complaint.id });
   }
 
   function openNotifications() {
@@ -178,7 +178,7 @@ export default function HomeScreen() {
           <View style={styles.headerTop}>
             <View>
               <Text style={styles.greeting}>Good morning,</Text>
-              <Text style={styles.userName}>{firstName === "Rahul" ? "Rahul Sharma" : profile.name}</Text>
+              <Text style={styles.userName}>{profile.name}</Text>
             </View>
 
             <View style={styles.headerActions}>
