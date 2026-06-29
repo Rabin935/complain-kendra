@@ -24,6 +24,7 @@ import {
 import { AppError } from "../utils/appError";
 import { uploadToCloudinary } from "../utils/upload.utils";
 import { analyzeComplaint } from "./ai.service";
+import { allocateComplaintNumber } from "./complaint-number.service";
 import { addTimelineEvent, getComplaintTimeline as getComplaintTimelineService } from "./timeline.service";
 import { resolveWardFromCoordinates } from "./ward.service";
 
@@ -392,6 +393,7 @@ function toComplaintPayload(complaint: ComplaintDocument): ComplaintPayload {
   return {
     id: complaint._id.toString(),
     userId: getComplaintOwnerId(complaint),
+    complaintNumber: complaint.complaintNumber,
     title: complaint.title,
     description: complaint.description,
     location: mapComplaintLocation(complaint.location),
@@ -442,7 +444,10 @@ export async function createComplaint(
 
   const complaint = await createComplaintRecord(
     normalizedUserId,
-    normalizedPayload,
+    {
+      ...normalizedPayload,
+      complaintNumber: await allocateComplaintNumber(),
+    },
   );
 
   await addTimelineEvent({

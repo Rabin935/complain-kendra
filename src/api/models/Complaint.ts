@@ -53,6 +53,13 @@ const complaintSchema = new Schema<Complaint, ComplaintModel>(
       ref: "User",
       required: true,
     },
+    complaintNumber: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
+      index: true,
+    },
     title: {
       type: String,
       required: true,

@@ -53,6 +53,7 @@ export type TimelineEventType = (typeof TIMELINE_EVENT_TYPES)[number];
 
 export interface Complaint {
   userId: Types.ObjectId | string;
+  complaintNumber: string;
   title: string;
   description: string;
   location?: ComplaintLocation;
@@ -159,6 +160,7 @@ export interface JwtUserPayload {
 export interface ComplaintPayload {
   id: string;
   userId: string;
+  complaintNumber: string;
   title: string;
   description: string;
   location?: ComplaintLocation;

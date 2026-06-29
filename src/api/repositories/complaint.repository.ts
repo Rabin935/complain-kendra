@@ -1,5 +1,5 @@
 import ComplaintModel, { ComplaintDocument } from "../models/Complaint";
-import type { ComplaintFilterDto, CreateComplaintDto, UpdateComplaintDto } from "../types";
+import type { Complaint, ComplaintFilterDto, CreateComplaintDto, UpdateComplaintDto } from "../types";
 import { findUserById } from "./user.repository";
 
 function escapeRegex(value: string): string {
@@ -25,7 +25,7 @@ async function buildOwnershipQuery(
 
 export async function createComplaint(
   userId: string,
-  data: CreateComplaintDto,
+  data: CreateComplaintDto & Pick<Complaint, "complaintNumber">,
 ): Promise<ComplaintDocument> {
   return ComplaintModel.create({
     ...data,
