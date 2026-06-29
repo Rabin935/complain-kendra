@@ -5,6 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../constants/colors";
 import { useAuth } from "../features/auth/context/AuthContext";
 import AuthNavigator from "../features/auth/navigation/AuthNavigator";
+import DevConsoleScreen from "../features/devtools/screens/DevConsoleScreen";
 import type { MainTabParamList } from "../features/auth/types/auth.types";
 
 const MainTabs = createBottomTabNavigator<MainTabParamList>();
@@ -73,6 +74,7 @@ function MainNavigator() {
       }}
     >
       <MainTabs.Screen name="Home" component={HomeScreen} />
+      <MainTabs.Screen name="Console" component={DevConsoleScreen} />
     </MainTabs.Navigator>
   );
 }

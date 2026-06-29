@@ -40,15 +40,15 @@ function isStoredToken(token: string | null): token is string {
 }
 
 async function persistSession(token: string, user: AuthUser): Promise<void> {
-  await AsyncStorage.setMany({
-    [TOKEN_STORAGE_KEY]: token,
-    [USER_STORAGE_KEY]: JSON.stringify(user),
-  });
+  await AsyncStorage.multiSet([
+    [TOKEN_STORAGE_KEY, token],
+    [USER_STORAGE_KEY, JSON.stringify(user)],
+  ]);
   setAuthToken(token);
 }
 
 async function clearPersistedSession(): Promise<void> {
-  await AsyncStorage.removeMany([TOKEN_STORAGE_KEY, USER_STORAGE_KEY]);
+  await AsyncStorage.multiRemove([TOKEN_STORAGE_KEY, USER_STORAGE_KEY]);
   setAuthToken(null);
 }
 
@@ -61,12 +61,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     async function restoreSession() {
       try {
-        const storedSession = await AsyncStorage.getMany([
+        const storedSession = await AsyncStorage.multiGet([
           TOKEN_STORAGE_KEY,
           USER_STORAGE_KEY,
         ]);
-        const storedToken = storedSession[TOKEN_STORAGE_KEY];
-        const storedUser = storedSession[USER_STORAGE_KEY];
+        const storedEntries = Object.fromEntries(storedSession);
+        const storedToken = storedEntries[TOKEN_STORAGE_KEY] ?? null;
+        const storedUser = storedEntries[USER_STORAGE_KEY];
 
         if (!isStoredToken(storedToken) || !storedUser) {
           await clearPersistedSession();
@@ -98,13 +99,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
     try {
       const response = await authService.login(payload);
+      const accessToken = response.accessToken ?? response.token;
 
-      if (!response.token || !response.user) {
+      if (!accessToken || !response.user) {
         throw new Error("Login failed. Please try again.");
       }
 
-      await persistSession(response.token, response.user);
-      setToken(response.token);
+      await persistSession(accessToken, response.user);
+      setToken(accessToken);
       setUser(response.user);
     } catch (error) {
       throw new Error(getApiErrorMessage(error));
@@ -118,13 +120,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
     try {
       const response = await authService.register(payload);
+      const accessToken = response.accessToken ?? response.token;
 
-      if (!response.token || !response.user) {
+      if (!accessToken || !response.user) {
         throw new Error("Registration completed, but sign-in failed.");
       }
 
-      await persistSession(response.token, response.user);
-      setToken(response.token);
+      await persistSession(accessToken, response.user);
+      setToken(accessToken);
       setUser(response.user);
     } catch (error) {
       throw new Error(getApiErrorMessage(error));
