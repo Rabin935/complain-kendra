@@ -209,5 +209,20 @@ export interface ComplaintTimelineResponse {
 export interface UploadPhotoResponse {
   success: boolean;
   photoUrl?: string;
+  photoUrls?: string[];
+  uploads?: UploadedPhotoMetadata[];
+  errors?: string[];
   message?: string;
+}
+
+export interface UploadedPhotoMetadata {
+  url: string;
+  publicId: string;
+  originalName: string;
+  sanitizedName: string;
+  mimeType: string;
+  size: number;
+  format?: string;
+  width?: number;
+  height?: number;
 }

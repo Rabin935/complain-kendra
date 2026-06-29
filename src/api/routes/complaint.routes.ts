@@ -13,6 +13,7 @@ import {
 } from "../controllers/complaint.controller";
 import { protect } from "../middlewares/auth.middleware";
 import { AppError } from "../utils/appError";
+import { isAllowedUploadMimeType } from "../utils/upload.utils";
 
 const complaintRouter = Router();
 const photoUpload = multer({
@@ -21,8 +22,8 @@ const photoUpload = multer({
     fileSize: 10 * 1024 * 1024,
   },
   fileFilter(_request, file, callback) {
-    if (!file.mimetype.startsWith("image/")) {
-      callback(new AppError("Only image files are allowed.", 400));
+    if (!isAllowedUploadMimeType(file.mimetype)) {
+      callback(new AppError("Only JPEG, PNG, and HEIC images are allowed.", 400));
       return;
     }
 
@@ -33,7 +34,7 @@ const photoUpload = multer({
 complaintRouter.use(protect);
 complaintRouter.get("/", getAll);
 complaintRouter.get("/my", getMy);
-complaintRouter.post("/upload-photo", photoUpload.single("photo"), uploadPhoto);
+complaintRouter.post("/upload-photo", photoUpload.array("photo", 4), uploadPhoto);
 complaintRouter.post("/analyze", analyze);
 complaintRouter.post("/", create);
 complaintRouter.get("/:id/timeline", timeline);

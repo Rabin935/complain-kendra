@@ -42,6 +42,14 @@ function getQueryValue(value: unknown): string | undefined {
   return undefined;
 }
 
+function getUploadedFiles(request: Request): Express.Multer.File[] {
+  if (Array.isArray(request.files)) {
+    return request.files;
+  }
+
+  return [];
+}
+
 export async function create(
   request: Request<Record<string, never>, unknown, Partial<CreateComplaintDto>>,
   response: Response<ComplaintResponse>,
@@ -71,16 +79,23 @@ export async function uploadPhoto(
   try {
     requireAuthenticatedUser(request);
 
-    if (!request.file) {
+    const files = getUploadedFiles(request);
+
+    if (files.length === 0) {
       throw new AppError("Photo file is required.", 400);
     }
 
-    const photoUrl = await uploadComplaintPhotoService(request.file);
+    const uploads = await uploadComplaintPhotoService(files);
 
     response.status(200).json({
       success: true,
-      message: "Photo uploaded successfully.",
-      photoUrl,
+      message:
+        uploads.length === 1
+          ? "Photo uploaded successfully."
+          : "Photos uploaded successfully.",
+      photoUrl: uploads[0]?.url,
+      photoUrls: uploads.map((upload) => upload.url),
+      uploads,
     });
   } catch (error) {
     next(error);

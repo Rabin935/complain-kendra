@@ -18,11 +18,16 @@ import {
   type ComplaintPayload,
   type ComplaintStatus,
   type CreateComplaintDto,
+  type UploadedPhotoMetadata,
   type JwtUserPayload,
   type UpdateComplaintDto,
 } from "../types";
 import { AppError } from "../utils/appError";
-import { uploadToCloudinary } from "../utils/upload.utils";
+import {
+  deleteUploadedAsset,
+  isAllowedUploadMimeType,
+  uploadToCloudinary,
+} from "../utils/upload.utils";
 import { analyzeComplaint } from "./ai.service";
 import { allocateComplaintNumber } from "./complaint-number.service";
 import { addTimelineEvent, getComplaintTimeline as getComplaintTimelineService } from "./timeline.service";
@@ -33,7 +38,11 @@ type UploadedComplaintPhoto = {
   buffer: Buffer;
   mimetype: string;
   size: number;
+  originalname: string;
 };
+
+const MAX_UPLOAD_COUNT = 4;
+const MAX_UPLOAD_SIZE_IN_BYTES = 10 * 1024 * 1024;
 
 function isPlainObject(value: unknown): value is InputRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -507,17 +516,56 @@ export async function createComplaint(
   return toComplaintPayload(complaint);
 }
 
-export async function uploadComplaintPhoto(
-  file: UploadedComplaintPhoto,
-): Promise<string> {
-  if (file.size <= 0) {
-    throw new AppError("Photo file is required.", 400);
+function validateUploadFiles(files: UploadedComplaintPhoto[]): void {
+  if (files.length === 0) {
+    throw new AppError("At least one photo file is required.", 400);
   }
 
-  return uploadToCloudinary({
-    buffer: file.buffer,
-    mimeType: file.mimetype,
-  });
+  if (files.length > MAX_UPLOAD_COUNT) {
+    throw new AppError("A maximum of 4 photos can be uploaded at once.", 400);
+  }
+
+  for (const file of files) {
+    if (file.size <= 0) {
+      throw new AppError("Photo file is required.", 400);
+    }
+
+    if (file.size > MAX_UPLOAD_SIZE_IN_BYTES) {
+      throw new AppError("Each photo must be 10 MB or smaller.", 413);
+    }
+
+    if (!isAllowedUploadMimeType(file.mimetype)) {
+      throw new AppError("Only JPEG, PNG, and HEIC images are allowed.", 400);
+    }
+  }
+}
+
+export async function uploadComplaintPhoto(
+  files: UploadedComplaintPhoto[],
+): Promise<UploadedPhotoMetadata[]> {
+  validateUploadFiles(files);
+
+  const uploads: UploadedPhotoMetadata[] = [];
+
+  try {
+    for (const file of files) {
+      const upload = await uploadToCloudinary({
+        buffer: file.buffer,
+        mimeType: file.mimetype,
+        fileName: file.originalname,
+        size: file.size,
+      });
+
+      uploads.push(upload);
+    }
+  } catch (error) {
+    await Promise.all(
+      uploads.map((upload) => deleteUploadedAsset(upload.publicId)),
+    );
+    throw error;
+  }
+
+  return uploads;
 }
 
 export async function getAllComplaints(

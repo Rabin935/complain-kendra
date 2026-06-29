@@ -20,8 +20,10 @@ export function errorHandler(
     const statusCode = error.code === "LIMIT_FILE_SIZE" ? 413 : 400;
     const message =
       error.code === "LIMIT_FILE_SIZE"
-        ? "Photo must be 10 MB or smaller."
-        : error.message;
+        ? "Each photo must be 10 MB or smaller."
+        : error.code === "LIMIT_UNEXPECTED_FILE"
+          ? "A maximum of 4 photos can be uploaded at once."
+          : error.message;
 
     response.status(statusCode).json({
       success: false,
