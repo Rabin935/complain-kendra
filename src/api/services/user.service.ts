@@ -7,6 +7,7 @@ import UserModel from "../models/User";
 import { AppError } from "../utils/appError";
 import { getString, isRecord, requireObjectId, requireString } from "../utils/request.utils";
 import { saveUploadedImage } from "../utils/upload.utils";
+import { buildWardLocation, resolveWardFromPayload } from "./ward.service";
 
 type AvatarFile = {
   buffer: Buffer;
@@ -22,7 +23,11 @@ export function toPublicUser(user: {
   phone?: string;
   role?: string;
   ward?: string;
+  wardId?: string;
   address?: string;
+  homeArea?: string;
+  city?: string;
+  municipality?: string;
   location?: unknown;
   language?: string;
   isPublic?: boolean;
@@ -39,7 +44,11 @@ export function toPublicUser(user: {
     phone: user.phone,
     role: user.role,
     ward: user.ward,
+    wardId: user.wardId,
     address: user.address,
+    homeArea: user.homeArea,
+    city: user.city,
+    municipality: user.municipality,
     location: user.location,
     language: user.language,
     isPublic: user.isPublic,
@@ -70,8 +79,8 @@ export async function updateCurrentUser(userId: string, payload: Record<string, 
 
   const name = getString(payload.name);
   const phone = getString(payload.phone);
-  const ward = getString(payload.ward);
   const address = getString(payload.address);
+  const homeArea = getString(payload.homeArea ?? payload.area);
   const isPublic = payload.is_public ?? payload.isPublic;
 
   if (name) {
@@ -82,21 +91,37 @@ export async function updateCurrentUser(userId: string, payload: Record<string, 
     user.phone = phone;
   }
 
-  if (ward) {
-    user.ward = ward;
-    user.location = {
-      ...(isRecord(user.location) ? user.location : {}),
-      ward: ward.startsWith("Ward") ? ward : `Ward ${ward}`,
-      wardId: ward.replace(/^Ward\s+/i, ""),
-    };
-  }
-
   if (address) {
     user.address = address;
     user.location = {
       ...(isRecord(user.location) ? user.location : {}),
       address,
     };
+  }
+
+  if (homeArea !== undefined) {
+    user.homeArea = homeArea;
+    user.location = {
+      ...(isRecord(user.location) ? user.location : {}),
+      area: homeArea,
+    };
+  }
+
+  const selectedWard = await resolveWardFromPayload(payload, {
+    fallbackCity: getString(payload.city) ?? user.city,
+  });
+
+  if (selectedWard) {
+    const location = buildWardLocation(selectedWard, {
+      ...(isRecord(user.location) ? user.location : {}),
+      address: address ?? user.address,
+      area: homeArea ?? user.homeArea,
+    });
+    user.ward = location.ward;
+    user.wardId = location.wardId;
+    user.city = location.city;
+    user.municipality = location.municipality;
+    user.location = location;
   }
 
   if (typeof isPublic === "boolean") {
@@ -188,15 +213,15 @@ export async function getUserStats(userId: string) {
       ComplaintModel.countDocuments({ userId: normalizedUserId, status: "resolved" }),
       ComplaintModel.countDocuments({ userId: normalizedUserId }),
       UserBadgeModel.countDocuments({ userId: normalizedUserId }),
-      ComplaintModel.find({ userId: normalizedUserId }).select("_id location.ward"),
+      ComplaintModel.find({ userId: normalizedUserId }).select("_id location.wardId"),
     ]);
 
   const upvotesReceived = await ComplaintUpvoteModel.countDocuments({
     complaintId: { $in: ownedComplaints.map((complaint) => complaint._id.toString()) },
   });
-  const ward = ownedComplaints[0]?.location?.ward;
-  const wardTotal = ward
-    ? await ComplaintModel.countDocuments({ "location.ward": ward })
+  const wardId = ownedComplaints[0]?.location?.wardId;
+  const wardTotal = wardId
+    ? await ComplaintModel.countDocuments({ "location.wardId": wardId })
     : submitted;
 
   return {
@@ -251,6 +276,7 @@ export async function getPublicUser(userId: string) {
     id: user._id.toString(),
     name: user.name,
     ward: user.ward,
+    wardId: user.wardId,
     avatarUrl: user.avatarUrl,
     points: user.points,
     level: user.level,

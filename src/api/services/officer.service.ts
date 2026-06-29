@@ -32,6 +32,7 @@ import { createComment } from "./comment.service";
 import { createNotification } from "./notification.service";
 import { awardPoints } from "./points.service";
 import { emitRealtimeEvent } from "../sockets/realtime";
+import { buildWardLocation, resolveWardFromPayload } from "./ward.service";
 
 export async function getOfficerProfile(officerId: string) {
   const officer = await OfficerModel.findById(requireObjectId(officerId, "officer id"));
@@ -41,6 +42,13 @@ export async function getOfficerProfile(officerId: string) {
   }
 
   return officer;
+}
+
+function buildOfficerWardFilter(officer: {
+  role: string;
+  wardId?: string;
+}) {
+  return officer.role === "admin" || !officer.wardId ? {} : { "location.wardId": officer.wardId };
 }
 
 function buildOfficerComplaintQuery(query: Record<string, unknown>) {
@@ -72,7 +80,7 @@ function buildOfficerComplaintQuery(query: Record<string, unknown>) {
 
 export async function getOfficerDashboard(officer: JwtUserPayload) {
   const officerRecord = await getOfficerProfile(officer.subjectId);
-  const wardFilter = officerRecord.role === "admin" ? {} : { "location.wardId": officerRecord.ward };
+  const wardFilter = buildOfficerWardFilter(officerRecord);
   const [total, pending, inProgress, resolved, critical, recent] = await Promise.all([
     ComplaintModel.countDocuments(wardFilter),
     ComplaintModel.countDocuments({ ...wardFilter, status: "pending" }),
@@ -95,12 +103,20 @@ export async function getOfficerDashboard(officer: JwtUserPayload) {
   };
 }
 
-export async function listOfficerComplaints(query: Record<string, unknown>) {
+export async function listOfficerComplaints(
+  query: Record<string, unknown>,
+  actor: JwtUserPayload,
+) {
   const pagination = parsePagination(query);
   const filter = buildOfficerComplaintQuery(query);
+  const officerRecord = await getOfficerProfile(actor.subjectId);
+  const scopedFilter = { ...buildOfficerWardFilter(officerRecord), ...filter };
   const [complaints, total] = await Promise.all([
-    ComplaintModel.find(filter).sort({ priority: -1, createdAt: -1 }).skip(pagination.skip).limit(pagination.limit),
-    ComplaintModel.countDocuments(filter),
+    ComplaintModel.find(scopedFilter)
+      .sort({ priority: -1, createdAt: -1 })
+      .skip(pagination.skip)
+      .limit(pagination.limit),
+    ComplaintModel.countDocuments(scopedFilter),
   ]);
 
   return {
@@ -111,13 +127,27 @@ export async function listOfficerComplaints(query: Record<string, unknown>) {
   };
 }
 
-export async function getOfficerComplaintDetail(id: string) {
+async function assertOfficerCanAccessComplaint(actor: JwtUserPayload, complaint: { location?: { wardId?: string } }) {
+  const officer = await getOfficerProfile(actor.subjectId);
+
+  if (officer.role === "admin" || !officer.wardId) {
+    return;
+  }
+
+  if (complaint.location?.wardId !== officer.wardId) {
+    throw new AppError("You can only access complaints from your assigned ward.", 403);
+  }
+}
+
+export async function getOfficerComplaintDetail(id: string, actor: JwtUserPayload) {
   const complaintId = requireObjectId(id, "complaint id");
   const complaint = await ComplaintModel.findById(complaintId);
 
   if (!complaint) {
     throw new AppError("Complaint not found.", 404);
   }
+
+  await assertOfficerCanAccessComplaint(actor, complaint);
 
   const [timeline, comments] = await Promise.all([
     getComplaintTimeline(complaintId, true),
@@ -148,6 +178,8 @@ export async function updateStatus(input: {
   if (!complaint) {
     throw new AppError("Complaint not found.", 404);
   }
+
+  await assertOfficerCanAccessComplaint(input.actor, complaint);
 
   const previousStatus = complaint.status;
   complaint.status = input.status;
@@ -224,6 +256,8 @@ export async function assignOfficer(input: {
     throw new AppError("Complaint not found.", 404);
   }
 
+  await assertOfficerCanAccessComplaint(input.actor, complaint);
+
   if (!officer) {
     throw new AppError("Officer not found.", 404);
   }
@@ -260,6 +294,8 @@ export async function updatePriority(input: {
     throw new AppError("Complaint not found.", 404);
   }
 
+  await assertOfficerCanAccessComplaint(input.actor, complaint);
+
   complaint.priority = input.priority;
   await complaint.save();
 
@@ -287,6 +323,8 @@ export async function addInternalNote(input: {
   if (!complaint) {
     throw new AppError("Complaint not found.", 404);
   }
+
+  await assertOfficerCanAccessComplaint(input.actor, complaint);
 
   return addTimeline({
     complaintId,
@@ -537,6 +575,19 @@ export async function updateOfficerSettings(officerId: string, payload: Record<s
     if (payload[field] !== undefined) {
       updates[field] = getString(payload[field]);
     }
+  }
+
+  const selectedWard = await resolveWardFromPayload(payload, {
+    fallbackCity: getString(payload.city),
+  });
+
+  if (selectedWard) {
+    const location = buildWardLocation(selectedWard);
+    updates.ward = location.ward;
+    updates.wardId = location.wardId;
+    updates.wardNumber = location.wardNumber;
+    updates.city = location.city;
+    updates.municipality = location.municipality;
   }
 
   const officer = await OfficerModel.findByIdAndUpdate(

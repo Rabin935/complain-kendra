@@ -19,7 +19,11 @@ const complaintLocationSchema = new Schema<ComplaintLocation>(
     area: { type: String, trim: true, default: undefined },
     ward: { type: String, trim: true, default: undefined },
     wardId: { type: String, trim: true, default: undefined },
+    wardName: { type: String, trim: true, default: undefined },
+    wardNumber: { type: String, trim: true, default: undefined },
     city: { type: String, trim: true, default: undefined },
+    municipality: { type: String, trim: true, default: undefined },
+    province: { type: String, trim: true, default: undefined },
   },
   { _id: false },
 );
@@ -123,6 +127,7 @@ const complaintSchema = new Schema<Complaint, ComplaintModel>(
 );
 
 complaintSchema.index({ "location.ward": 1, status: 1, priority: 1 });
+complaintSchema.index({ "location.wardId": 1, status: 1 });
 complaintSchema.index({ title: "text", description: "text" });
 
 const ComplaintModel =

@@ -9,7 +9,11 @@ export interface CitizenLocation {
   area: string;
   ward: string;
   wardId: string;
+  wardName?: string;
+  wardNumber?: string;
   city: string;
+  municipality?: string;
+  province?: string;
   lat: number;
   lng: number;
 }
@@ -141,7 +145,10 @@ export interface CreateReportPayload {
   area: string;
   ward: string;
   wardId: string;
+  wardNumber?: string;
   city: string;
+  municipality?: string;
+  province?: string;
   photos: ReportPhoto[];
 }
 

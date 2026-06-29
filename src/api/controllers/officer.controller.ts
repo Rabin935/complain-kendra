@@ -53,8 +53,8 @@ export async function dashboard(request: Request, response: Response, next: Next
 
 export async function complaints(request: Request, response: Response, next: NextFunction) {
   try {
-    requireOfficerUser(request);
-    const result = await listOfficerComplaints(request.query as Record<string, unknown>);
+    const officer = requireOfficerUser(request);
+    const result = await listOfficerComplaints(request.query as Record<string, unknown>, officer);
 
     response.status(200).json({
       success: true,
@@ -71,8 +71,8 @@ export async function complaintDetail(
   next: NextFunction,
 ) {
   try {
-    requireOfficerUser(request);
-    const result = await getOfficerComplaintDetail(request.params.id);
+    const officer = requireOfficerUser(request);
+    const result = await getOfficerComplaintDetail(request.params.id, officer);
 
     response.status(200).json({
       success: true,

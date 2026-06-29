@@ -43,7 +43,11 @@ export interface WardLocation {
   area?: string;
   ward?: string;
   wardId?: string;
+  wardName?: string;
+  wardNumber?: string;
   city?: string;
+  municipality?: string;
+  province?: string;
 }
 
 export interface User {
@@ -53,7 +57,11 @@ export interface User {
   phone?: string;
   role: CitizenRole;
   ward?: string;
+  wardId?: string;
+  homeArea?: string;
   address?: string;
+  city?: string;
+  municipality?: string;
   location?: WardLocation;
   language: "English" | "Nepali";
   isPublic: boolean;
@@ -76,6 +84,10 @@ export interface Officer {
   phone?: string;
   role: OfficerRole;
   ward?: string;
+  wardId?: string;
+  wardNumber?: string;
+  city?: string;
+  municipality?: string;
   department: string;
   avatarUrl?: string;
   isActive: boolean;
@@ -143,7 +155,11 @@ export interface CreateUserDto {
   password: string;
   phone?: string;
   ward?: string;
+  wardId?: string;
   address?: string;
+  city?: string;
+  municipality?: string;
+  homeArea?: string;
   location?: WardLocation;
   googleId?: string;
   isGoogleUser?: boolean;
@@ -203,6 +219,7 @@ export interface UpdateComplaintDto {
 export interface ComplaintFilterDto {
   ward?: string;
   wardId?: string;
+  city?: string;
   category?: ComplaintCategory;
   status?: ComplaintStatus;
   priority?: ComplaintPriority | "high";
@@ -218,6 +235,9 @@ export interface AuthUser {
   role: UserRole;
   phone?: string;
   ward?: string;
+  wardId?: string;
+  city?: string;
+  municipality?: string;
   department?: string;
   isGoogleUser?: boolean;
   avatarUrl?: string;

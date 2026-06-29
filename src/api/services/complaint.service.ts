@@ -34,6 +34,7 @@ import { analyzeComplaint } from "./ai.service";
 import { createNotification } from "./notification.service";
 import { awardPoints } from "./points.service";
 import { emitRealtimeEvent } from "../sockets/realtime";
+import { buildWardLocation, resolveWardFromPayload } from "./ward.service";
 
 type UploadedComplaintPhoto = {
   buffer: Buffer;
@@ -56,7 +57,19 @@ function mapComplaintLocation(location: ComplaintDocument["location"]): Complain
 
   const mapped: ComplaintLocation = {};
 
-  for (const key of ["lat", "lng", "address", "area", "ward", "wardId", "city"] as const) {
+  for (const key of [
+    "lat",
+    "lng",
+    "address",
+    "area",
+    "ward",
+    "wardId",
+    "wardName",
+    "wardNumber",
+    "city",
+    "municipality",
+    "province",
+  ] as const) {
     const value = location[key];
 
     if (value !== undefined && value !== null && value !== "") {
@@ -116,7 +129,7 @@ export function toComplaintPayload(
   };
 }
 
-function normalizeLocation(payload: Record<string, unknown>): ComplaintLocation | undefined {
+async function normalizeLocation(payload: Record<string, unknown>): Promise<ComplaintLocation | undefined> {
   const rawLocation = isRecord(payload.location) ? payload.location : payload;
   const location: ComplaintLocation = {};
   const lat = getNumber(rawLocation.lat ?? rawLocation.latitude);
@@ -131,17 +144,13 @@ function normalizeLocation(payload: Record<string, unknown>): ComplaintLocation 
   }
 
   const address = getString(rawLocation.address);
-  const ward = getString(rawLocation.ward ?? rawLocation.ward_id ?? rawLocation.wardId);
   const area = getString(rawLocation.area);
   const city = getString(rawLocation.city);
+  const municipality = getString(rawLocation.municipality);
+  const province = getString(rawLocation.province);
 
   if (address) {
     location.address = address;
-  }
-
-  if (ward) {
-    location.ward = ward.startsWith("Ward") ? ward : `Ward ${ward}`;
-    location.wardId = ward.replace(/^Ward\s+/i, "");
   }
 
   if (area) {
@@ -150,6 +159,20 @@ function normalizeLocation(payload: Record<string, unknown>): ComplaintLocation 
 
   if (city) {
     location.city = city;
+  }
+
+  if (municipality) {
+    location.municipality = municipality;
+  }
+
+  if (province) {
+    location.province = province;
+  }
+
+  const selectedWard = await resolveWardFromPayload(payload, { fallbackCity: city });
+
+  if (selectedWard) {
+    return buildWardLocation(selectedWard, location);
   }
 
   return Object.keys(location).length > 0 ? location : undefined;
@@ -176,7 +199,7 @@ async function generateComplaintNo(): Promise<string> {
   return `CK-${year}-${Date.now().toString().slice(-4)}`;
 }
 
-function normalizeCreateComplaintInput(payload: CreateComplaintDto | Record<string, unknown>) {
+async function normalizeCreateComplaintInput(payload: CreateComplaintDto | Record<string, unknown>) {
   const record = isRecord(payload) ? payload : {};
   const category = normalizeCategory(record.category, true) as ComplaintCategory;
   const priority = normalizePriority(record.priority) ?? "medium";
@@ -192,13 +215,13 @@ function normalizeCreateComplaintInput(payload: CreateComplaintDto | Record<stri
     category,
     priority,
     status: normalizeStatus(record.status) ?? "pending",
-    location: normalizeLocation(record),
+    location: await normalizeLocation(record),
     photos,
     photo: photos[0],
   };
 }
 
-function normalizeUpdateComplaintInput(payload: UpdateComplaintDto | Record<string, unknown>) {
+async function normalizeUpdateComplaintInput(payload: UpdateComplaintDto | Record<string, unknown>) {
   const record = isRecord(payload) ? payload : {};
   const updates: Record<string, unknown> = {};
 
@@ -223,7 +246,7 @@ function normalizeUpdateComplaintInput(payload: UpdateComplaintDto | Record<stri
   }
 
   if (record.location !== undefined || record.lat !== undefined || record.lng !== undefined) {
-    updates.location = normalizeLocation(record);
+    updates.location = await normalizeLocation(record);
   }
 
   if (record.photo !== undefined) {
@@ -373,7 +396,7 @@ export async function createComplaint(
     throw new AppError(user.banReason || "This account is banned.", 403);
   }
 
-  const normalizedPayload = normalizeCreateComplaintInput(payload);
+  const normalizedPayload = await normalizeCreateComplaintInput(payload);
   const complaint = await ComplaintModel.create({
     ...normalizedPayload,
     complaintNo: await generateComplaintNo(),
@@ -448,7 +471,11 @@ function buildComplaintQuery(filter: ComplaintFilterDto = {}): Record<string, un
   }
 
   if (filter.wardId) {
-    query["location.wardId"] = new RegExp(`^${escapeRegex(filter.wardId)}$`, "i");
+    query["location.wardId"] = filter.wardId;
+  }
+
+  if (filter.city) {
+    query["location.city"] = new RegExp(`^${escapeRegex(filter.city)}$`, "i");
   }
 
   if (filter.category) {
@@ -623,7 +650,7 @@ export async function updateComplaint(
 
   assertCitizenCanModify(complaint, actor);
 
-  const updates = normalizeUpdateComplaintInput(payload);
+  const updates = await normalizeUpdateComplaintInput(payload);
   const updatedComplaint = await ComplaintModel.findByIdAndUpdate(
     normalizedComplaintId,
     updates,

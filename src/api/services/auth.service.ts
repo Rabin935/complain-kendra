@@ -7,6 +7,7 @@ import RefreshTokenModel from "../models/RefreshToken";
 import UserModel, { type UserDocument } from "../models/User";
 import { verifyGoogleIdToken } from "./google-auth.service";
 import { sendPasswordResetEmail } from "./email.service";
+import { buildWardLocation, findWardBySelection, resolveWardFromPayload } from "./ward.service";
 import type {
   AuthUser,
   CreateUserDto,
@@ -71,6 +72,14 @@ function validateRegisterInput(payload: CreateUserDto): void {
   if (payload.password.length < 6) {
     throw new AppError("Password must be at least 6 characters.", 400);
   }
+
+  if (!payload.wardId?.trim() && !payload.ward?.trim()) {
+    throw new AppError("Ward selection is required.", 400);
+  }
+
+  if (!payload.city?.trim()) {
+    throw new AppError("City is required.", 400);
+  }
 }
 
 function validateLoginInput(payload: LoginDto): void {
@@ -117,6 +126,9 @@ function toSafeCitizen(user: UserDocument): AuthUser {
     role: user.role,
     phone: user.phone,
     ward: user.ward,
+    wardId: user.wardId,
+    city: user.city,
+    municipality: user.municipality,
     isGoogleUser: user.isGoogleUser,
     avatarUrl: user.avatarUrl,
     createdAt: user.createdAt,
@@ -131,6 +143,9 @@ function toSafeOfficer(officer: OfficerDocument): AuthUser {
     role: officer.role,
     phone: officer.phone,
     ward: officer.ward,
+    wardId: officer.wardId,
+    city: officer.city,
+    municipality: officer.municipality,
     department: officer.department,
     avatarUrl: officer.avatarUrl,
     createdAt: officer.createdAt,
@@ -240,22 +255,38 @@ export async function registerUser(
     throw new AppError("User with this email already exists.", 409);
   }
 
+  const selectedWard = await resolveWardFromPayload(payload as unknown as Record<string, unknown>, {
+    fallbackCity: payload.city,
+  });
+
+  if (!selectedWard) {
+    throw new AppError("Please select a valid city and ward.", 400);
+  }
+
+  const homeArea = payload.homeArea?.trim() || payload.location?.area?.trim() || selectedWard.area;
+  const address =
+    payload.address?.trim() ||
+    payload.location?.address?.trim() ||
+    [homeArea, selectedWard.city].filter(Boolean).join(", ");
+  const location = buildWardLocation(selectedWard, {
+    address: address || undefined,
+    area: homeArea,
+    lat: payload.location?.lat,
+    lng: payload.location?.lng,
+  });
+
   const createdUser = await UserModel.create({
     name: normalizeText(payload.name),
     email: normalizedEmail,
     password: payload.password,
     phone: payload.phone?.trim() ? normalizeText(payload.phone) : undefined,
-    ward: payload.ward?.trim() || "12",
-    address: payload.address?.trim() || "Koteshwor, Kathmandu",
-    location: payload.location ?? {
-      ward: payload.ward?.trim() || "Ward 12",
-      wardId: payload.ward?.trim() || "12",
-      area: "Koteshwor",
-      city: "Kathmandu",
-      address: payload.address?.trim() || "Koteshwor, Kathmandu",
-      lat: 27.678,
-      lng: 85.349,
-    },
+    ward: location.ward,
+    wardId: location.wardId,
+    homeArea,
+    address: address || undefined,
+    city: location.city,
+    municipality: location.municipality,
+    location,
     isGoogleUser: false,
   });
 
@@ -519,6 +550,10 @@ export async function googleLogin(
       user.avatarUrl = googleProfile.avatarUrl || user.avatarUrl;
       await user.save();
     } else {
+      const fallbackWard = await findWardBySelection({
+        city: "Kathmandu",
+        wardNumber: "12",
+      });
       user = await UserModel.create({
         name: googleProfile.name,
         email: googleProfile.email,
@@ -526,13 +561,24 @@ export async function googleLogin(
         googleId: googleProfile.googleId,
         isGoogleUser: true,
         avatarUrl: googleProfile.avatarUrl,
-        ward: "12",
-        location: {
-          ward: "Ward 12",
-          wardId: "12",
-          area: "Koteshwor",
-          city: "Kathmandu",
-        },
+        ward: fallbackWard ? buildWardLocation(fallbackWard).ward : "Ward 12",
+        wardId: fallbackWard ? buildWardLocation(fallbackWard).wardId : undefined,
+        homeArea: "Koteshwor",
+        city: fallbackWard ? buildWardLocation(fallbackWard).city : "Kathmandu",
+        municipality: fallbackWard
+          ? buildWardLocation(fallbackWard).municipality
+          : "Kathmandu Metropolitan City",
+        location: fallbackWard
+          ? buildWardLocation(fallbackWard, { area: "Koteshwor" })
+          : {
+              ward: "Ward 12",
+              wardName: "Ward 12",
+              wardNumber: "12",
+              area: "Koteshwor",
+              city: "Kathmandu",
+              municipality: "Kathmandu Metropolitan City",
+              province: "Bagmati Province",
+            },
       });
     }
   }

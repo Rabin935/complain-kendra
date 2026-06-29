@@ -130,7 +130,17 @@ function normalizeProfile(payload: unknown): CitizenProfile {
       area: stringFrom(location.area, sampleProfile.location.area),
       ward: stringFrom(location.ward, sampleProfile.location.ward),
       wardId: stringFrom(location.ward_id ?? location.wardId, sampleProfile.location.wardId),
+      wardName: stringFrom(location.ward_name ?? location.wardName, sampleProfile.location.wardName ?? ""),
+      wardNumber: stringFrom(
+        location.ward_number ?? location.wardNumber,
+        sampleProfile.location.wardNumber ?? "",
+      ),
       city: stringFrom(location.city, sampleProfile.location.city),
+      municipality: stringFrom(
+        location.municipality,
+        sampleProfile.location.municipality ?? "",
+      ),
+      province: stringFrom(location.province, sampleProfile.location.province ?? ""),
       lat: numberFrom(location.lat, sampleProfile.location.lat),
       lng: numberFrom(location.lng, sampleProfile.location.lng),
     },
@@ -218,7 +228,14 @@ function normalizeComplaint(raw: unknown, index: number): CitizenComplaint {
       area: stringFrom(location.area, sample.location.area),
       ward: stringFrom(location.ward, sample.location.ward),
       wardId: stringFrom(location.ward_id ?? location.wardId, sample.location.wardId),
+      wardName: stringFrom(location.ward_name ?? location.wardName, sample.location.wardName ?? ""),
+      wardNumber: stringFrom(
+        location.ward_number ?? location.wardNumber,
+        sample.location.wardNumber ?? "",
+      ),
       city: stringFrom(location.city, sample.location.city),
+      municipality: stringFrom(location.municipality, sample.location.municipality ?? ""),
+      province: stringFrom(location.province, sample.location.province ?? ""),
       lat: numberFrom(location.lat, sample.location.lat),
       lng: numberFrom(location.lng, sample.location.lng),
     },
@@ -548,6 +565,15 @@ export async function submitCitizenComplaint(
   formData.append("ward", payload.ward);
   formData.append("wardId", payload.wardId);
   formData.append("city", payload.city);
+  if (payload.wardNumber) {
+    formData.append("wardNumber", payload.wardNumber);
+  }
+  if (payload.municipality) {
+    formData.append("municipality", payload.municipality);
+  }
+  if (payload.province) {
+    formData.append("province", payload.province);
+  }
 
   payload.photos.forEach((photo) => {
     formData.append("photos[]", {

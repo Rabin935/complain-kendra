@@ -18,6 +18,32 @@ function getExpoHost(): string | null {
   return hostUri.split(":")[0] ?? null;
 }
 
+function getHostnameFromUrl(value: string): string | null {
+  try {
+    return new URL(value).hostname;
+  } catch {
+    return null;
+  }
+}
+
+function isPrivateIpv4Host(hostname: string): boolean {
+  const parts = hostname.split(".").map((part) => Number.parseInt(part, 10));
+
+  if (parts.length !== 4 || parts.some((part) => Number.isNaN(part) || part < 0 || part > 255)) {
+    return false;
+  }
+
+  if (parts[0] === 10) {
+    return true;
+  }
+
+  if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) {
+    return true;
+  }
+
+  return parts[0] === 192 && parts[1] === 168;
+}
+
 function getWebBaseURL(): string {
   const envBaseUrl = process.env.EXPO_PUBLIC_API_URL_WEB?.trim();
 
@@ -38,13 +64,26 @@ function resolveBaseURL(): string {
     return getWebBaseURL();
   }
 
+  const expoHost = getExpoHost();
+
   const envBaseUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
 
   if (envBaseUrl) {
-    return sanitizeBaseUrl(envBaseUrl);
-  }
+    const sanitizedBaseUrl = sanitizeBaseUrl(envBaseUrl);
+    const envHost = getHostnameFromUrl(sanitizedBaseUrl);
+    const shouldUseExpoHostInDev =
+      __DEV__ &&
+      !!expoHost &&
+      !!envHost &&
+      envHost !== expoHost &&
+      isPrivateIpv4Host(envHost);
 
-  const expoHost = getExpoHost();
+    if (shouldUseExpoHostInDev) {
+      return `http://${expoHost}:${API_PORT}`;
+    }
+
+    return sanitizedBaseUrl;
+  }
 
   if (expoHost && expoHost !== "localhost" && expoHost !== "127.0.0.1") {
     return `http://${expoHost}:${API_PORT}`;

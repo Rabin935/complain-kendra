@@ -1,6 +1,7 @@
-import dotenv from "dotenv";
 import bcrypt from "bcryptjs";
+import dotenv from "dotenv";
 import mongoose from "mongoose";
+import { WARD_SEED_DATA } from "../data/wardSeedData";
 import BadgeModel from "../models/Badge";
 import CommentModel from "../models/Comment";
 import ComplaintModel from "../models/Complaint";
@@ -10,8 +11,8 @@ import NotificationModel from "../models/Notification";
 import NotificationPreferenceModel from "../models/NotificationPreference";
 import OfficerModel from "../models/Officer";
 import PointEventModel from "../models/PointEvent";
-import UserBadgeModel from "../models/UserBadge";
 import UserModel from "../models/User";
+import UserBadgeModel from "../models/UserBadge";
 import WardModel from "../models/Ward";
 
 dotenv.config();
@@ -24,6 +25,42 @@ async function seed() {
   }
 
   await mongoose.connect(mongoUri);
+  await WardModel.syncIndexes();
+
+  await WardModel.bulkWrite(
+    WARD_SEED_DATA.map((ward) => ({
+      updateOne: {
+        filter: { city: ward.city, wardNumber: ward.wardNumber },
+        update: {
+          $set: {
+            ...ward,
+            contactEmail:
+              ward.city === "Kathmandu" && ward.wardNumber === "12"
+                ? "ward12@example.com"
+                : undefined,
+            contactPhone:
+              ward.city === "Kathmandu" && ward.wardNumber === "12"
+                ? "+977-01-4440000"
+                : undefined,
+          },
+        },
+        upsert: true,
+      },
+    })),
+  );
+
+  const ward12Kathmandu = await WardModel.findOne({
+    city: "Kathmandu",
+    wardNumber: "12",
+  });
+  const ward10Kathmandu = await WardModel.findOne({
+    city: "Kathmandu",
+    wardNumber: "10",
+  });
+
+  if (!ward12Kathmandu || !ward10Kathmandu) {
+    throw new Error("Required ward seed data was not created.");
+  }
 
   const rahul = await UserModel.findOneAndUpdate(
     { email: "rahul.sharma@example.com" },
@@ -32,13 +69,21 @@ async function seed() {
         name: "Rahul Sharma",
         email: "rahul.sharma@example.com",
         phone: "+9779800000001",
-        ward: "12",
+        ward: ward12Kathmandu.name,
+        wardId: ward12Kathmandu._id.toString(),
+        homeArea: "Koteshwor",
         address: "Koteshwor, Kathmandu",
+        city: ward12Kathmandu.city,
+        municipality: ward12Kathmandu.municipality,
         location: {
-          ward: "Ward 12",
-          wardId: "12",
+          ward: ward12Kathmandu.name,
+          wardId: ward12Kathmandu._id.toString(),
+          wardName: ward12Kathmandu.name,
+          wardNumber: ward12Kathmandu.wardNumber,
           area: "Koteshwor",
-          city: "Kathmandu",
+          city: ward12Kathmandu.city,
+          municipality: ward12Kathmandu.municipality,
+          province: ward12Kathmandu.province,
           address: "Koteshwor, Kathmandu",
           lat: 27.678,
           lng: 85.349,
@@ -65,7 +110,11 @@ async function seed() {
         email: "ward12.officer@example.com",
         phone: "+9779800000012",
         role: "officer",
-        ward: "12",
+        ward: ward12Kathmandu.name,
+        wardId: ward12Kathmandu._id.toString(),
+        wardNumber: ward12Kathmandu.wardNumber,
+        city: ward12Kathmandu.city,
+        municipality: ward12Kathmandu.municipality,
         department: "Ward 12 Office",
         isActive: true,
       },
@@ -80,41 +129,6 @@ async function seed() {
   await rahul.save();
   officer.password = await bcrypt.hash("officer123", 10);
   await officer.save();
-
-  await WardModel.bulkWrite([
-    {
-      updateOne: {
-        filter: { wardNumber: "12" },
-        update: {
-          $set: {
-            wardNumber: "12",
-            name: "Kathmandu Metropolitan City Ward 12",
-            city: "Kathmandu",
-            area: "Koteshwor",
-            contactEmail: "ward12@example.com",
-            contactPhone: "+977-01-4440000",
-            lat: 27.678,
-            lng: 85.349,
-          },
-        },
-        upsert: true,
-      },
-    },
-    {
-      updateOne: {
-        filter: { wardNumber: "10" },
-        update: {
-          $set: {
-            wardNumber: "10",
-            name: "Kathmandu Metropolitan City Ward 10",
-            city: "Kathmandu",
-            area: "Baneshwor",
-          },
-        },
-        upsert: true,
-      },
-    },
-  ]);
 
   const badges = await BadgeModel.bulkWrite([
     {
@@ -177,10 +191,14 @@ async function seed() {
         status: "in_progress",
         priority: "high",
         location: {
-          ward: "Ward 12",
-          wardId: "12",
+          ward: ward12Kathmandu.name,
+          wardId: ward12Kathmandu._id.toString(),
+          wardName: ward12Kathmandu.name,
+          wardNumber: ward12Kathmandu.wardNumber,
           area: "Koteshwor",
-          city: "Kathmandu",
+          city: ward12Kathmandu.city,
+          municipality: ward12Kathmandu.municipality,
+          province: ward12Kathmandu.province,
           address: "Koteshwor chowk, Kathmandu",
           lat: 27.6788,
           lng: 85.3497,
@@ -228,10 +246,14 @@ async function seed() {
         status: "pending",
         priority: "medium",
         location: {
-          ward: "Ward 12",
-          wardId: "12",
+          ward: ward12Kathmandu.name,
+          wardId: ward12Kathmandu._id.toString(),
+          wardName: ward12Kathmandu.name,
+          wardNumber: ward12Kathmandu.wardNumber,
           area: "Koteshwor",
-          city: "Kathmandu",
+          city: ward12Kathmandu.city,
+          municipality: ward12Kathmandu.municipality,
+          province: ward12Kathmandu.province,
           address: "Koteshwor school road",
           lat: 27.6768,
           lng: 85.3511,
@@ -384,7 +406,7 @@ async function seed() {
     {
       $set: {
         name: "Critical complaints escalate after 4 hours",
-        ward: "12",
+        ward: ward12Kathmandu.name,
         priority: "critical",
         triggerAfterHours: 4,
         assignToRole: "supervisor",

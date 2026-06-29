@@ -51,6 +51,7 @@ function getQueryFilter(request: Request): ComplaintFilterDto {
   return {
     ward: getString(query.ward),
     wardId: getString(query.ward_id ?? query.wardId),
+    city: getString(query.city),
     category: normalizeCategory(query.category),
     status: normalizeStatus(query.status),
     priority: normalizePriority(query.priority),
