@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   type DimensionValue,
   KeyboardAvoidingView,
   Platform,
@@ -27,6 +28,7 @@ import type {
   AiAnalysisResult,
   CitizenComplaint,
   CitizenComplaintCategory,
+  CitizenLocation,
   CreateReportPayload,
   ReportPhoto,
 } from "../../user/types/citizen.types";
@@ -52,6 +54,142 @@ const maxDescriptionLength = 500;
 const maxPhotos = 4;
 const maxPhotoSize = 10 * 1024 * 1024;
 const allowedMimeTypes = new Set(["image/jpeg", "image/png", "image/heic", "image/heif"]);
+const pinStep = 0.0005;
+
+interface GeolocationPositionLike {
+  coords: {
+    latitude: number;
+    longitude: number;
+  };
+}
+
+interface ReverseGeocodeAddress {
+  road?: string;
+  neighbourhood?: string;
+  suburb?: string;
+  city?: string;
+  town?: string;
+  village?: string;
+  municipality?: string;
+  county?: string;
+}
+
+interface ReverseGeocodeResult {
+  display_name?: string;
+  address?: ReverseGeocodeAddress;
+}
+
+function hasNavigatorGeolocation(): boolean {
+  return Boolean(
+    typeof navigator !== "undefined" &&
+      "geolocation" in navigator &&
+      navigator.geolocation,
+  );
+}
+
+function getCurrentCoordinates(): Promise<{ lat: number; lng: number }> {
+  if (!hasNavigatorGeolocation()) {
+    return Promise.reject(new Error("Device geolocation is unavailable on this platform."));
+  }
+
+  return new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(
+      (position: GeolocationPositionLike) => {
+        resolve({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        });
+      },
+      () => reject(new Error("Location permission was denied or timed out.")),
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 30000,
+      },
+    );
+  });
+}
+
+function getWardFromAddress(address: ReverseGeocodeAddress | undefined, displayName: string): {
+  ward: string;
+  wardId: string;
+} {
+  const wardMatch = displayName.match(/ward\s*(?:no\.?\s*)?(\d+)/i);
+
+  if (wardMatch?.[1]) {
+    return {
+      ward: `Ward ${wardMatch[1]}`,
+      wardId: wardMatch[1],
+    };
+  }
+
+  const countyMatch = address?.county?.match(/\d+/);
+
+  if (countyMatch?.[0]) {
+    return {
+      ward: `Ward ${countyMatch[0]}`,
+      wardId: countyMatch[0],
+    };
+  }
+
+  return {
+    ward: sampleLocation.ward,
+    wardId: sampleLocation.wardId,
+  };
+}
+
+async function reverseGeocodeCoordinates(lat: number, lng: number): Promise<CitizenLocation> {
+  const response = await fetch(
+    `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+  );
+
+  if (!response.ok) {
+    throw new Error("Reverse geocoding failed.");
+  }
+
+  const result = (await response.json()) as ReverseGeocodeResult;
+  const address = result.address;
+  const displayName = result.display_name ?? `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  const ward = getWardFromAddress(address, displayName);
+  const area = address?.neighbourhood ?? address?.suburb ?? address?.road ?? sampleLocation.area;
+  const city =
+    address?.city ??
+    address?.town ??
+    address?.village ??
+    address?.municipality ??
+    sampleLocation.city;
+
+  return {
+    address: displayName,
+    area,
+    ward: ward.ward,
+    wardId: ward.wardId,
+    city,
+    lat,
+    lng,
+  };
+}
+
+function buildFallbackLocation(lat: number, lng: number, currentLocation: CitizenLocation): CitizenLocation {
+  return {
+    ...currentLocation,
+    address: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+    lat,
+    lng,
+  };
+}
+
+function getMapTileUrl(lat: number, lng: number, zoom = 16): string {
+  const latitudeRad = (lat * Math.PI) / 180;
+  const tileCount = 2 ** zoom;
+  const x = Math.floor(((lng + 180) / 360) * tileCount);
+  const y = Math.floor(
+    ((1 - Math.log(Math.tan(latitudeRad) + 1 / Math.cos(latitudeRad)) / Math.PI) / 2) *
+      tileCount,
+  );
+
+  return `https://tile.openstreetmap.org/${zoom}/${x}/${y}.png`;
+}
 
 export default function CreateComplaintScreen() {
   const navigation = useNavigation<ReportNavigation>();
@@ -62,6 +200,7 @@ export default function CreateComplaintScreen() {
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState(sampleLocation);
   const [gpsLocked, setGpsLocked] = useState(true);
+  const [locationHint, setLocationHint] = useState("Detecting your current location...");
   const [photos, setPhotos] = useState<ReportPhoto[]>([]);
   const [errors, setErrors] = useState<ReportErrors>({});
   const [aiResult, setAiResult] = useState<AiAnalysisResult | null>(null);
@@ -80,6 +219,10 @@ export default function CreateComplaintScreen() {
       setCategory(route.params.category);
     }
   }, [route.params?.category]);
+
+  useEffect(() => {
+    void redetectLocation();
+  }, []);
 
   useEffect(() => {
     if (!analyzing && !submitting) {
@@ -198,6 +341,11 @@ export default function CreateComplaintScreen() {
       description: description.trim(),
       lat: location.lat,
       lng: location.lng,
+      address: location.address,
+      area: location.area,
+      ward: location.ward,
+      wardId: location.wardId,
+      city: location.city,
       photos,
     };
   }
@@ -262,16 +410,51 @@ export default function CreateComplaintScreen() {
     setPhotos((current) => current.filter((photo) => photo.uri !== uri));
   }
 
-  function redetectLocation() {
+  async function applyCoordinates(lat: number, lng: number, mode: "gps" | "manual") {
     setGpsLocked(false);
-    setTimeout(() => {
-      setLocation({
-        ...sampleLocation,
-        address: "Koteshwor · Ward 12 · Kathmandu",
-      });
+    setLocationHint(mode === "gps" ? "Detecting your GPS position..." : "Updating selected pin...");
+
+    try {
+      const resolvedLocation = await reverseGeocodeCoordinates(lat, lng);
+      setLocation(resolvedLocation);
+      setLocationHint(
+        mode === "gps"
+          ? "GPS locked and address detected."
+          : "Manual pin adjusted and address refreshed.",
+      );
       setGpsLocked(true);
       setErrors((current) => ({ ...current, location: undefined }));
-    }, 800);
+    } catch {
+      setLocation((current) => buildFallbackLocation(lat, lng, current));
+      setLocationHint("Coordinates saved. Address lookup is temporarily unavailable.");
+      setGpsLocked(true);
+      setErrors((current) => ({ ...current, location: undefined }));
+    }
+  }
+
+  async function redetectLocation() {
+    setGpsLocked(false);
+    setLocationHint("Requesting location permission...");
+
+    try {
+      const coordinates = await getCurrentCoordinates();
+      await applyCoordinates(coordinates.lat, coordinates.lng, "gps");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to detect your current location.";
+      setGpsLocked(true);
+      setLocationHint(message);
+      setErrors((current) => ({
+        ...current,
+        location: `${message} You can adjust the pin manually.`,
+      }));
+    }
+  }
+
+  function adjustPin(deltaLat: number, deltaLng: number) {
+    const nextLat = Number((location.lat + deltaLat).toFixed(6));
+    const nextLng = Number((location.lng + deltaLng).toFixed(6));
+    void applyCoordinates(nextLat, nextLng, "manual");
   }
 
   async function followDuplicate() {
@@ -295,17 +478,18 @@ export default function CreateComplaintScreen() {
     }
 
     setSubmitting(true);
-    const result = await submitCitizenComplaint(buildPayload(category));
-    setSubmitting(false);
 
-    if (result.error && result.source !== "sample") {
-      Alert.alert("Submission Failed", "Submission failed. Please retry.");
-      return;
+    try {
+      const result = await submitCitizenComplaint(buildPayload(category));
+      setSuccessComplaint(result.data);
+      setAiWarning(null);
+      setErrors({});
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Submission failed. Please retry.";
+      Alert.alert("Submission Failed", message);
+    } finally {
+      setSubmitting(false);
     }
-
-    setSuccessComplaint(result.data);
-    setAiWarning(null);
-    setErrors({});
   }
 
   function resetAndHome() {
@@ -339,7 +523,7 @@ export default function CreateComplaintScreen() {
           </View>
           <Text style={styles.successTitle}>Your complaint has been submitted</Text>
           <Text style={styles.successId}>{successComplaint.complaintNo}</Text>
-          <Text style={styles.successText}>SMS and email confirmation sent to Rahul Sharma.</Text>
+          <Text style={styles.successText}>SMS and email confirmation sent to your account.</Text>
 
           <View style={styles.checklist}>
             {[
@@ -422,11 +606,13 @@ export default function CreateComplaintScreen() {
               photos={photos}
               gpsLocked={gpsLocked}
               location={location}
+              locationHint={locationHint}
               errors={errors}
               onPickGallery={() => void pickFromGallery()}
               onTakePhoto={() => void takePhoto()}
               onRemovePhoto={removePhoto}
               onRedetect={redetectLocation}
+              onAdjustPin={adjustPin}
               onAnalyze={() => void continueFromStepTwo()}
               analyzing={analyzing}
               slowNetwork={slowNetwork}
@@ -438,7 +624,7 @@ export default function CreateComplaintScreen() {
               category={category}
               selectedMeta={selectedMeta}
               title={title}
-              locationText={`${location.area} · ${location.ward} · ${location.city}`}
+              locationText={`${location.area} - ${location.ward} - ${location.city}`}
               photoCount={photos.length}
               aiResult={aiResult}
               aiWarning={aiWarning}
@@ -554,6 +740,7 @@ function StepTwo({
   photos,
   gpsLocked,
   location,
+  locationHint,
   errors,
   analyzing,
   slowNetwork,
@@ -561,12 +748,14 @@ function StepTwo({
   onTakePhoto,
   onRemovePhoto,
   onRedetect,
+  onAdjustPin,
   onAnalyze,
 }: {
   category: CitizenComplaintCategory | null;
   photos: ReportPhoto[];
   gpsLocked: boolean;
-  location: typeof sampleLocation;
+  location: CitizenLocation;
+  locationHint: string;
   errors: ReportErrors;
   analyzing: boolean;
   slowNetwork: string | null;
@@ -574,9 +763,11 @@ function StepTwo({
   onTakePhoto: () => void;
   onRemovePhoto: (uri: string) => void;
   onRedetect: () => void;
+  onAdjustPin: (deltaLat: number, deltaLng: number) => void;
   onAnalyze: () => void;
 }) {
   const photoRequired = Boolean(category && photoCriticalCategories.has(category));
+  const mapTileUrl = getMapTileUrl(location.lat, location.lng);
 
   return (
     <View style={styles.stepPanel}>
@@ -590,7 +781,10 @@ function StepTwo({
         </View>
         <View style={styles.locationBody}>
           <Text style={styles.locationTitle}>{location.address}</Text>
-          <Text style={styles.locationSubtitle}>{location.ward} · GPS {gpsLocked ? "locked" : "detecting"}</Text>
+          <Text style={styles.locationSubtitle}>
+            {location.ward} - {location.area} - GPS {gpsLocked ? "locked" : "detecting"}
+          </Text>
+          <Text style={styles.locationHint}>{locationHint}</Text>
         </View>
         <Pressable style={styles.smallButton} onPress={onRedetect}>
           <Text style={styles.smallButtonText}>Re-detect</Text>
@@ -598,10 +792,38 @@ function StepTwo({
       </View>
       {errors.location ? <Text style={styles.errorText}>{errors.location}</Text> : null}
 
-      <Pressable style={styles.mapAdjustCard} onPress={() => Alert.alert("Map adjustment", "Map adjustment is ready for API map integration.")}>
-        <MaterialCommunityIcons name="map-search-outline" size={20} color={colors.primary} />
-        <Text style={styles.mapAdjustText}>Adjust location on map</Text>
-      </Pressable>
+      <View style={styles.mapPreviewCard}>
+        <Image source={{ uri: mapTileUrl }} style={styles.mapTile} resizeMode="cover" />
+        <View style={styles.mapOverlay} />
+        <View style={styles.pinMarker}>
+          <MaterialCommunityIcons name="map-marker" size={34} color={colors.error} />
+        </View>
+        <View style={styles.coordinateBadge}>
+          <Text style={styles.coordinateText}>
+            {location.lat.toFixed(5)}, {location.lng.toFixed(5)}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.pinControls}>
+        <Pressable style={styles.pinButton} onPress={() => onAdjustPin(pinStep, 0)}>
+          <MaterialCommunityIcons name="arrow-up" size={18} color={colors.primary} />
+        </Pressable>
+        <View style={styles.pinMiddleRow}>
+          <Pressable style={styles.pinButton} onPress={() => onAdjustPin(0, -pinStep)}>
+            <MaterialCommunityIcons name="arrow-left" size={18} color={colors.primary} />
+          </Pressable>
+          <View style={styles.pinCenter}>
+            <MaterialCommunityIcons name="crosshairs-gps" size={18} color={colors.primary} />
+          </View>
+          <Pressable style={styles.pinButton} onPress={() => onAdjustPin(0, pinStep)}>
+            <MaterialCommunityIcons name="arrow-right" size={18} color={colors.primary} />
+          </Pressable>
+        </View>
+        <Pressable style={styles.pinButton} onPress={() => onAdjustPin(-pinStep, 0)}>
+          <MaterialCommunityIcons name="arrow-down" size={18} color={colors.primary} />
+        </Pressable>
+      </View>
 
       <View style={styles.sectionHeader}>
         <View>
@@ -1082,6 +1304,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
   },
+  locationHint: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: "700",
+    lineHeight: 16,
+  },
   smallButton: {
     minHeight: 34,
     paddingHorizontal: 10,
@@ -1110,6 +1338,77 @@ const styles = StyleSheet.create({
     color: colors.primaryDark,
     fontSize: 13,
     fontWeight: "900",
+  },
+  mapPreviewCard: {
+    height: 178,
+    borderRadius: 22,
+    overflow: "hidden",
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  mapTile: {
+    width: "100%",
+    height: "100%",
+  },
+  mapOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(96,56,176,0.06)",
+  },
+  pinMarker: {
+    position: "absolute",
+    left: "50%",
+    top: "50%",
+    marginLeft: -17,
+    marginTop: -32,
+  },
+  coordinateBadge: {
+    position: "absolute",
+    left: 12,
+    bottom: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.92)",
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  coordinateText: {
+    color: colors.text,
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  pinControls: {
+    alignItems: "center",
+    gap: 8,
+    padding: 12,
+    borderRadius: 20,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  pinMiddleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  pinButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#EEE7FA",
+    borderWidth: 1,
+    borderColor: "#DED2F2",
+  },
+  pinCenter: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surfaceMuted,
   },
   sectionHeader: {
     flexDirection: "row",

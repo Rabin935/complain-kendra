@@ -2,7 +2,6 @@ import { apiClient, getApiErrorMessage } from "../../../utils/api";
 import {
   sampleAiAnalysis,
   sampleBadges,
-  sampleComplaints,
   sampleNotifications,
   sampleProfile,
   sampleStats,
@@ -13,6 +12,9 @@ import type {
   CitizenComplaint,
   CitizenComplaintCategory,
   CitizenComplaintStatus,
+  ComplaintComment,
+  ComplaintDetailPayload,
+  ComplaintTimelineItem,
   CitizenNotification,
   CitizenProfile,
   CitizenServiceResult,
@@ -155,9 +157,32 @@ function normalizeStats(payload: unknown): CitizenStats {
   };
 }
 
+function getComplaintFallback(index: number): CitizenComplaint {
+  return {
+    id: `complaint-${index}`,
+    complaintNo: "Pending",
+    title: "Untitled complaint",
+    description: "",
+    category: "other",
+    status: "pending",
+    priority: "normal",
+    progress: 0,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    distanceKm: 0,
+    upvotes: 0,
+    comments: 0,
+    followers: 0,
+    followed: false,
+    photos: [],
+    timeline: [],
+    location: sampleProfile.location,
+  };
+}
+
 function normalizeComplaint(raw: unknown, index: number): CitizenComplaint {
   const item = isRecord(raw) ? raw : {};
-  const sample = sampleComplaints[index % sampleComplaints.length];
+  const sample = getComplaintFallback(index);
   const location = isRecord(item.location) ? item.location : {};
 
   const category = normalizeCategory(item.category, sample.category);
@@ -178,11 +203,15 @@ function normalizeComplaint(raw: unknown, index: number): CitizenComplaint {
     distanceKm: numberFrom(item.distance_km ?? item.distanceKm, sample.distanceKm),
     upvotes: numberFrom(item.upvotes, sample.upvotes),
     comments: numberFrom(item.comments, sample.comments),
+    followers: numberFrom(item.followers, 0),
     followed: booleanFrom(item.followed, sample.followed),
     photos: Array.isArray(item.photos) ? (item.photos as string[]) : sample.photos,
     reporterName: stringFrom(item.reporter_name ?? item.reporterName, sample.reporterName ?? ""),
     reporterPrivate: booleanFrom(item.reporter_private ?? item.reporterPrivate, Boolean(sample.reporterPrivate)),
     etaDays: numberFrom(item.eta_days ?? item.etaDays, sample.etaDays ?? 0),
+    aiAnalysis: isRecord(item.aiAnalysis) ? normalizeAiAnalysis(item.aiAnalysis) : undefined,
+    aiVerified: booleanFrom(item.aiVerified, false),
+    aiSummary: stringFrom(item.aiSummary, ""),
     location: {
       ...sample.location,
       address: stringFrom(location.address, sample.location.address),
@@ -193,6 +222,35 @@ function normalizeComplaint(raw: unknown, index: number): CitizenComplaint {
       lat: numberFrom(location.lat, sample.location.lat),
       lng: numberFrom(location.lng, sample.location.lng),
     },
+  };
+}
+
+function normalizeTimelineItem(raw: unknown, index: number): ComplaintTimelineItem {
+  const item = isRecord(raw) ? raw : {};
+  const sample = {
+    label: "Updated",
+    at: "Just now",
+    done: true,
+  };
+
+  return {
+    label: stringFrom(item.title ?? item.label ?? item.type, sample.label),
+    at: stringFrom(item.createdAt, sample.at),
+    done: true,
+  };
+}
+
+function normalizeComment(raw: unknown, index: number): ComplaintComment {
+  const item = isRecord(raw) ? raw : {};
+
+  return {
+    id: stringFrom(item.id ?? item._id, `comment-${index}`),
+    authorName: stringFrom(item.authorName, "Citizen"),
+    authorType: stringFrom(item.authorType, "citizen") === "officer" ? "officer" : "citizen",
+    official: booleanFrom(item.official, false),
+    body: stringFrom(item.body, "Community update"),
+    upvoteCount: numberFrom(item.upvoteCount, 0),
+    createdAt: stringFrom(item.createdAt ?? item.created_at, new Date().toISOString()),
   };
 }
 
@@ -262,7 +320,7 @@ function normalizePriority(
 }
 
 function normalizeComplaints(payload: unknown): CitizenComplaint[] {
-  const list = unwrapArray<unknown>(payload, "complaints", sampleComplaints);
+  const list = unwrapArray<unknown>(payload, "complaints", []);
   return list.map(normalizeComplaint);
 }
 
@@ -290,6 +348,8 @@ function normalizeAiAnalysis(payload: unknown): AiAnalysisResult {
     priority: stringFrom(analysis.priority, sampleAiAnalysis.priority) as AiAnalysisResult["priority"],
     department: stringFrom(analysis.department, sampleAiAnalysis.department),
     etaDays: numberFrom(analysis.eta_days ?? analysis.etaDays, sampleAiAnalysis.etaDays),
+    summary: stringFrom(analysis.summary, ""),
+    keywords: Array.isArray(analysis.keywords) ? analysis.keywords.map(String) : [],
     duplicateCheck: {
       isDuplicate: booleanFrom(
         duplicate.is_duplicate ?? duplicate.isDuplicate,
@@ -350,7 +410,7 @@ export async function fetchNearbyComplaints(
       },
     });
     return normalizeComplaints(response.data);
-  }, sampleComplaints.filter((complaint) => complaint.distanceKm <= radiusKm));
+  }, []);
 }
 
 export async function fetchWardComplaintCount(
@@ -382,7 +442,7 @@ export async function fetchMyComplaints(options: {
       },
     });
     return normalizeComplaints(response.data);
-  }, filterSampleComplaints(options.status));
+  }, []);
 }
 
 export async function fetchPublicComplaints(options: {
@@ -407,7 +467,48 @@ export async function fetchPublicComplaints(options: {
       },
     });
     return normalizeComplaints(response.data);
-  }, filterPublicSampleComplaints(options));
+  }, []);
+}
+
+export async function fetchComplaintById(id: string): Promise<ComplaintDetailPayload> {
+  const response = await apiClient.get(`${API_PREFIX}/complaints/${id}`);
+  const complaint = normalizeComplaint(unwrapRecord(response.data).complaint ?? response.data, 0);
+  const [timeline, comments] = await Promise.all([
+    fetchComplaintTimeline(id),
+    fetchComplaintComments(id),
+  ]);
+
+  return {
+    complaint,
+    timeline,
+    comments,
+  };
+}
+
+export async function fetchComplaintTimeline(id: string): Promise<ComplaintTimelineItem[]> {
+  const response = await apiClient.get(`${API_PREFIX}/complaints/${id}/timeline`);
+  const items = unwrapArray<unknown>(response.data, "timeline", []);
+
+  return items.map(normalizeTimelineItem);
+}
+
+export async function fetchComplaintComments(id: string): Promise<ComplaintComment[]> {
+  const response = await apiClient.get(`${API_PREFIX}/complaints/${id}/comments`);
+  const items = unwrapArray<unknown>(response.data, "comments", []);
+
+  return items.map(normalizeComment);
+}
+
+export async function upvoteComplaintApi(id: string): Promise<void> {
+  await apiClient.post(`${API_PREFIX}/complaints/${id}/upvote`);
+}
+
+export async function followComplaintApi(id: string): Promise<void> {
+  await apiClient.post(`${API_PREFIX}/complaints/${id}/follow`);
+}
+
+export async function unfollowComplaintApi(id: string): Promise<void> {
+  await apiClient.delete(`${API_PREFIX}/complaints/${id}/follow`);
 }
 
 export async function analyzeReportDraft(
@@ -436,47 +537,36 @@ export async function analyzeReportDraft(
 export async function submitCitizenComplaint(
   payload: CreateReportPayload,
 ): Promise<CitizenServiceResult<CitizenComplaint>> {
-  return withSampleFallback(async () => {
-    const formData = new FormData();
-    formData.append("category", payload.category);
-    formData.append("title", payload.title);
-    formData.append("description", payload.description);
-    formData.append("lat", String(payload.lat));
-    formData.append("lng", String(payload.lng));
+  const formData = new FormData();
+  formData.append("category", payload.category);
+  formData.append("title", payload.title);
+  formData.append("description", payload.description);
+  formData.append("lat", String(payload.lat));
+  formData.append("lng", String(payload.lng));
+  formData.append("address", payload.address);
+  formData.append("area", payload.area);
+  formData.append("ward", payload.ward);
+  formData.append("wardId", payload.wardId);
+  formData.append("city", payload.city);
 
-    payload.photos.forEach((photo) => {
-      formData.append("photos[]", {
-        uri: photo.uri,
-        name: photo.name ?? "complaint-photo.jpg",
-        type: photo.type ?? "image/jpeg",
-      } as unknown as Blob);
-    });
+  payload.photos.forEach((photo) => {
+    formData.append("photos[]", {
+      uri: photo.uri,
+      name: photo.name ?? "complaint-photo.jpg",
+      type: photo.type ?? "image/jpeg",
+    } as unknown as Blob);
+  });
 
-    const response = await apiClient.post(`${API_PREFIX}/complaints`, formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
-
-    return normalizeComplaint(unwrapRecord(response.data).complaint ?? response.data, 0);
-  }, {
-    ...sampleComplaints[0],
-    id: `complaint-${Date.now()}`,
-    complaintNo: `CK-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000)}`,
-    title: payload.title,
-    description: payload.description,
-    category: payload.category,
-    status: "pending",
-    progress: 18,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    photos: payload.photos.map((photo) => photo.uri),
-    location: {
-      ...sampleProfile.location,
-      lat: payload.lat,
-      lng: payload.lng,
+  const response = await apiClient.post(`${API_PREFIX}/complaints`, formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
     },
   });
+
+  return {
+    data: normalizeComplaint(unwrapRecord(response.data).complaint ?? response.data, 0),
+    source: "api",
+  };
 }
 
 export async function upvoteComplaint(id: string): Promise<CitizenServiceResult<{ id: string }>> {
@@ -510,47 +600,4 @@ export async function updatePublicProfile(
     });
     return { isPublic };
   }, { isPublic });
-}
-
-function filterSampleComplaints(status?: CitizenComplaintStatus | "all"): CitizenComplaint[] {
-  if (!status || status === "all") {
-    return sampleComplaints.filter((complaint) => complaint.reporterName === "Rahul Sharma");
-  }
-
-  return sampleComplaints.filter(
-    (complaint) => complaint.reporterName === "Rahul Sharma" && complaint.status === status,
-  );
-}
-
-function filterPublicSampleComplaints(options: {
-  category?: CitizenComplaintCategory | "all";
-  status?: CitizenComplaintStatus | "all";
-  priority?: "all" | "high";
-  sort?: "newest" | "upvotes" | "nearby";
-}): CitizenComplaint[] {
-  let result = [...sampleComplaints];
-
-  if (options.category && options.category !== "all") {
-    result = result.filter((complaint) => complaint.category === options.category);
-  }
-
-  if (options.status && options.status !== "all") {
-    result = result.filter((complaint) => complaint.status === options.status);
-  }
-
-  if (options.priority === "high") {
-    result = result.filter(
-      (complaint) => complaint.priority === "high" || complaint.priority === "critical",
-    );
-  }
-
-  if (options.sort === "upvotes") {
-    return result.sort((a, b) => b.upvotes - a.upvotes);
-  }
-
-  if (options.sort === "nearby") {
-    return result.sort((a, b) => a.distanceKm - b.distanceKm);
-  }
-
-  return result.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
 }
