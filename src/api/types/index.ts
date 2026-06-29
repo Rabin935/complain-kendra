@@ -34,7 +34,22 @@ export interface ComplaintLocation {
   lng?: number;
   address?: string;
   ward?: string;
+  wardId?: string;
+  wardName?: string;
 }
+
+export const TIMELINE_EVENT_TYPES = [
+  "complaint_created",
+  "ai_analysis_started",
+  "ai_analysis_completed",
+  "assigned",
+  "status_changed",
+  "resolved",
+  "rejected",
+  "comment_added",
+] as const;
+
+export type TimelineEventType = (typeof TIMELINE_EVENT_TYPES)[number];
 
 export interface Complaint {
   userId: Types.ObjectId | string;
@@ -159,6 +174,18 @@ export interface ComplaintPayload {
   updatedAt: Date;
 }
 
+export interface ComplaintTimelineEvent {
+  id: string;
+  complaintId: string;
+  type: TimelineEventType;
+  title: string;
+  message?: string;
+  actorType: "system" | "citizen" | "officer";
+  actorId?: string;
+  metadata?: Record<string, unknown>;
+  createdAt: Date;
+}
+
 export interface ComplaintResponse {
   success: boolean;
   complaint?: ComplaintPayload;
@@ -168,6 +195,12 @@ export interface ComplaintResponse {
 export interface ComplaintsResponse {
   success: boolean;
   complaints?: ComplaintPayload[];
+  message?: string;
+}
+
+export interface ComplaintTimelineResponse {
+  success: boolean;
+  timeline?: ComplaintTimelineEvent[];
   message?: string;
 }
 

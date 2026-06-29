@@ -7,6 +7,7 @@ import {
     getAll,
     getById,
     getMy,
+    timeline,
     update,
     uploadPhoto,
 } from "../controllers/complaint.controller";
@@ -35,6 +36,7 @@ complaintRouter.get("/my", getMy);
 complaintRouter.post("/upload-photo", photoUpload.single("photo"), uploadPhoto);
 complaintRouter.post("/analyze", analyze);
 complaintRouter.post("/", create);
+complaintRouter.get("/:id/timeline", timeline);
 complaintRouter.get("/:id", getById);
 complaintRouter.put("/:id", update);
 complaintRouter.delete("/:id", deleteComplaint);

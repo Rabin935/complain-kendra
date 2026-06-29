@@ -24,6 +24,7 @@ import {
 import { AppError } from "../utils/appError";
 import { uploadToCloudinary } from "../utils/upload.utils";
 import { analyzeComplaint } from "./ai.service";
+import { addTimelineEvent, getComplaintTimeline as getComplaintTimelineService } from "./timeline.service";
 
 type InputRecord = Record<string, unknown>;
 type UploadedComplaintPhoto = {
@@ -408,6 +409,26 @@ export async function createComplaint(
 
   const normalizedPayload = normalizeCreateComplaintInput(payload);
 
+  const complaint = await createComplaintRecord(
+    normalizedUserId,
+    normalizedPayload,
+  );
+
+  await addTimelineEvent({
+    complaintId: complaint._id.toString(),
+    type: "complaint_created",
+    title: "Complaint created",
+    actorType: "citizen",
+    actorId: normalizedUserId,
+  });
+
+  await addTimelineEvent({
+    complaintId: complaint._id.toString(),
+    type: "ai_analysis_started",
+    title: "AI analysis started",
+    actorType: "system",
+  });
+
   // Analyze complaint using AI
   try {
     const analysis = await analyzeComplaint(
@@ -415,21 +436,37 @@ export async function createComplaint(
       normalizedPayload.photo,
     );
 
-    // Add AI analysis results to payload
-    normalizedPayload.aiSuggestedCategory = analysis.category;
-    normalizedPayload.aiSeverity = analysis.severity;
-    normalizedPayload.aiSummary = analysis.summary;
-    normalizedPayload.aiKeywords = analysis.keywords;
-  } catch (error) {
-    // Log the error but don't fail the complaint creation
-    console.error("AI analysis failed:", error);
-    // Continue with complaint creation without AI data
-  }
+    complaint.aiSuggestedCategory = analysis.category;
+    complaint.aiSeverity = analysis.severity;
+    complaint.aiSummary = analysis.summary;
+    complaint.aiKeywords = analysis.keywords;
+    await complaint.save();
 
-  const complaint = await createComplaintRecord(
-    normalizedUserId,
-    normalizedPayload,
-  );
+    await addTimelineEvent({
+      complaintId: complaint._id.toString(),
+      type: "ai_analysis_completed",
+      title: "AI analysis completed",
+      message: analysis.summary,
+      actorType: "system",
+      metadata: {
+        category: analysis.category,
+        severity: analysis.severity,
+        keywords: analysis.keywords,
+      },
+    });
+  } catch (error) {
+    console.error("AI analysis failed:", error);
+    await addTimelineEvent({
+      complaintId: complaint._id.toString(),
+      type: "ai_analysis_completed",
+      title: "AI analysis completed",
+      message: "AI analysis was unavailable. Complaint stored without AI enrichment.",
+      actorType: "system",
+      metadata: {
+        failed: true,
+      },
+    });
+  }
 
   return toComplaintPayload(complaint);
 }
@@ -473,6 +510,17 @@ export async function getComplaintById(id: string): Promise<ComplaintPayload> {
   }
 
   return toComplaintPayload(complaint);
+}
+
+export async function getComplaintTimeline(id: string) {
+  const normalizedComplaintId = normalizeObjectId(id, "complaint id");
+  const complaint = await getComplaintRecordById(normalizedComplaintId);
+
+  if (!complaint) {
+    throw new AppError("Complaint not found.", 404);
+  }
+
+  return getComplaintTimelineService(normalizedComplaintId);
 }
 
 export async function updateComplaint(

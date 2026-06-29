@@ -5,6 +5,7 @@ import {
   deleteComplaint as deleteComplaintService,
   getAllComplaints as getAllComplaintsService,
   getComplaintById as getComplaintByIdService,
+  getComplaintTimeline as getComplaintTimelineService,
   getMyComplaints as getMyComplaintsService,
   updateComplaint as updateComplaintService,
   uploadComplaintPhoto as uploadComplaintPhotoService,
@@ -12,6 +13,7 @@ import {
 import type {
   ComplaintFilterDto,
   ComplaintResponse,
+  ComplaintTimelineResponse,
   ComplaintsResponse,
   CreateComplaintDto,
   JwtUserPayload,
@@ -137,6 +139,23 @@ export async function getById(
     response.status(200).json({
       success: true,
       complaint,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function timeline(
+  request: Request<{ id: string }>,
+  response: Response<ComplaintTimelineResponse>,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const timeline = await getComplaintTimelineService(request.params.id);
+
+    response.status(200).json({
+      success: true,
+      timeline,
     });
   } catch (error) {
     next(error);
