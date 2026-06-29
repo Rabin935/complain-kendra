@@ -10,6 +10,9 @@ import type {
   LoginPayload,
   RegisterPayload,
   ResetPasswordPayload,
+  SendOtpPayload,
+  SendOtpResponse,
+  VerifyOtpPayload,
 } from "../types/auth.types";
 
 function getGoogleSignInErrorMessage(error: unknown, googleStatusCodes?: Record<string, string>): string {
@@ -90,6 +93,16 @@ export async function forgotPassword(payload: ForgotPasswordPayload): Promise<Au
 
 export async function resetPassword(payload: ResetPasswordPayload): Promise<AuthResponse> {
   const { data } = await apiClient.post<AuthResponse>("/api/auth/reset-password", payload);
+  return data;
+}
+
+export async function sendOtp(payload: SendOtpPayload): Promise<SendOtpResponse> {
+  const { data } = await apiClient.post<SendOtpResponse>("/api/auth/otp/send", payload);
+  return data;
+}
+
+export async function verifyOtp(payload: VerifyOtpPayload): Promise<AuthResponse> {
+  const { data } = await apiClient.post<AuthResponse>("/api/auth/otp/verify", payload);
   return data;
 }
 

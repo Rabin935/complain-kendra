@@ -1,0 +1,33 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Expo: phone LAN",
+      "type": "npm",
+      "script": "start:phone",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Expo: start",
+      "type": "npm",
+      "script": "start",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Expo: web",
+      "type": "npm",
+      "script": "web",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Expo: android",
+      "type": "npm",
+      "script": "android",
+      "isBackground": true,
+      "problemMatcher": []
+    }
+  ]
+}

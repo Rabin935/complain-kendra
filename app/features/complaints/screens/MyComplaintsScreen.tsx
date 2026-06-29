@@ -20,7 +20,7 @@ import type {
   CitizenComplaint,
   CitizenComplaintStatus,
 } from "../../user/types/citizen.types";
-import type { UserTabParamList } from "../../user/types/user.types";
+import type { UserStackParamList, UserTabParamList } from "../../user/types/user.types";
 import {
   formatCompactDate,
   priorityColors,
@@ -30,7 +30,7 @@ import {
 } from "../../user/utils/citizenUi";
 
 type StatusFilter = CitizenComplaintStatus | "all";
-type MineNavigation = NavigationProp<UserTabParamList>;
+type MineNavigation = NavigationProp<UserTabParamList & UserStackParamList>;
 
 const statusFilters: { label: string; value: StatusFilter }[] = [
   { label: "All", value: "all" },
@@ -145,7 +145,7 @@ export default function MyComplaintsScreen() {
   }
 
   function openComplaint(complaint: CitizenComplaint) {
-    Alert.alert(complaint.complaintNo, `${complaint.title}\n${complaint.description}`);
+    navigation.navigate("ComplaintDetail", { complaintId: complaint.id });
   }
 
   function rateResolution(complaint: CitizenComplaint) {

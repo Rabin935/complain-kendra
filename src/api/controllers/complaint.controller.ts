@@ -3,11 +3,19 @@ import { analyzeComplaint as analyzeComplaintService } from "../services/ai.serv
 import {
   createComplaint as createComplaintService,
   deleteComplaint as deleteComplaintService,
+  followComplaint as followComplaintService,
   getAllComplaints as getAllComplaintsService,
   getComplaintById as getComplaintByIdService,
+  getComplaintRating as getComplaintRatingService,
+  getComplaintTimeline as getComplaintTimelineService,
   getMyComplaints as getMyComplaintsService,
+  getNearbyComplaints as getNearbyComplaintsService,
+  rateComplaint as rateComplaintService,
+  unfollowComplaint as unfollowComplaintService,
   updateComplaint as updateComplaintService,
   uploadComplaintPhoto as uploadComplaintPhotoService,
+  uploadComplaintPhotos,
+  upvoteComplaint as upvoteComplaintService,
 } from "../services/complaint.service";
 import type {
   ComplaintFilterDto,
@@ -19,6 +27,15 @@ import type {
   UploadPhotoResponse,
 } from "../types";
 import { AppError } from "../utils/appError";
+import {
+  getNumber,
+  getString,
+  normalizeCategory,
+  normalizePriority,
+  normalizeStatus,
+} from "../utils/request.utils";
+
+type UploadedFile = Express.Multer.File;
 
 function requireAuthenticatedUser(request: Request): JwtUserPayload {
   if (!request.user) {
@@ -28,16 +45,35 @@ function requireAuthenticatedUser(request: Request): JwtUserPayload {
   return request.user;
 }
 
-function getQueryValue(value: unknown): string | undefined {
-  if (typeof value === "string") {
-    return value;
+function getQueryFilter(request: Request): ComplaintFilterDto {
+  const query = request.query as Record<string, unknown>;
+
+  return {
+    ward: getString(query.ward),
+    wardId: getString(query.ward_id ?? query.wardId),
+    category: normalizeCategory(query.category),
+    status: normalizeStatus(query.status),
+    priority: normalizePriority(query.priority),
+    sort: getString(query.sort) as ComplaintFilterDto["sort"],
+    page: getNumber(query.page),
+    limit: getNumber(query.limit),
+  };
+}
+
+function getUploadedFiles(request: Request): UploadedFile[] {
+  if (Array.isArray(request.files)) {
+    return request.files;
   }
 
-  if (Array.isArray(value) && typeof value[0] === "string") {
-    return value[0];
+  if (request.files && typeof request.files === "object") {
+    return Object.values(request.files).flat();
   }
 
-  return undefined;
+  if (request.file) {
+    return [request.file];
+  }
+
+  return [];
 }
 
 export async function create(
@@ -46,10 +82,15 @@ export async function create(
   next: NextFunction,
 ): Promise<void> {
   try {
-    const complaint = await createComplaintService(
-      requireAuthenticatedUser(request).userId,
-      request.body as CreateComplaintDto,
-    );
+    const user = requireAuthenticatedUser(request);
+    const uploadedFiles = getUploadedFiles(request);
+    const photos = uploadedFiles.length ? await uploadComplaintPhotos(uploadedFiles) : [];
+    const body = {
+      ...(request.body as Record<string, unknown>),
+      photos: photos.length ? photos : (request.body as Record<string, unknown>).photos,
+      photo: photos[0] ?? (request.body as Record<string, unknown>).photo,
+    };
+    const complaint = await createComplaintService(user.subjectId, body);
 
     response.status(201).json({
       success: true,
@@ -79,6 +120,33 @@ export async function uploadPhoto(
       success: true,
       message: "Photo uploaded successfully.",
       photoUrl,
+      photoUrls: [photoUrl],
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function uploadPhotos(
+  request: Request,
+  response: Response<UploadPhotoResponse>,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    requireAuthenticatedUser(request);
+    const files = getUploadedFiles(request);
+
+    if (files.length === 0) {
+      throw new AppError("At least one photo file is required.", 400);
+    }
+
+    const photoUrls = await uploadComplaintPhotos(files);
+
+    response.status(200).json({
+      success: true,
+      message: "Photos uploaded successfully.",
+      photoUrl: photoUrls[0],
+      photoUrls,
     });
   } catch (error) {
     next(error);
@@ -86,21 +154,49 @@ export async function uploadPhoto(
 }
 
 export async function getAll(
-  request: Request<Record<string, never>, unknown, unknown, Record<string, unknown>>,
+  request: Request,
   response: Response<ComplaintsResponse>,
   next: NextFunction,
 ): Promise<void> {
   try {
-    const filter: ComplaintFilterDto = {
-      ward: getQueryValue(request.query.ward),
-      category: getQueryValue(request.query.category) as ComplaintFilterDto["category"],
-      status: getQueryValue(request.query.status) as ComplaintFilterDto["status"],
-    };
-    const complaints = await getAllComplaintsService(filter);
+    const result = await getAllComplaintsService(getQueryFilter(request), request.user);
+
+    response.status(200).json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getNearby(
+  request: Request,
+  response: Response<ComplaintsResponse>,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const query = request.query as Record<string, unknown>;
+    const lat = getNumber(query.lat);
+    const lng = getNumber(query.lng);
+
+    if (lat === undefined || lng === undefined) {
+      throw new AppError("lat and lng query parameters are required.", 400);
+    }
+
+    const complaints = await getNearbyComplaintsService({
+      lat,
+      lng,
+      radiusKm: getNumber(query.radius_km ?? query.radiusKm),
+      actor: request.user,
+    });
 
     response.status(200).json({
       success: true,
       complaints,
+      total: complaints.length,
+      page: 1,
+      limit: complaints.length,
     });
   } catch (error) {
     next(error);
@@ -113,13 +209,14 @@ export async function getMy(
   next: NextFunction,
 ): Promise<void> {
   try {
-    const complaints = await getMyComplaintsService(
-      requireAuthenticatedUser(request).userId,
+    const result = await getMyComplaintsService(
+      requireAuthenticatedUser(request).subjectId,
+      getQueryFilter(request),
     );
 
     response.status(200).json({
       success: true,
-      complaints,
+      ...result,
     });
   } catch (error) {
     next(error);
@@ -132,11 +229,29 @@ export async function getById(
   next: NextFunction,
 ): Promise<void> {
   try {
-    const complaint = await getComplaintByIdService(request.params.id);
+    const complaint = await getComplaintByIdService(request.params.id, request.user);
 
     response.status(200).json({
       success: true,
       complaint,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getTimeline(
+  request: Request<{ id: string }>,
+  response: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const includeInternal = request.user?.type === "officer";
+    const timeline = await getComplaintTimelineService(request.params.id, includeInternal);
+
+    response.status(200).json({
+      success: true,
+      timeline,
     });
   } catch (error) {
     next(error);
@@ -166,29 +281,143 @@ export async function update(
 }
 
 export async function analyze(
-  request: Request<
-    Record<string, never>,
-    unknown,
-    { description: string; photoUrl?: string }
-  >,
+  request: Request<Record<string, never>, unknown, Record<string, unknown>>,
   response: Response,
   next: NextFunction,
 ): Promise<void> {
   try {
     requireAuthenticatedUser(request);
+    const description = getString(request.body.description);
 
-    const { description, photoUrl } = request.body;
-
-    if (!description || typeof description !== "string") {
+    if (!description) {
       throw new AppError("Description is required for analysis.", 400);
     }
 
-    const analysis = await analyzeComplaintService(description, photoUrl);
+    const analysis = await analyzeComplaintService({
+      title: getString(request.body.title),
+      description,
+      category: normalizeCategory(request.body.category),
+      lat: getNumber(request.body.lat),
+      lng: getNumber(request.body.lng),
+      photoCount: getNumber(request.body.photo_count ?? request.body.photoCount),
+      photoUrl: getString(request.body.photoUrl ?? request.body.photo_url),
+    });
 
     response.status(200).json({
       success: true,
       message: "Complaint analyzed successfully.",
+      data: analysis,
+      analysis,
       analyze: analysis,
+      ...analysis,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function upvote(
+  request: Request<{ id: string }>,
+  response: Response<ComplaintResponse>,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const complaint = await upvoteComplaintService(
+      request.params.id,
+      requireAuthenticatedUser(request).subjectId,
+    );
+
+    response.status(200).json({
+      success: true,
+      message: "Complaint upvoted.",
+      complaint,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function follow(
+  request: Request<{ id: string }>,
+  response: Response<ComplaintResponse>,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const complaint = await followComplaintService(
+      request.params.id,
+      requireAuthenticatedUser(request).subjectId,
+    );
+
+    response.status(200).json({
+      success: true,
+      message: "Complaint followed.",
+      complaint,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function unfollow(
+  request: Request<{ id: string }>,
+  response: Response<ComplaintResponse>,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const complaint = await unfollowComplaintService(
+      request.params.id,
+      requireAuthenticatedUser(request).subjectId,
+    );
+
+    response.status(200).json({
+      success: true,
+      message: "Complaint unfollowed.",
+      complaint,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function rate(
+  request: Request<{ id: string }, unknown, { rating?: number; comment?: string }>,
+  response: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const body = request.body;
+    const rating = typeof body.rating === "number" ? body.rating : Number(body.rating);
+    const result = await rateComplaintService({
+      complaintId: request.params.id,
+      userId: requireAuthenticatedUser(request).subjectId,
+      rating,
+      comment: getString(body.comment),
+    });
+
+    response.status(200).json({
+      success: true,
+      message: "Complaint rated.",
+      rating: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getRate(
+  request: Request<{ id: string }>,
+  response: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const rating = await getComplaintRatingService(
+      request.params.id,
+      requireAuthenticatedUser(request).subjectId,
+    );
+
+    response.status(200).json({
+      success: true,
+      rating,
     });
   } catch (error) {
     next(error);

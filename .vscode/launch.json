@@ -1,0 +1,26 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Expo: phone LAN",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run start:phone",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Expo: web",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run web",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Expo: start",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run start",
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}

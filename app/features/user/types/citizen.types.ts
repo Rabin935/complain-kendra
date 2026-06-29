@@ -45,6 +45,16 @@ export interface ComplaintTimelineItem {
   done: boolean;
 }
 
+export interface ComplaintComment {
+  id: string;
+  authorName: string;
+  authorType: "citizen" | "officer";
+  official: boolean;
+  body: string;
+  upvoteCount: number;
+  createdAt: string;
+}
+
 export interface CitizenComplaint {
   id: string;
   complaintNo: string;
@@ -60,12 +70,22 @@ export interface CitizenComplaint {
   distanceKm: number;
   upvotes: number;
   comments: number;
+  followers: number;
   followed: boolean;
   photos: string[];
   reporterName?: string;
   reporterPrivate?: boolean;
   timeline: ComplaintTimelineItem[];
   etaDays?: number;
+  aiAnalysis?: AiAnalysisResult;
+  aiVerified?: boolean;
+  aiSummary?: string;
+}
+
+export interface ComplaintDetailPayload {
+  complaint: CitizenComplaint;
+  timeline: ComplaintTimelineItem[];
+  comments: ComplaintComment[];
 }
 
 export interface CitizenNotification {
@@ -94,6 +114,8 @@ export interface AiAnalysisResult {
   priority: CitizenComplaintPriority;
   department: string;
   etaDays: number;
+  summary?: string;
+  keywords?: string[];
   duplicateCheck: {
     isDuplicate: boolean;
     complaintNo?: string;
@@ -115,6 +137,11 @@ export interface CreateReportPayload {
   description: string;
   lat: number;
   lng: number;
+  address: string;
+  area: string;
+  ward: string;
+  wardId: string;
+  city: string;
   photos: ReportPhoto[];
 }
 

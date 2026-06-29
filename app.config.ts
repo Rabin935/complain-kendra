@@ -1,4 +1,8 @@
 import type { ExpoConfig } from "expo/config";
+import { existsSync } from "node:fs";
+
+const iosGoogleServicesFile = "./GoogleService-Info.plist";
+const androidGoogleServicesFile = "./google-services.json";
 
 const config: ExpoConfig = {
   name: "ComplaintHub",
@@ -20,7 +24,9 @@ const config: ExpoConfig = {
     // 1. Download GoogleService-Info.plist from Firebase / Google Cloud Console.
     // 2. Place it in the project root at ./GoogleService-Info.plist.
     // 3. Run `npm run prebuild` or an EAS build so Expo can copy it into the native iOS project.
-    googleServicesFile: "./GoogleService-Info.plist",
+    ...(existsSync(iosGoogleServicesFile)
+      ? { googleServicesFile: iosGoogleServicesFile }
+      : {}),
   },
   android: {
     adaptiveIcon: {
@@ -35,7 +41,9 @@ const config: ExpoConfig = {
     // 3. After `npm run prebuild`, confirm android/app/src/main/AndroidManifest.xml still matches
     //    the package name and Google metadata generated from your config file if you keep native
     //    Android files checked into source control.
-    googleServicesFile: "./google-services.json",
+    ...(existsSync(androidGoogleServicesFile)
+      ? { googleServicesFile: androidGoogleServicesFile }
+      : {}),
   },
   web: {
     bundler: "metro",
@@ -45,6 +53,7 @@ const config: ExpoConfig = {
   plugins: [
     "expo-router",
     "expo-sqlite",
+    "expo-web-browser",
     // The Expo plugin links google-services.json / GoogleService-Info.plist during native builds.
     "@react-native-google-signin/google-signin",
   ],

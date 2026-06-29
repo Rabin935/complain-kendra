@@ -1,20 +1,56 @@
-import { getCloudinary, getCloudinaryFolder } from "../config/cloudinary";
+import crypto from "node:crypto";
+import path from "node:path";
+import { promises as fs } from "node:fs";
 import { AppError } from "./appError";
 
 export interface UploadToCloudinaryInput {
   buffer: Buffer;
   mimeType: string;
   folder?: string;
+  originalName?: string;
 }
 
-function toDataUri(buffer: Buffer, mimeType: string): string {
-  return `data:${mimeType};base64,${buffer.toString("base64")}`;
+const uploadRoot = path.resolve(__dirname, "..", "uploads");
+
+function getExtension(mimeType: string, originalName?: string): string {
+  const originalExtension = originalName ? path.extname(originalName).toLowerCase() : "";
+
+  if ([".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"].includes(originalExtension)) {
+    return originalExtension;
+  }
+
+  if (mimeType === "image/png") {
+    return ".png";
+  }
+
+  if (mimeType === "image/webp") {
+    return ".webp";
+  }
+
+  if (mimeType === "image/heic" || mimeType === "image/heif") {
+    return ".heic";
+  }
+
+  return ".jpg";
 }
 
-export async function uploadToCloudinary({
+function normalizeFolder(folder?: string): string {
+  return (folder ?? "complaints")
+    .split(/[\\/]+/)
+    .map((part) => part.trim().replace(/[^a-z0-9_-]/gi, "-"))
+    .filter(Boolean)
+    .join(path.sep);
+}
+
+export function getUploadRoot(): string {
+  return uploadRoot;
+}
+
+export async function saveUploadedImage({
   buffer,
   mimeType,
-  folder = getCloudinaryFolder(),
+  folder,
+  originalName,
 }: UploadToCloudinaryInput): Promise<string> {
   if (!mimeType.startsWith("image/")) {
     throw new AppError("Only image uploads are supported.", 400);
@@ -24,22 +60,17 @@ export async function uploadToCloudinary({
     throw new AppError("Photo file is empty.", 400);
   }
 
-  try {
-    const result = await getCloudinary().uploader.upload(toDataUri(buffer, mimeType), {
-      folder,
-      resource_type: "image",
-    });
+  const safeFolder = normalizeFolder(folder);
+  const targetDirectory = path.join(uploadRoot, safeFolder);
+  await fs.mkdir(targetDirectory, { recursive: true });
 
-    if (!result.secure_url) {
-      throw new Error("Cloudinary did not return a secure URL.");
-    }
+  const fileName = `${Date.now()}-${crypto.randomUUID()}${getExtension(mimeType, originalName)}`;
+  await fs.writeFile(path.join(targetDirectory, fileName), buffer);
 
-    return result.secure_url;
-  } catch (error) {
-    if (error instanceof AppError) {
-      throw error;
-    }
+  return `/uploads/${safeFolder.replace(/\\/g, "/")}/${fileName}`;
+}
 
-    throw new AppError("Photo upload failed.", 502);
-  }
+// Kept for compatibility with existing code while development uses local storage.
+export async function uploadToCloudinary(input: UploadToCloudinaryInput): Promise<string> {
+  return saveUploadedImage(input);
 }

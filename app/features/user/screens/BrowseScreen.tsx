@@ -1,8 +1,8 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { NavigationProp, useNavigation } from "@react-navigation/native";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   type DimensionValue,
   Pressable,
   RefreshControl,
@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../../../constants/colors";
-import { categoryMeta, sampleComplaints, sampleProfile } from "../data/citizenSampleData";
+import { categoryMeta, sampleProfile } from "../data/citizenSampleData";
 import {
   fetchCitizenProfile,
   fetchNearbyComplaints,
@@ -28,6 +28,7 @@ import type {
   CitizenComplaintStatus,
   CitizenProfile,
 } from "../types/citizen.types";
+import type { UserStackParamList, UserTabParamList } from "../types/user.types";
 import {
   formatCompactDate,
   formatDistance,
@@ -39,6 +40,7 @@ import {
 
 type BrowseMode = "map" | "list";
 type MainFilter = "nearby" | "ward" | "pending" | "in_progress" | "resolved" | "high";
+type BrowseNavigation = NavigationProp<UserTabParamList & UserStackParamList>;
 
 const mainFilters: { label: string; value: MainFilter }[] = [
   { label: "Nearby", value: "nearby" },
@@ -69,9 +71,10 @@ const pinPositions: Array<{ top: DimensionValue; left: DimensionValue }> = [
 ];
 
 export default function BrowseScreen() {
+  const navigation = useNavigation<BrowseNavigation>();
   const [profile, setProfile] = useState<CitizenProfile>(sampleProfile);
-  const [complaints, setComplaints] = useState<CitizenComplaint[]>(sampleComplaints);
-  const [selectedComplaint, setSelectedComplaint] = useState<CitizenComplaint | null>(sampleComplaints[0]);
+  const [complaints, setComplaints] = useState<CitizenComplaint[]>([]);
+  const [selectedComplaint, setSelectedComplaint] = useState<CitizenComplaint | null>(null);
   const [mode, setMode] = useState<BrowseMode>("list");
   const [mainFilter, setMainFilter] = useState<MainFilter>("nearby");
   const [categoryFilter, setCategoryFilter] = useState<CitizenComplaintCategory | "all">("all");
@@ -169,7 +172,7 @@ export default function BrowseScreen() {
   }
 
   function openComplaint(complaint: CitizenComplaint) {
-    Alert.alert(complaint.complaintNo, `${complaint.title}\n${complaint.description}`);
+    navigation.navigate("ComplaintDetail", { complaintId: complaint.id });
   }
 
   return (

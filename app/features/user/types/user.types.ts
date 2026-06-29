@@ -18,5 +18,13 @@ export type UserTabParamList = {
   Mine: undefined;
   Report: { category?: CitizenComplaintCategory } | undefined;
   Browse: undefined;
+  Console: undefined;
   Profile: undefined;
+};
+
+export type UserStackParamList = {
+  MainTabs: undefined;
+  ComplaintDetail: {
+    complaintId: string;
+  };
 };
