@@ -37,6 +37,10 @@ export function isAllowedUploadMimeType(mimeType: string): boolean {
   return ALLOWED_UPLOAD_MIME_TYPES.has(mimeType.trim().toLowerCase());
 }
 
+function shouldMockCloudinaryUploads(): boolean {
+  return process.env.MOCK_CLOUDINARY_UPLOADS === "true";
+}
+
 export async function uploadToCloudinary({
   buffer,
   mimeType,
@@ -55,6 +59,18 @@ export async function uploadToCloudinary({
   const sanitizedName = `${sanitizeUploadFileName(fileName)}-${Date.now()}-${Math.round(
     Math.random() * 1_000_000,
   )}`;
+
+  if (shouldMockCloudinaryUploads()) {
+    return {
+      url: `https://mock-cloudinary.local/${folder}/${sanitizedName}`,
+      publicId: `${folder}/${sanitizedName}`,
+      originalName: fileName,
+      sanitizedName,
+      mimeType,
+      size,
+      format: mimeType.split("/")[1],
+    };
+  }
 
   try {
     const result = await getCloudinary().uploader.upload(toDataUri(buffer, mimeType), {
@@ -91,6 +107,10 @@ export async function uploadToCloudinary({
 
 export async function deleteUploadedAsset(publicId: string): Promise<void> {
   if (!publicId.trim()) {
+    return;
+  }
+
+  if (shouldMockCloudinaryUploads()) {
     return;
   }
 

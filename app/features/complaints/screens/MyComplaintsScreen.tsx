@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
-import { useCallback, useState } from "react";
+import { type ComponentProps, useCallback, useState } from "react";
 import {
     ActivityIndicator,
     FlatList,
@@ -17,6 +17,7 @@ import { getAllComplaints, getMyComplaints } from "../services/complaint.service
 import type { Complaint } from "../types/complaint.types";
 
 type ViewMode = "my" | "browse";
+type MaterialCommunityIconName = ComponentProps<typeof MaterialCommunityIcons>["name"];
 
 export default function MyComplaintsScreen() {
   const { token } = useAuth();
@@ -103,12 +104,14 @@ export default function MyComplaintsScreen() {
         return colors.accent;
       case "Resolved":
         return colors.success;
+      case "Rejected":
+        return colors.textMuted;
       default:
         return colors.textMuted;
     }
   }
 
-  function getStatusIcon(status: string): string {
+  function getStatusIcon(status: string): MaterialCommunityIconName {
     switch (status) {
       case "Pending":
         return "clock-outline";
@@ -116,6 +119,8 @@ export default function MyComplaintsScreen() {
         return "progress-clock";
       case "Resolved":
         return "check-circle";
+      case "Rejected":
+        return "close-circle-outline";
       default:
         return "help-circle";
     }
@@ -195,7 +200,7 @@ export default function MyComplaintsScreen() {
             <View style={styles.aiSummaryContainer}>
               <View style={styles.aiSummaryHeader}>
                 <MaterialCommunityIcons
-                  name="wand-outline"
+                  name="robot-outline"
                   size={12}
                   color={colors.accent}
                 />
@@ -364,7 +369,7 @@ export default function MyComplaintsScreen() {
         <FlatList
           data={filteredComplaints}
           renderItem={renderComplaintItem}
-          keyExtractor={(item) => item._id}
+          keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
           scrollIndicatorInsets={{ bottom: 80 }}
           refreshControl={
@@ -655,183 +660,5 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.textMuted,
     lineHeight: 14,
-  },
-});
-
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  header: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 16,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  badge: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: colors.primary,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: colors.text,
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 13,
-    color: colors.textMuted,
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 32,
-    gap: 12,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 32,
-  },
-  emptyText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  emptySubtext: {
-    fontSize: 13,
-    color: colors.textMuted,
-    textAlign: "center",
-  },
-  loadingText: {
-    fontSize: 14,
-    color: colors.textMuted,
-    fontWeight: "500",
-  },
-  errorText: {
-    fontSize: 14,
-    color: colors.error,
-    textAlign: "center",
-    fontWeight: "500",
-  },
-  retryButton: {
-    marginTop: 12,
-    backgroundColor: colors.primary,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 6,
-  },
-  retryButtonText: {
-    color: colors.surface,
-    fontWeight: "600",
-    fontSize: 14,
-  },
-  listContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    paddingBottom: 80,
-  },
-  complaintCard: {
-    backgroundColor: colors.surface,
-    marginBottom: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: "hidden",
-  },
-  cardContent: {
-    padding: 14,
-    gap: 10,
-  },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 8,
-  },
-  complaintTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: colors.text,
-    flex: 1,
-  },
-  statusBadge: {
-    flexDirection: "row",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 20,
-    borderWidth: 1,
-    alignItems: "center",
-    gap: 4,
-  },
-  statusText: {
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  description: {
-    fontSize: 12,
-    color: colors.textMuted,
-    lineHeight: 16,
-  },
-  cardMeta: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  metaItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  metaText: {
-    fontSize: 11,
-    color: colors.textMuted,
-    fontWeight: "500",
-  },
-  locationContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  locationText: {
-    fontSize: 11,
-    color: colors.textMuted,
-    flex: 1,
-  },
-  severityContainer: {
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  severityLabel: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: colors.text,
-    marginBottom: 6,
-  },
-  severityBar: {
-    height: 6,
-    backgroundColor: colors.border,
-    borderRadius: 3,
-    overflow: "hidden",
-    marginBottom: 4,
-  },
-  severityFill: {
-    height: "100%",
-    borderRadius: 3,
-  },
-  severityValue: {
-    fontSize: 10,
-    color: colors.textMuted,
-    fontWeight: "500",
   },
 });

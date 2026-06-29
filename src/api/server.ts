@@ -1,42 +1,13 @@
-import cors from "cors";
 import dotenv from "dotenv";
-import express from "express";
+import { app } from "./app";
 import { connectDatabase } from "./config/database";
-import { errorHandler } from "./middlewares/error.middleware";
-import authRouter from "./routes/auth.routes";
-import complaintRouter from "./routes/complaint.routes";
 
 dotenv.config();
 
-const app = express();
 const parsedPort = Number.parseInt(process.env.PORT ?? "", 10);
 const PORT = Number.isNaN(parsedPort) ? 5000 : parsedPort;
 
-app.use(
-  cors({
-    origin(origin, callback) {
-      if (!origin) {
-        callback(null, true);
-        return;
-      }
-
-      callback(null, true);
-    },
-    credentials: true,
-  }),
-);
-app.use(express.json());
-
-app.use("/api/auth", authRouter);
-app.use("/api/complaints", complaintRouter);
-
-app.get("/api/health", (_request, response) => {
-  response.status(200).json({ status: "ok" });
-});
-
-app.use(errorHandler);
-
-async function startServer(): Promise<void> {
+export async function startServer(): Promise<void> {
   try {
     await connectDatabase();
 
@@ -49,4 +20,6 @@ async function startServer(): Promise<void> {
   }
 }
 
-void startServer();
+if (require.main === module) {
+  void startServer();
+}

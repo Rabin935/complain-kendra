@@ -1,16 +1,19 @@
 export type ComplaintCategory = "Road Damage" | "Garbage" | "Water Supply" | "Electricity" | "Drainage" | "Other";
-export type ComplaintStatus = "Pending" | "In Progress" | "Resolved";
+export type ComplaintStatus = "Pending" | "In Progress" | "Resolved" | "Rejected";
 
 export interface ComplaintLocation {
   lat?: number;
   lng?: number;
   address?: string;
   ward?: string;
+  wardId?: string;
+  wardName?: string;
 }
 
 export interface Complaint {
-  _id: string;
+  id: string;
   userId: string;
+  complaintNumber: string;
   title: string;
   description: string;
   location?: ComplaintLocation;

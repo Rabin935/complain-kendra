@@ -16,7 +16,8 @@
     "web": "expo start --web --port 3000",
     "frontend": "npm run web",
     "server": "nodemon --exec ts-node src/api/server.ts",
-    "backend": "npm run server"
+    "backend": "npm run server",
+    "test:api": "node --test -r ts-node/register src/api/tests/complaint-number.service.test.ts src/api/tests/complaint.api.test.ts"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -39,6 +40,7 @@
     "expo-constants": "~18.0.13",
     "expo-crypto": "~15.0.8",
     "expo-font": "~14.0.11",
+    "expo-image-picker": "^56.0.18",
     "expo-linking": "~8.0.11",
     "expo-router": "~6.0.23",
     "expo-splash-screen": "~31.0.13",
@@ -72,9 +74,12 @@
     "@types/node": "^25.5.2",
     "@types/nodemailer": "^8.0.0",
     "@types/react": "~19.1.0",
+    "@types/supertest": "^7.2.0",
     "concurrently": "^9.2.1",
+    "mongodb-memory-server": "^11.2.0",
     "nodemon": "^3.1.14",
     "react-test-renderer": "19.1.0",
+    "supertest": "^7.2.2",
     "ts-node": "^10.9.2",
     "typescript": "~5.9.2"
   },

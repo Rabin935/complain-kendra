@@ -15,11 +15,13 @@ import type {
 import { AppError } from "../utils/appError";
 
 const SALT_ROUNDS = 10;
-const TOKEN_EXPIRES_IN = "7d";
+const ACCESS_TOKEN_EXPIRES_IN = "15m";
+const REFRESH_TOKEN_EXPIRES_IN = "7d";
 const RESET_TOKEN_EXPIRES_IN = "15m";
 
 export interface LoginResult {
   token: string;
+  refreshToken: string;
   user: AuthUser;
 }
 
@@ -135,8 +137,69 @@ function createAuthToken(user: {
       role: user.role,
     },
     getJwtSecret(),
-    { expiresIn: TOKEN_EXPIRES_IN },
+    { expiresIn: ACCESS_TOKEN_EXPIRES_IN },
   );
+}
+
+function createRefreshToken(user: {
+  _id: { toString(): string };
+  email: string;
+  role: "user" | "admin";
+}): string {
+  return jwt.sign(
+    {
+      userId: user._id.toString(),
+      email: user.email,
+      role: user.role,
+      type: "refresh",
+    },
+    getJwtSecret(),
+    { expiresIn: REFRESH_TOKEN_EXPIRES_IN },
+  );
+}
+
+function verifyRefreshToken(token: string): {
+  userId: string;
+  email: string;
+  role: "user" | "admin";
+} {
+  try {
+    const payload = jwt.verify(token, getJwtSecret()) as jwt.JwtPayload & {
+      userId?: string;
+      email?: string;
+      role?: "user" | "admin";
+      type?: string;
+    };
+
+    if (
+      payload.type !== "refresh" ||
+      typeof payload.userId !== "string" ||
+      typeof payload.email !== "string" ||
+      (payload.role !== "user" && payload.role !== "admin")
+    ) {
+      throw new AppError("Invalid refresh token.", 401);
+    }
+
+    return {
+      userId: payload.userId,
+      email: payload.email,
+      role: payload.role,
+    };
+  } catch (error) {
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    if (error instanceof TokenExpiredError) {
+      throw new AppError("Refresh token has expired.", 401);
+    }
+
+    if (error instanceof JsonWebTokenError) {
+      throw new AppError("Invalid refresh token.", 401);
+    }
+
+    throw error;
+  }
 }
 
 function getPasswordResetSecret(userPassword: string): string {
@@ -246,6 +309,26 @@ export async function loginUser(payload: LoginDto): Promise<LoginResult> {
 
   return {
     token,
+    refreshToken: createRefreshToken(user),
+    user: toSafeUser(user),
+  };
+}
+
+export async function refreshAccessToken(refreshToken: string): Promise<LoginResult> {
+  if (!refreshToken?.trim()) {
+    throw new AppError("Refresh token is required.", 400);
+  }
+
+  const payload = verifyRefreshToken(refreshToken.trim());
+  const user = await findUserById(payload.userId);
+
+  if (!user) {
+    throw new AppError("User not found for refresh token.", 404);
+  }
+
+  return {
+    token: createAuthToken(user),
+    refreshToken: createRefreshToken(user),
     user: toSafeUser(user),
   };
 }
@@ -344,6 +427,7 @@ export async function googleLogin(idToken: string): Promise<LoginResult> {
 
   return {
     token: createAuthToken(user),
+    refreshToken: createRefreshToken(user),
     user: toSafeUser(user),
   };
 }

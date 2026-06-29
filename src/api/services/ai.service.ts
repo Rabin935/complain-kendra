@@ -1,5 +1,5 @@
 import { geminiModel } from "../config/gemini";
-import type { COMPLAINT_CATEGORIES } from "../types";
+import { COMPLAINT_CATEGORIES } from "../types";
 import { AppError } from "../utils/appError";
 
 interface AnalysisResult {
@@ -8,6 +8,10 @@ interface AnalysisResult {
   severity: number;
   summary: string;
   keywords: string[];
+}
+
+function shouldMockAiAnalysis(): boolean {
+  return process.env.MOCK_GEMINI_ANALYSIS === "true";
 }
 
 async function fetchImageAsBase64(imageUrl: string): Promise<string> {
@@ -32,14 +36,21 @@ export async function analyzeComplaint(
     throw new AppError("Complaint description is required for analysis.", 400);
   }
 
-  const complaintCategories: typeof COMPLAINT_CATEGORIES = [
-    "Infrastructure",
-    "Public Service",
-    "Environmental",
-    "Safety",
-    "Sanitation",
-    "Other",
-  ];
+  const complaintCategories = [...COMPLAINT_CATEGORIES];
+
+  if (shouldMockAiAnalysis()) {
+    return {
+      suggestedTitle: description.trim().slice(0, 100) || "Complaint report",
+      category: complaintCategories.includes("Other") ? "Other" : complaintCategories[0],
+      severity: 5,
+      summary: "Mock AI analysis completed for automated testing.",
+      keywords: description
+        .split(/\W+/)
+        .map((value) => value.trim())
+        .filter(Boolean)
+        .slice(0, 5),
+    };
+  }
 
   const systemPrompt = `You are an expert complaint classifier and analyzer. 
 Analyze the provided complaint description and image (if provided) to generate structured analysis.
@@ -66,51 +77,26 @@ Do not include any text outside the JSON. The complaint description may be in Ne
     : `Please analyze the following complaint:\n\n${description}`;
 
   try {
-    // Build the request content
-    let content: Parameters<typeof geminiModel.generateContent>[0];
+    const promptText = `${systemPrompt}\n\n${userPrompt}`;
+    const contentParts: Array<
+      { text: string } | { inlineData: { mimeType: string; data: string } }
+    > = [{ text: promptText }];
 
     if (photoUrl) {
-      // Fetch and encode the image
       const base64Image = await fetchImageAsBase64(photoUrl);
 
-      content = [
-        {
-          role: "user",
-          parts: [
-            {
-              text: userPrompt,
-            },
-            {
-              inlineData: {
-                mimeType: "image/jpeg",
-                data: base64Image,
-              },
-            },
-          ],
+      contentParts.push({
+        inlineData: {
+          mimeType: "image/jpeg",
+          data: base64Image,
         },
-      ];
-    } else {
-      content = [
-        {
-          role: "user",
-          parts: [
-            {
-              text: userPrompt,
-            },
-          ],
-        },
-      ];
+      });
     }
 
-    // Generate response with system instruction
-    const response = await geminiModel.generateContent({
-      contents: content,
-      systemInstruction: systemPrompt,
-    });
+    const response = await geminiModel.generateContent(contentParts);
 
     const result = response.response.text();
 
-    // Parse the JSON response
     const jsonMatch = result.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       throw new AppError("Invalid response format from AI model.", 500);
@@ -118,7 +104,6 @@ Do not include any text outside the JSON. The complaint description may be in Ne
 
     const analysis = JSON.parse(jsonMatch[0]) as AnalysisResult;
 
-    // Validate required fields
     if (
       !analysis.suggestedTitle ||
       !analysis.category ||
@@ -129,12 +114,10 @@ Do not include any text outside the JSON. The complaint description may be in Ne
       throw new AppError("Incomplete analysis from AI model.", 500);
     }
 
-    // Validate severity is within range
     if (analysis.severity < 1 || analysis.severity > 10) {
       analysis.severity = Math.max(1, Math.min(10, Math.round(analysis.severity)));
     }
 
-    // Validate category
     if (!complaintCategories.includes(analysis.category as (typeof COMPLAINT_CATEGORIES)[number])) {
       analysis.category = "Other";
     }

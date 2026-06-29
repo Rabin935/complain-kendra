@@ -247,7 +247,7 @@ export async function analyze(
     response.status(200).json({
       success: true,
       message: "Complaint analyzed successfully.",
-      analyze: analysis,
+      analysis,
     });
   } catch (error) {
     next(error);

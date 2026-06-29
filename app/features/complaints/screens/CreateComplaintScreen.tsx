@@ -360,7 +360,7 @@ export default function CreateComplaintScreen() {
               </>
             ) : (
               <>
-                <MaterialCommunityIcons name="wand-outline" size={18} color={colors.surface} />
+                <MaterialCommunityIcons name="robot-outline" size={18} color={colors.surface} />
                 <Text style={styles.analyzeButtonText}>Analyze with AI ✨</Text>
               </>
             )}

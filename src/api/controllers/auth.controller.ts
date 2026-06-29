@@ -3,6 +3,7 @@ import {
   forgotPassword as forgotPasswordService,
   googleLogin,
   loginUser,
+  refreshAccessToken,
   registerUser,
   resetPassword as resetPasswordService,
 } from "../services/auth.service";
@@ -45,6 +46,7 @@ export async function login(
       success: true,
       message: "Login successful.",
       token: result.token,
+      refreshToken: result.refreshToken,
       user: result.user,
     });
   } catch (error) {
@@ -64,6 +66,27 @@ export async function googleAuth(
       success: true,
       message: "Google login successful.",
       token: result.token,
+      refreshToken: result.refreshToken,
+      user: result.user,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function refresh(
+  request: Request<Record<string, never>, unknown, { refreshToken?: string }>,
+  response: Response<AuthResponse>,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const result = await refreshAccessToken(request.body.refreshToken ?? "");
+
+    response.status(200).json({
+      success: true,
+      message: "Token refreshed successfully.",
+      token: result.token,
+      refreshToken: result.refreshToken,
       user: result.user,
     });
   } catch (error) {
