@@ -252,6 +252,7 @@ export interface UpdateComplaintDto {
 }
 
 export interface ComplaintFilterDto {
+  search?: string;
   ward?: string;
   wardId?: string;
   city?: string;
@@ -260,7 +261,9 @@ export interface ComplaintFilterDto {
   priority?: ComplaintPriority | "high";
   page?: number;
   limit?: number;
-  sort?: "newest" | "upvotes" | "nearby";
+  sort?: "newest" | "oldest" | "upvotes" | "most_upvoted" | "nearby" | "nearest";
+  lat?: number;
+  lng?: number;
 }
 
 export interface AuthUser {
