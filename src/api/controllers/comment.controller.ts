@@ -3,6 +3,7 @@ import {
   createComment,
   deleteComment,
   listComments,
+  updateComment,
   upvoteComment,
 } from "../services/comment.service";
 import { AppError } from "../utils/appError";
@@ -72,6 +73,29 @@ export async function upvote(
     response.status(200).json({
       success: true,
       message: "Comment upvoted.",
+      comment,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function editComment(
+  request: Request<{ complaint_id: string; comment_id: string }, unknown, { body?: string }>,
+  response: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const comment = await updateComment({
+      complaintId: request.params.complaint_id,
+      commentId: request.params.comment_id,
+      actor: requireUser(request),
+      body: getString(request.body.body) ?? "",
+    });
+
+    response.status(200).json({
+      success: true,
+      message: "Comment updated.",
       comment,
     });
   } catch (error) {

@@ -1,11 +1,13 @@
-import CommentModel from "../models/Comment";
+import CommentModel, { type CommentDocument } from "../models/Comment";
 import CommentUpvoteModel from "../models/CommentUpvote";
+import FollowModel from "../models/Follow";
 import OfficerModel from "../models/Officer";
 import UserModel from "../models/User";
 import { AppError } from "../utils/appError";
 import { requireObjectId, requireString } from "../utils/request.utils";
 import {
   addTimeline,
+  decrementCommentCount,
   getComplaintOwner,
   incrementCommentCount,
 } from "./complaint.service";
@@ -14,14 +16,76 @@ import { awardPoints } from "./points.service";
 import { emitRealtimeEvent } from "../sockets/realtime";
 import type { JwtUserPayload } from "../types";
 
+type CommentPayload = {
+  id: string;
+  complaintId: string;
+  parentId?: string;
+  authorType: "citizen" | "officer";
+  authorId: string;
+  authorName: string;
+  body: string;
+  official: boolean;
+  upvoteCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+  replies: CommentPayload[];
+};
+
+function toCommentPayload(comment: CommentDocument): CommentPayload {
+  return {
+    id: comment._id.toString(),
+    complaintId: comment.complaintId.toString(),
+    parentId: comment.parentId?.toString(),
+    authorType: comment.authorType,
+    authorId: comment.authorId.toString(),
+    authorName: comment.authorName,
+    body: comment.body,
+    official: comment.official,
+    upvoteCount: comment.upvoteCount,
+    createdAt: comment.createdAt,
+    updatedAt: comment.updatedAt,
+    replies: [],
+  };
+}
+
+function buildThreadedComments(comments: CommentDocument[]) {
+  const byId = new Map<string, CommentPayload>();
+  const roots: CommentPayload[] = [];
+
+  for (const comment of comments) {
+    byId.set(comment._id.toString(), toCommentPayload(comment));
+  }
+
+  for (const comment of comments) {
+    const payload = byId.get(comment._id.toString());
+
+    if (!payload) {
+      continue;
+    }
+
+    const parentId = comment.parentId?.toString();
+    const parent = parentId ? byId.get(parentId) : undefined;
+
+    if (parent) {
+      parent.replies.push(payload);
+    } else {
+      roots.push(payload);
+    }
+  }
+
+  return roots;
+}
+
 export async function listComments(complaintId: string) {
   const normalizedComplaintId = requireObjectId(complaintId, "complaint id");
   await getComplaintOwner(normalizedComplaintId);
 
-  return CommentModel.find({
+  const comments = await CommentModel.find({
     complaintId: normalizedComplaintId,
     deletedAt: undefined,
   }).sort({ createdAt: 1 });
+
+  return buildThreadedComments(comments);
 }
 
 async function getActorName(actor: JwtUserPayload): Promise<string> {
@@ -98,11 +162,56 @@ export async function createComment(input: {
     });
   }
 
+  const followers = await FollowModel.find({
+    complaintId,
+    userId: { $nin: [input.actor.subjectId, ownerId] },
+  }).select("userId");
+
+  await Promise.all(
+    followers.map((follow) =>
+      createNotification({
+        userId: follow.userId.toString(),
+        type: official ? "officer_comment" : "status_changed",
+        title: official ? "Official response added" : "New comment",
+        body: `${complaint.complaintNo} has a new ${official ? "official response" : "comment"}.`,
+        data: { complaintId, complaintNo: complaint.complaintNo, commentId: comment._id.toString() },
+      }),
+    ),
+  );
+
   emitRealtimeEvent("complaint:new_comment", {
     complaintId,
     commentId: comment._id.toString(),
     official,
   });
+
+  return comment;
+}
+
+export async function updateComment(input: {
+  complaintId: string;
+  commentId: string;
+  actor: JwtUserPayload;
+  body: string;
+}) {
+  const complaintId = requireObjectId(input.complaintId, "complaint id");
+  const commentId = requireObjectId(input.commentId, "comment id");
+  const comment = await CommentModel.findOne({
+    _id: commentId,
+    complaintId,
+    deletedAt: undefined,
+  });
+
+  if (!comment) {
+    throw new AppError("Comment not found.", 404);
+  }
+
+  if (comment.authorId.toString() !== input.actor.subjectId) {
+    throw new AppError("You can only edit your own comment.", 403);
+  }
+
+  comment.body = requireString(input.body, "Comment");
+  await comment.save();
 
   return comment;
 }
@@ -165,6 +274,7 @@ export async function deleteComment(input: {
 
   comment.deletedAt = new Date();
   await comment.save();
+  await decrementCommentCount(complaintId);
 
   return comment;
 }
