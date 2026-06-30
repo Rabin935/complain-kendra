@@ -81,3 +81,12 @@ Sprint 5 turns ComplainKendra from a private complaint tracker into a public civ
 | Ratings | `POST /api/v1/complaints/:id/rate`, `GET /api/v1/complaints/:id/ratings/summary` |
 | Gamification | `GET /api/v1/leaderboard`, `GET /api/v1/badges` |
 | Preferences | `GET/PATCH /api/v1/notifications/preferences` |
+
+## Frontend Coverage
+
+| Screen | Sprint 5 Coverage |
+| --- | --- |
+| Browse | Public cards, search, filters, nearby mode, pagination, follow, upvote |
+| Complaint Detail | Images, map preview, AI analysis, stats, timeline, comments, share, rating |
+| Profile | Backend profile data, stats, badges, public toggle, leaderboard, preferences |
+| Notifications | Existing list uses backend notification payloads |
