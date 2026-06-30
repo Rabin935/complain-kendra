@@ -99,3 +99,12 @@ Sprint 5 turns ComplainKendra from a private complaint tracker into a public civ
 - `PointEvent`, `Badge`, and `UserBadge` own gamification history and unlock state.
 - `ComplaintRating` owns resolution feedback and aggregate rating source data.
 - `NotificationPreference` owns per-user channel and category settings.
+
+## Notification Rules
+
+- Complaint submission and AI analysis use the complaint updates preference.
+- New community comments use the comments preference.
+- Official officer comments use the officer updates preference.
+- Follow events use the followers preference.
+- Complaint upvotes use the leaderboard preference because they affect civic score visibility.
+- Badge unlocks use the badges preference.
