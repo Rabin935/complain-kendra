@@ -6,12 +6,14 @@ import {
   deleteComplaint as deleteComplaintService,
   followComplaint as followComplaintService,
   getAllComplaints as getAllComplaintsService,
-  getComplaintById as getComplaintByIdService,
+  getComplaintDetail as getComplaintDetailService,
   getComplaintRating as getComplaintRatingService,
+  getComplaintRatingSummary as getComplaintRatingSummaryService,
   getComplaintTimeline as getComplaintTimelineService,
   getMyComplaints as getMyComplaintsService,
   getNearbyComplaints as getNearbyComplaintsService,
   rateComplaint as rateComplaintService,
+  removeComplaintUpvote as removeComplaintUpvoteService,
   unfollowComplaint as unfollowComplaintService,
   updateComplaint as updateComplaintService,
   uploadComplaintPhoto as uploadComplaintPhotoService,
@@ -50,6 +52,7 @@ function getQueryFilter(request: Request): ComplaintFilterDto {
   const query = request.query as Record<string, unknown>;
 
   return {
+    search: getString(query.search ?? query.q),
     ward: getString(query.ward),
     wardId: getString(query.ward_id ?? query.wardId),
     city: getString(query.city),
@@ -57,6 +60,8 @@ function getQueryFilter(request: Request): ComplaintFilterDto {
     status: normalizeStatus(query.status),
     priority: normalizePriority(query.priority),
     sort: getString(query.sort) as ComplaintFilterDto["sort"],
+    lat: getNumber(query.lat),
+    lng: getNumber(query.lng),
     page: getNumber(query.page),
     limit: getNumber(query.limit),
   };
@@ -227,15 +232,15 @@ export async function getMy(
 
 export async function getById(
   request: Request<{ id: string }>,
-  response: Response<ComplaintResponse>,
+  response: Response,
   next: NextFunction,
 ): Promise<void> {
   try {
-    const complaint = await getComplaintByIdService(request.params.id, request.user);
+    const detail = await getComplaintDetailService(request.params.id, request.user);
 
     response.status(200).json({
       success: true,
-      complaint,
+      ...detail,
     });
   } catch (error) {
     next(error);
@@ -362,6 +367,27 @@ export async function upvote(
   }
 }
 
+export async function removeUpvote(
+  request: Request<{ id: string }>,
+  response: Response<ComplaintResponse>,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const complaint = await removeComplaintUpvoteService(
+      request.params.id,
+      requireAuthenticatedUser(request).subjectId,
+    );
+
+    response.status(200).json({
+      success: true,
+      message: "Complaint upvote removed.",
+      complaint,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function follow(
   request: Request<{ id: string }>,
   response: Response<ComplaintResponse>,
@@ -443,6 +469,23 @@ export async function getRate(
     response.status(200).json({
       success: true,
       rating,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getRatingSummary(
+  request: Request<{ id: string }>,
+  response: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const ratings = await getComplaintRatingSummaryService(request.params.id);
+
+    response.status(200).json({
+      success: true,
+      ratings,
     });
   } catch (error) {
     next(error);

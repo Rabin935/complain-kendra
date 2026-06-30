@@ -20,6 +20,40 @@ interface CreateNotificationInput {
   data?: Record<string, unknown>;
 }
 
+function allowsNotificationType(
+  preference: {
+    complaintUpdates: boolean;
+    comments: boolean;
+    followers: boolean;
+    officerUpdates: boolean;
+    leaderboard: boolean;
+    badges: boolean;
+  },
+  type: CreateNotificationInput["type"],
+): boolean {
+  if (type === "badge_earned") {
+    return preference.badges;
+  }
+
+  if (type === "complaint_followed") {
+    return preference.followers;
+  }
+
+  if (type === "officer_comment") {
+    return preference.officerUpdates;
+  }
+
+  if (type === "status_changed") {
+    return preference.comments;
+  }
+
+  if (type === "complaint_upvoted") {
+    return preference.leaderboard;
+  }
+
+  return preference.complaintUpdates;
+}
+
 export async function createNotification(input: CreateNotificationInput) {
   const recipientType = input.recipientType ?? "citizen";
 
@@ -30,7 +64,7 @@ export async function createNotification(input: CreateNotificationInput) {
       { new: true, upsert: true },
     );
 
-    if (!preference.inApp) {
+    if (!preference.inApp || !allowsNotificationType(preference, input.type)) {
       return null;
     }
   }

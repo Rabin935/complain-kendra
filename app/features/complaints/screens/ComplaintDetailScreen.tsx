@@ -7,8 +7,10 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -18,8 +20,10 @@ import {
   sampleProfile,
 } from "../../user/data/citizenSampleData";
 import {
+  addComplaintComment,
   fetchComplaintById,
   followComplaintApi,
+  rateComplaintResolution,
   unfollowComplaintApi,
   upvoteComplaintApi,
 } from "../../user/services/citizen.service";
@@ -48,6 +52,11 @@ export default function ComplaintDetailScreen({ navigation, route }: ComplaintDe
   const [error, setError] = useState<string | null>(null);
   const [upvoting, setUpvoting] = useState(false);
   const [following, setFollowing] = useState(false);
+  const [commentDraft, setCommentDraft] = useState("");
+  const [commenting, setCommenting] = useState(false);
+  const [rating, setRating] = useState(5);
+  const [ratingComment, setRatingComment] = useState("");
+  const [ratingSaving, setRatingSaving] = useState(false);
 
   const complaint = detail?.complaint ?? null;
   const timeline = detail?.timeline ?? [];
@@ -177,6 +186,66 @@ export default function ComplaintDetailScreen({ navigation, route }: ComplaintDe
     }
   }
 
+  async function handleShare() {
+    if (!complaint) {
+      return;
+    }
+
+    await Share.share({
+      message: `${complaint.title}\n${complaint.location.address}\nComplaint ${complaint.complaintNo}`,
+    });
+  }
+
+  async function handleAddComment() {
+    if (!complaint || !commentDraft.trim() || commenting) {
+      return;
+    }
+
+    setCommenting(true);
+
+    try {
+      const comment = await addComplaintComment(complaint.id, commentDraft);
+      setDetail((current) =>
+        current
+          ? {
+              ...current,
+              comments: [...current.comments, comment],
+              complaint: {
+                ...current.complaint,
+                comments: current.complaint.comments + 1,
+              },
+            }
+          : current,
+      );
+      setCommentDraft("");
+    } catch (commentError) {
+      setError(commentError instanceof Error ? commentError.message : "Unable to add comment.");
+    } finally {
+      setCommenting(false);
+    }
+  }
+
+  async function handleRateResolution() {
+    if (!complaint || ratingSaving) {
+      return;
+    }
+
+    setRatingSaving(true);
+
+    try {
+      await rateComplaintResolution(complaint.id, {
+        rating,
+        comment: ratingComment,
+      });
+      setRatingComment("");
+      setError(null);
+    } catch (rateError) {
+      setError(rateError instanceof Error ? rateError.message : "Unable to save rating.");
+    } finally {
+      setRatingSaving(false);
+    }
+  }
+
   if (loading) {
     return (
       <SafeAreaView edges={["top"]} style={styles.safeArea}>
@@ -232,6 +301,9 @@ export default function ComplaintDetailScreen({ navigation, route }: ComplaintDe
             </Pressable>
             <Pressable style={styles.iconButton} onPress={() => void handleUpvote()} disabled={upvoting}>
               <MaterialCommunityIcons name="arrow-up-bold-outline" size={20} color={colors.text} />
+            </Pressable>
+            <Pressable style={styles.iconButton} onPress={() => void handleShare()}>
+              <MaterialCommunityIcons name="share-variant-outline" size={20} color={colors.text} />
             </Pressable>
           </View>
         </View>
@@ -342,7 +414,52 @@ export default function ComplaintDetailScreen({ navigation, route }: ComplaintDe
               <Text style={styles.emptyInlineText}>No comments yet.</Text>
             </View>
           )}
+          <View style={styles.commentComposer}>
+            <TextInput
+              value={commentDraft}
+              onChangeText={setCommentDraft}
+              placeholder="Add a public comment..."
+              placeholderTextColor={colors.textMuted}
+              multiline
+              style={styles.commentInput}
+            />
+            <Pressable style={styles.commentButton} onPress={() => void handleAddComment()} disabled={commenting}>
+              {commenting ? <ActivityIndicator color={colors.surface} /> : null}
+              <Text style={styles.commentButtonText}>{commenting ? "Posting..." : "Post"}</Text>
+            </Pressable>
+          </View>
         </View>
+
+        {complaint.status === "resolved" ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Rate Resolution</Text>
+            <View style={styles.ratingCard}>
+              <View style={styles.starRow}>
+                {[1, 2, 3, 4, 5].map((value) => (
+                  <Pressable key={value} onPress={() => setRating(value)}>
+                    <MaterialCommunityIcons
+                      name={value <= rating ? "star" : "star-outline"}
+                      size={28}
+                      color="#F59E0B"
+                    />
+                  </Pressable>
+                ))}
+              </View>
+              <TextInput
+                value={ratingComment}
+                onChangeText={setRatingComment}
+                placeholder="Optional feedback for the officer..."
+                placeholderTextColor={colors.textMuted}
+                multiline
+                style={styles.commentInput}
+              />
+              <Pressable style={styles.commentButton} onPress={() => void handleRateResolution()} disabled={ratingSaving}>
+                {ratingSaving ? <ActivityIndicator color={colors.surface} /> : null}
+                <Text style={styles.commentButtonText}>{ratingSaving ? "Saving..." : "Submit rating"}</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
 
         <View style={styles.footerActions}>
           <Pressable
@@ -426,9 +543,10 @@ function TimelineRow({
   );
 }
 
-function CommentCard({ comment }: { comment: ComplaintComment }) {
+function CommentCard({ comment, depth = 0 }: { comment: ComplaintComment; depth?: number }) {
   return (
-    <View style={styles.commentCard}>
+    <View style={depth > 0 ? styles.replyWrap : null}>
+      <View style={styles.commentCard}>
       <View style={styles.commentAvatar}>
         <Text style={styles.commentAvatarText}>{comment.authorName.slice(0, 1).toUpperCase()}</Text>
       </View>
@@ -447,6 +565,10 @@ function CommentCard({ comment }: { comment: ComplaintComment }) {
           <Text style={styles.commentFooterText}>{formatCompactDate(comment.createdAt)}</Text>
         </View>
       </View>
+      </View>
+      {comment.replies.map((reply) => (
+        <CommentCard key={reply.id} comment={reply} depth={depth + 1} />
+      ))}
     </View>
   );
 }
@@ -738,6 +860,13 @@ const styles = StyleSheet.create({
   commentsList: {
     gap: 10,
   },
+  replyWrap: {
+    marginLeft: 18,
+    marginTop: 8,
+    borderLeftWidth: 2,
+    borderLeftColor: colors.border,
+    paddingLeft: 10,
+  },
   commentCard: {
     flexDirection: "row",
     gap: 10,
@@ -794,6 +923,48 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "800",
     marginRight: 8,
+  },
+  commentComposer: {
+    marginTop: 12,
+    gap: 10,
+  },
+  commentInput: {
+    minHeight: 84,
+    borderRadius: 18,
+    padding: 14,
+    color: colors.text,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    fontSize: 13,
+    fontWeight: "700",
+    textAlignVertical: "top",
+  },
+  commentButton: {
+    minHeight: 46,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+    backgroundColor: colors.primary,
+  },
+  commentButtonText: {
+    color: colors.surface,
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  ratingCard: {
+    padding: 14,
+    borderRadius: 20,
+    gap: 12,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  starRow: {
+    flexDirection: "row",
+    gap: 6,
   },
   footerActions: {
     flexDirection: "row",

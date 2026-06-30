@@ -660,6 +660,14 @@ export async function uploadComplaintPhotos(files: UploadedComplaintPhoto[]): Pr
 function buildComplaintQuery(filter: ComplaintFilterDto = {}): Record<string, unknown> {
   const query: Record<string, unknown> = {};
 
+  if (filter.search) {
+    const search = escapeRegex(filter.search);
+    query.$or = [
+      { title: new RegExp(search, "i") },
+      { description: new RegExp(search, "i") },
+    ];
+  }
+
   if (filter.ward) {
     const ward = filter.ward.replace(/^Ward\s+/i, "");
     query["location.ward"] = new RegExp(`^(Ward\\s*)?${escapeRegex(ward)}$`, "i");
@@ -667,6 +675,10 @@ function buildComplaintQuery(filter: ComplaintFilterDto = {}): Record<string, un
 
   if (filter.wardId) {
     query["location.wardId"] = filter.wardId;
+  }
+
+  if (filter.city) {
+    query["location.city"] = new RegExp(`^${escapeRegex(filter.city)}$`, "i");
   }
 
   if (filter.city) {
@@ -697,11 +709,37 @@ export async function getAllComplaints(
   const pagination = parsePagination(filter as Record<string, unknown>);
   const query = buildComplaintQuery(filter);
   const sort: Record<string, 1 | -1> =
-    filter.sort === "upvotes" ? { upvoteCount: -1, createdAt: -1 } : { createdAt: -1 };
-  const [complaints, total] = await Promise.all([
-    ComplaintModel.find(query).sort(sort).skip(pagination.skip).limit(pagination.limit),
+    filter.sort === "oldest"
+      ? { createdAt: 1 }
+      : filter.sort === "upvotes" || filter.sort === "most_upvoted"
+        ? { upvoteCount: -1, createdAt: -1 }
+        : { createdAt: -1 };
+  const shouldSortNearest =
+    (filter.sort === "nearby" || filter.sort === "nearest") &&
+    typeof filter.lat === "number" &&
+    typeof filter.lng === "number";
+  const [allComplaints, total] = await Promise.all([
+    shouldSortNearest
+      ? ComplaintModel.find(query).sort({ createdAt: -1 })
+      : ComplaintModel.find(query).sort(sort).skip(pagination.skip).limit(pagination.limit),
     ComplaintModel.countDocuments(query),
   ]);
+  const complaints = shouldSortNearest
+    ? allComplaints
+        .map((complaint) => {
+          const lat = complaint.location?.lat;
+          const lng = complaint.location?.lng;
+          const distanceKm =
+            typeof lat === "number" && typeof lng === "number"
+              ? getDistanceKm({ lat: filter.lat as number, lng: filter.lng as number }, { lat, lng })
+              : Number.POSITIVE_INFINITY;
+
+          return { complaint, distanceKm };
+        })
+        .sort((a, b) => a.distanceKm - b.distanceKm)
+        .slice(pagination.skip, pagination.skip + pagination.limit)
+        .map((item) => item.complaint)
+    : allComplaints;
 
   const followedIds = actor?.type === "citizen"
     ? new Set(
@@ -718,6 +756,17 @@ export async function getAllComplaints(
     complaints: complaints.map((complaint) =>
       toComplaintPayload(complaint, {
         followed: followedIds.has(complaint._id.toString()),
+        distanceKm: shouldSortNearest
+          ? Number(
+              getDistanceKm(
+                { lat: filter.lat as number, lng: filter.lng as number },
+                {
+                  lat: complaint.location?.lat ?? filter.lat as number,
+                  lng: complaint.location?.lng ?? filter.lng as number,
+                },
+              ).toFixed(2),
+            )
+          : undefined,
       }),
     ),
     total,
@@ -818,6 +867,29 @@ export async function getComplaintById(
   }
 
   return toComplaintPayload(complaint, { followed });
+}
+
+export async function getComplaintDetail(
+  id: string,
+  actor?: JwtUserPayload,
+) {
+  const normalizedComplaintId = requireObjectId(id, "complaint id");
+  const [complaint, timeline, comments] = await Promise.all([
+    getComplaintById(normalizedComplaintId, actor),
+    getComplaintTimeline(normalizedComplaintId, actor?.type === "officer"),
+    CommentModel.find({
+      complaintId: normalizedComplaintId,
+      deletedAt: undefined,
+    })
+      .sort({ createdAt: 1 })
+      .limit(100),
+  ]);
+
+  return {
+    complaint,
+    timeline,
+    comments,
+  };
 }
 
 export async function getComplaintTimeline(id: string, includeInternal = false) {
@@ -934,6 +1006,33 @@ export async function upvoteComplaint(id: string, userId: string) {
   }
 
   emitRealtimeEvent("complaint:upvoted", {
+    complaintId,
+    upvotes: complaint.upvoteCount,
+  });
+
+  return toComplaintPayload(complaint);
+}
+
+export async function removeComplaintUpvote(id: string, userId: string) {
+  const complaintId = requireObjectId(id, "complaint id");
+  const normalizedUserId = requireObjectId(userId, "user id");
+  const complaint = await ComplaintModel.findById(complaintId);
+
+  if (!complaint) {
+    throw new AppError("Complaint not found.", 404);
+  }
+
+  const deleted = await ComplaintUpvoteModel.deleteOne({
+    complaintId,
+    userId: normalizedUserId,
+  });
+
+  if (deleted.deletedCount > 0) {
+    complaint.upvoteCount = Math.max(0, complaint.upvoteCount - 1);
+    await complaint.save();
+  }
+
+  emitRealtimeEvent("complaint:upvote_removed", {
     complaintId,
     upvotes: complaint.upvoteCount,
   });
@@ -1061,6 +1160,58 @@ export async function getComplaintRating(complaintId: string, userId: string) {
     complaintId: requireObjectId(complaintId, "complaint id"),
     userId: requireObjectId(userId, "user id"),
   });
+}
+
+export async function getComplaintRatingSummary(complaintId: string) {
+  const normalizedComplaintId = requireObjectId(complaintId, "complaint id");
+  const complaint = await ComplaintModel.findById(normalizedComplaintId);
+
+  if (!complaint) {
+    throw new AppError("Complaint not found.", 404);
+  }
+
+  const [complaintStats, officerStats, departmentStats] = await Promise.all([
+    ComplaintRatingModel.aggregate([
+      { $match: { complaintId: complaint._id } },
+      { $group: { _id: "$complaintId", average: { $avg: "$rating" }, count: { $sum: 1 } } },
+    ]),
+    complaint.assignedOfficerId
+      ? ComplaintRatingModel.aggregate([
+          {
+            $lookup: {
+              from: "complaints",
+              localField: "complaintId",
+              foreignField: "_id",
+              as: "complaint",
+            },
+          },
+          { $unwind: "$complaint" },
+          { $match: { "complaint.assignedOfficerId": complaint.assignedOfficerId } },
+          { $group: { _id: "$complaint.assignedOfficerId", average: { $avg: "$rating" }, count: { $sum: 1 } } },
+        ])
+      : [],
+    complaint.aiAnalysis?.department
+      ? ComplaintRatingModel.aggregate([
+          {
+            $lookup: {
+              from: "complaints",
+              localField: "complaintId",
+              foreignField: "_id",
+              as: "complaint",
+            },
+          },
+          { $unwind: "$complaint" },
+          { $match: { "complaint.aiAnalysis.department": complaint.aiAnalysis.department } },
+          { $group: { _id: "$complaint.aiAnalysis.department", average: { $avg: "$rating" }, count: { $sum: 1 } } },
+        ])
+      : [],
+  ]);
+
+  return {
+    complaint: complaintStats[0] ?? { average: complaint.ratingAverage ?? null, count: 0 },
+    officer: officerStats[0] ?? { average: null, count: 0 },
+    department: departmentStats[0] ?? { average: null, count: 0 },
+  };
 }
 
 export async function incrementCommentCount(complaintId: string): Promise<void> {

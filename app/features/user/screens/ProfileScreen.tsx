@@ -21,9 +21,18 @@ import {
   fetchCitizenBadges,
   fetchCitizenProfile,
   fetchCitizenStats,
+  fetchLeaderboard,
+  fetchNotificationPreferences,
+  updateNotificationPreferences,
   updatePublicProfile,
 } from "../services/citizen.service";
-import type { CitizenBadge, CitizenProfile, CitizenStats } from "../types/citizen.types";
+import type {
+  CitizenBadge,
+  CitizenLeaderboardEntry,
+  CitizenProfile,
+  CitizenStats,
+  NotificationPreferences,
+} from "../types/citizen.types";
 
 export default function ProfileScreen() {
   const { user, logout, loading: authLoading } = useAuth();
@@ -33,21 +42,26 @@ export default function ProfileScreen() {
   });
   const [stats, setStats] = useState<CitizenStats>(sampleStats);
   const [badges, setBadges] = useState<CitizenBadge[]>(sampleBadges);
+  const [leaderboard, setLeaderboard] = useState<CitizenLeaderboardEntry[]>([]);
+  const [preferences, setPreferences] = useState<NotificationPreferences | null>(null);
   const [loading, setLoading] = useState(true);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [publicUpdating, setPublicUpdating] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [logoutVisible, setLogoutVisible] = useState(false);
+  const [preferencesVisible, setPreferencesVisible] = useState(false);
   const [deleteVisible, setDeleteVisible] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
 
   useEffect(() => {
     async function loadProfile() {
-      const [profileResult, statsResult, badgesResult] = await Promise.all([
+      const [profileResult, statsResult, badgesResult, leaderboardResult, preferencesResult] = await Promise.all([
         fetchCitizenProfile(),
         fetchCitizenStats(),
         fetchCitizenBadges(),
+        fetchLeaderboard(),
+        fetchNotificationPreferences(),
       ]);
 
       setProfile({
@@ -56,6 +70,8 @@ export default function ProfileScreen() {
       });
       setStats(statsResult.data);
       setBadges(badgesResult.data);
+      setLeaderboard(leaderboardResult.data.slice(0, 5));
+      setPreferences(preferencesResult.data);
       setError(profileResult.error || statsResult.error || badgesResult.error ? "Profile is using saved civic data." : null);
       setLoading(false);
     }
@@ -93,7 +109,7 @@ export default function ProfileScreen() {
         Alert.alert("My Badges", badges.map((badge) => badge.title).join("\n"));
         break;
       case "notifications":
-        showToast("Notification preferences updated.");
+        setPreferencesVisible(true);
         break;
       case "language":
         setProfile((current) => ({
@@ -128,6 +144,18 @@ export default function ProfileScreen() {
     setDeleteVisible(false);
     setDeletePassword("");
     showToast("Account delete request submitted.");
+  }
+
+  async function updatePreference(key: keyof NotificationPreferences, value: boolean) {
+    const nextPreferences = {
+      ...(preferences ?? {}),
+      [key]: value,
+    } as NotificationPreferences;
+
+    setPreferences(nextPreferences);
+    const result = await updateNotificationPreferences({ [key]: value });
+    setPreferences(result.data);
+    showToast(result.error ? "Preference saved locally." : "Notification preference updated.");
   }
 
   if (loading) {
@@ -229,6 +257,29 @@ export default function ProfileScreen() {
           ))}
         </View>
 
+        {leaderboard.length ? (
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Leaderboard</Text>
+              <Text style={styles.sectionAction}>Top civic points</Text>
+            </View>
+            <View style={styles.leaderboardList}>
+              {leaderboard.map((entry) => (
+                <View key={entry.id} style={styles.leaderboardRow}>
+                  <Text style={styles.leaderboardRank}>#{entry.rank}</Text>
+                  <View style={styles.leaderboardCopy}>
+                    <Text style={styles.leaderboardName}>{entry.name}</Text>
+                    <Text style={styles.leaderboardMeta}>
+                      Level {entry.level} · {entry.levelTitle}
+                    </Text>
+                  </View>
+                  <Text style={styles.leaderboardPoints}>{entry.points} pts</Text>
+                </View>
+              ))}
+            </View>
+          </>
+        ) : null}
+
         <View style={styles.menu}>
           <MenuRow icon="account-edit-outline" title="Edit Profile" onPress={() => handleMenuAction("edit")} />
           <MenuRow icon="medal-outline" title="My Badges" onPress={() => handleMenuAction("badges")} />
@@ -272,6 +323,35 @@ export default function ProfileScreen() {
         onCancel={() => setLogoutVisible(false)}
         onConfirm={() => void confirmLogout()}
       />
+
+      <Modal
+        visible={preferencesVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPreferencesVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Notification preferences</Text>
+            <Text style={styles.modalBody}>Choose which civic updates should reach you.</Text>
+            {preferences ? (
+              <View style={styles.preferenceList}>
+                <PreferenceToggle label="Complaint updates" value={preferences.complaintUpdates} onValueChange={(value) => void updatePreference("complaintUpdates", value)} />
+                <PreferenceToggle label="Comments" value={preferences.comments} onValueChange={(value) => void updatePreference("comments", value)} />
+                <PreferenceToggle label="Followers" value={preferences.followers} onValueChange={(value) => void updatePreference("followers", value)} />
+                <PreferenceToggle label="Officer updates" value={preferences.officerUpdates} onValueChange={(value) => void updatePreference("officerUpdates", value)} />
+                <PreferenceToggle label="Leaderboard" value={preferences.leaderboard} onValueChange={(value) => void updatePreference("leaderboard", value)} />
+                <PreferenceToggle label="Email" value={preferences.email} onValueChange={(value) => void updatePreference("email", value)} />
+                <PreferenceToggle label="Push" value={preferences.push} onValueChange={(value) => void updatePreference("push", value)} />
+                <PreferenceToggle label="SMS" value={preferences.sms} onValueChange={(value) => void updatePreference("sms", value)} />
+              </View>
+            ) : null}
+            <Pressable style={styles.modalPrimaryWide} onPress={() => setPreferencesVisible(false)}>
+              <Text style={styles.modalPrimaryText}>Done</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={deleteVisible} transparent animationType="fade" onRequestClose={() => setDeleteVisible(false)}>
         <View style={styles.modalBackdrop}>
@@ -340,6 +420,28 @@ function MenuRow({
       </View>
       <MaterialCommunityIcons name="chevron-right" size={20} color={danger ? colors.error : colors.textMuted} />
     </Pressable>
+  );
+}
+
+function PreferenceToggle({
+  label,
+  value,
+  onValueChange,
+}: {
+  label: string;
+  value: boolean;
+  onValueChange: (value: boolean) => void;
+}) {
+  return (
+    <View style={styles.preferenceRow}>
+      <Text style={styles.preferenceLabel}>{label}</Text>
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        trackColor={{ false: colors.border, true: "#C8B6F0" }}
+        thumbColor={value ? colors.primary : colors.surface}
+      />
+    </View>
   );
 }
 
@@ -620,6 +722,47 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: colors.primary,
   },
+  leaderboardList: {
+    marginHorizontal: 16,
+    gap: 8,
+  },
+  leaderboardRow: {
+    minHeight: 58,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  leaderboardRank: {
+    width: 42,
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  leaderboardCopy: {
+    flex: 1,
+  },
+  leaderboardName: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  leaderboardMeta: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: 2,
+  },
+  leaderboardPoints: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: "900",
+  },
   menu: {
     marginHorizontal: 16,
     marginTop: 18,
@@ -739,6 +882,32 @@ const styles = StyleSheet.create({
     color: colors.surface,
     fontSize: 13,
     fontWeight: "900",
+  },
+  modalPrimaryWide: {
+    minHeight: 46,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primary,
+    marginTop: 16,
+  },
+  preferenceList: {
+    marginTop: 14,
+    gap: 8,
+  },
+  preferenceRow: {
+    minHeight: 46,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: colors.surfaceMuted,
+  },
+  preferenceLabel: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: "800",
   },
   modalDanger: {
     flex: 1,

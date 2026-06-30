@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   getComments,
+  editComment,
   postComment,
   removeComment,
   upvote,
@@ -15,6 +16,11 @@ commentRouter.post(
   "/complaints/:complaint_id/comments/:comment_id/upvote",
   protect,
   upvote,
+);
+commentRouter.patch(
+  "/complaints/:complaint_id/comments/:comment_id",
+  protect,
+  editComment,
 );
 commentRouter.delete(
   "/complaints/:complaint_id/comments/:comment_id",
