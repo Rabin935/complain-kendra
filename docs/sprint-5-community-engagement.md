@@ -35,3 +35,11 @@ Sprint 5 turns ComplainKendra from a private complaint tracker into a public civ
 - Duplicate follows and duplicate upvotes are prevented by unique engagement records.
 - Complaint follower and upvote counts update automatically after each action.
 - Complaint owners are notified when another citizen follows or upvotes their complaint.
+
+## Profile Acceptance
+
+- The profile screen loads user information from backend APIs.
+- Profile statistics include reports submitted, resolved reports, upvotes received, and badges earned.
+- Citizens can toggle public profile visibility.
+- Citizens can update language and avatar through the profile module.
+- Civic level, point total, and earned badge progress are visible in profile.
