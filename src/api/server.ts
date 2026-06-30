@@ -6,6 +6,7 @@ import helmet from "helmet";
 import morgan from "morgan";
 import path from "node:path";
 import { connectDatabase } from "./config/database";
+import { validateEnvironment } from "./config/env";
 import { errorHandler } from "./middlewares/error.middleware";
 import { apiRateLimiter, sanitizeRequest } from "./middlewares/security.middleware";
 import authRouter from "./routes/auth.routes";
@@ -22,6 +23,7 @@ import { initializeRealtime } from "./sockets/realtime";
 import { getUploadRoot } from "./utils/upload.utils";
 
 dotenv.config();
+validateEnvironment();
 
 const app = express();
 const parsedPort = Number.parseInt(process.env.PORT ?? "", 10);
