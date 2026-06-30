@@ -10,6 +10,7 @@ export interface AuthUser {
   wardId?: string;
   city?: string;
   municipality?: string;
+  department?: string;
   avatarUrl?: string;
 }
 
