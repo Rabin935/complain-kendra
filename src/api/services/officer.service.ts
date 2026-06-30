@@ -285,6 +285,7 @@ export async function assignOfficer(input: {
 export async function updatePriority(input: {
   complaintId: string;
   priority: ComplaintPriority;
+  reason?: string;
   actor: JwtUserPayload;
 }) {
   const complaintId = requireObjectId(input.complaintId, "complaint id");
@@ -296,13 +297,21 @@ export async function updatePriority(input: {
 
   await assertOfficerCanAccessComplaint(input.actor, complaint);
 
+  const previousPriority = complaint.priority;
+  // Officer changes are treated as manual overrides so the priority engine will not replace them later.
   complaint.priority = input.priority;
+  complaint.priorityOverriddenBy = input.actor.subjectId;
+  complaint.priorityOverriddenAt = new Date();
+  complaint.priorityOverrideReason = input.reason;
   await complaint.save();
 
   await addTimeline({
     complaintId,
     type: "priority_changed",
     title: `Priority marked ${input.priority}`,
+    message: input.reason
+      ? `${previousPriority} -> ${input.priority}. ${input.reason}`
+      : `${previousPriority} -> ${input.priority}.`,
     actorType: "officer",
     actorId: input.actor.subjectId,
     actorName: await getActorName(input.actor),

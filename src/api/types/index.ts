@@ -138,6 +138,12 @@ export interface Complaint {
   category: ComplaintCategory;
   status: ComplaintStatus;
   priority: ComplaintPriority;
+  calculatedPriority?: ComplaintPriority;
+  priorityScore?: number;
+  priorityReasons: string[];
+  priorityOverriddenBy?: Types.ObjectId | string;
+  priorityOverriddenAt?: Date;
+  priorityOverrideReason?: string;
   aiAnalysis?: ComplaintAiAnalysis;
   aiVerified: boolean;
   aiSuggestedCategory?: string;
@@ -288,6 +294,12 @@ export interface ComplaintPayload {
   category: ComplaintCategory;
   status: ComplaintStatus;
   priority: ComplaintPriority;
+  calculatedPriority?: ComplaintPriority;
+  priorityScore?: number;
+  priorityReasons: string[];
+  priorityOverriddenBy?: string;
+  priorityOverriddenAt?: Date;
+  priorityOverrideReason?: string;
   progress: number;
   aiAnalysis?: ComplaintAiAnalysis;
   aiVerified: boolean;

@@ -116,6 +116,22 @@ const complaintSchema = new Schema<Complaint, ComplaintModel>(
       required: true,
       index: true,
     },
+    // Priority engine output is stored separately from the active priority for auditability.
+    calculatedPriority: {
+      type: String,
+      enum: COMPLAINT_PRIORITIES,
+      default: undefined,
+      index: true,
+    },
+    priorityScore: { type: Number, min: 0, max: 12, default: undefined },
+    priorityReasons: { type: [String], default: [] },
+    priorityOverriddenBy: {
+      type: Schema.Types.ObjectId,
+      ref: "Officer",
+      default: undefined,
+    },
+    priorityOverriddenAt: { type: Date, default: undefined },
+    priorityOverrideReason: { type: String, trim: true, default: undefined },
     aiAnalysis: { type: aiAnalysisSchema, default: undefined },
     aiVerified: { type: Boolean, default: false, required: true },
     aiSuggestedCategory: { type: String, trim: true, default: undefined },

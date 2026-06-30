@@ -23,7 +23,6 @@ import {
   getString,
   isRecord,
   normalizeCategory,
-  normalizePriority,
   normalizeStatus,
   parsePagination,
   requireObjectId,
@@ -36,6 +35,7 @@ import { createNotification } from "./notification.service";
 import { awardPoints } from "./points.service";
 import { emitRealtimeEvent } from "../sockets/realtime";
 import { buildWardLocation, resolveWardFromPayload } from "./ward.service";
+import { calculateComplaintPriority } from "./priority-engine.service";
 
 type UploadedComplaintPhoto = {
   buffer: Buffer;
@@ -107,6 +107,12 @@ export function toComplaintPayload(
     category: complaint.category,
     status: complaint.status,
     priority: complaint.priority,
+    calculatedPriority: complaint.calculatedPriority,
+    priorityScore: complaint.priorityScore,
+    priorityReasons: complaint.priorityReasons ?? [],
+    priorityOverriddenBy: complaint.priorityOverriddenBy?.toString(),
+    priorityOverriddenAt: complaint.priorityOverriddenAt,
+    priorityOverrideReason: complaint.priorityOverrideReason,
     progress: statusProgress[complaint.status],
     aiAnalysis: complaint.aiAnalysis,
     aiVerified: complaint.aiVerified,
@@ -207,7 +213,6 @@ async function generateComplaintNo(): Promise<string> {
 async function normalizeCreateComplaintInput(payload: CreateComplaintDto | Record<string, unknown>) {
   const record = isRecord(payload) ? payload : {};
   const category = normalizeCategory(record.category, true) as ComplaintCategory;
-  const priority = normalizePriority(record.priority) ?? "medium";
   const photos = Array.isArray(record.photos)
     ? record.photos.map(String).filter(Boolean)
     : getString(record.photo)
@@ -218,7 +223,6 @@ async function normalizeCreateComplaintInput(payload: CreateComplaintDto | Recor
     title: requireString(record.title, "Title"),
     description: requireString(record.description, "Description"),
     category,
-    priority,
     status: normalizeStatus(record.status) ?? "pending",
     location: await normalizeLocation(record),
     photos,
@@ -246,9 +250,7 @@ async function normalizeUpdateComplaintInput(payload: UpdateComplaintDto | Recor
     updates.status = normalizeStatus(record.status, true);
   }
 
-  if (record.priority !== undefined) {
-    updates.priority = normalizePriority(record.priority, true);
-  }
+  // Citizens cannot manually set priority; the priority engine or officer override owns it.
 
   if (record.location !== undefined || record.lat !== undefined || record.lng !== undefined) {
     updates.location = await normalizeLocation(record);
@@ -334,9 +336,8 @@ async function runComplaintAiAnalysis(complaintId: string): Promise<void> {
   // Store the AI result directly on the complaint so reads do not need a second query.
   complaint.aiAnalysis = analysis;
   complaint.aiVerified = analysis.verified;
-  complaint.priority = analysis.priority;
   complaint.aiSuggestedCategory = analysis.detectedCategory;
-  complaint.aiSeverity =
+  const aiSeverity =
     analysis.severityLabel === "critical"
       ? 10
       : analysis.severityLabel === "high"
@@ -344,8 +345,28 @@ async function runComplaintAiAnalysis(complaintId: string): Promise<void> {
         : analysis.severityLabel === "medium"
           ? 5
           : 2;
+  complaint.aiSeverity = aiSeverity;
   complaint.aiSummary = analysis.summary;
   complaint.aiKeywords = analysis.keywords;
+  const duplicateCount = await countSimilarOpenComplaints({
+    category: analysis.detectedCategory,
+    description: complaint.description,
+    wardId: complaint.location?.wardId,
+    excludeComplaintId: complaintId,
+  });
+  const priorityResult = calculateComplaintPriority({
+    category: analysis.detectedCategory,
+    description: complaint.description,
+    duplicateCount,
+    aiSeverity,
+  });
+  complaint.calculatedPriority = priorityResult.priority;
+  complaint.priorityScore = priorityResult.score;
+  complaint.priorityReasons = priorityResult.reasons;
+  if (!complaint.priorityOverriddenAt) {
+    // Automatic priority updates stop once an officer manually overrides the complaint.
+    complaint.priority = priorityResult.priority;
+  }
   // If an officer has not overridden the route, keep the department aligned with AI category detection.
   if (!complaint.departmentOverriddenAt) {
     complaint.assignedDepartment = getDepartmentForCategory(analysis.detectedCategory);
@@ -356,8 +377,8 @@ async function runComplaintAiAnalysis(complaintId: string): Promise<void> {
     complaintId,
     type: "ai_verified",
     title: "AI analysis completed",
-    message: `${analysis.department} routed with ${analysis.priority} priority.`,
-    metadata: { analysis },
+    message: `${analysis.department} routed with ${complaint.priority} priority.`,
+    metadata: { analysis, priorityResult, duplicateCount },
   });
 
   if (analysis.verified) {
@@ -410,8 +431,23 @@ export async function createComplaint(
 
   const normalizedPayload = await normalizeCreateComplaintInput(payload);
   const assignedDepartment = getDepartmentForCategory(normalizedPayload.category);
+  const duplicateCount = await countSimilarOpenComplaints({
+    category: normalizedPayload.category,
+    description: normalizedPayload.description,
+    wardId: normalizedPayload.location?.wardId,
+  });
+  const priorityResult = calculateComplaintPriority({
+    category: normalizedPayload.category,
+    description: normalizedPayload.description,
+    duplicateCount,
+  });
   const complaint = await ComplaintModel.create({
     ...normalizedPayload,
+    // Store the first calculated priority before AI analysis refines it.
+    priority: priorityResult.priority,
+    calculatedPriority: priorityResult.priority,
+    priorityScore: priorityResult.score,
+    priorityReasons: priorityResult.reasons,
     // Automatically route a new complaint from its selected category.
     assignedDepartment,
     complaintNo: await generateComplaintNo(),
@@ -449,6 +485,39 @@ export async function createComplaint(
   queueComplaintAnalysis(complaint._id.toString());
 
   return toComplaintPayload(complaint);
+}
+
+async function countSimilarOpenComplaints(input: {
+  category: ComplaintCategory;
+  description: string;
+  wardId?: string;
+  excludeComplaintId?: string;
+}): Promise<number> {
+  const words = input.description
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((word) => word.length > 4)
+    .slice(0, 6);
+  const query: Record<string, unknown> = {
+    category: input.category,
+    status: { $nin: ["resolved", "rejected"] },
+  };
+
+  if (input.wardId) {
+    query["location.wardId"] = input.wardId;
+  }
+
+  if (input.excludeComplaintId) {
+    query._id = { $ne: input.excludeComplaintId };
+  }
+
+  if (words.length > 0) {
+    query.$text = { $search: words.join(" ") };
+  }
+
+  // Duplicate count gives the priority engine a crowd-signal without needing a real duplicate model.
+  return ComplaintModel.countDocuments(query);
 }
 
 export async function uploadComplaintPhoto(file: UploadedComplaintPhoto): Promise<string> {
@@ -670,6 +739,28 @@ export async function updateComplaint(
   if (updates.category && !complaint.departmentOverriddenAt) {
     // Keep automatic department routing synced when the complaint category changes.
     updates.assignedDepartment = getDepartmentForCategory(updates.category as ComplaintCategory);
+  }
+  if ((updates.category || updates.description) && !complaint.priorityOverriddenAt) {
+    const nextCategory = (updates.category as ComplaintCategory | undefined) ?? complaint.category;
+    const nextDescription = (updates.description as string | undefined) ?? complaint.description;
+    const duplicateCount = await countSimilarOpenComplaints({
+      category: nextCategory,
+      description: nextDescription,
+      wardId: complaint.location?.wardId,
+      excludeComplaintId: normalizedComplaintId,
+    });
+    const priorityResult = calculateComplaintPriority({
+      category: nextCategory,
+      description: nextDescription,
+      duplicateCount,
+      aiSeverity: complaint.aiSeverity,
+    });
+
+    // Recalculate priority after meaningful complaint edits unless an officer overrode it.
+    updates.priority = priorityResult.priority;
+    updates.calculatedPriority = priorityResult.priority;
+    updates.priorityScore = priorityResult.score;
+    updates.priorityReasons = priorityResult.reasons;
   }
   const updatedComplaint = await ComplaintModel.findByIdAndUpdate(
     normalizedComplaintId,

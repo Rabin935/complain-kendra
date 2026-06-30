@@ -158,6 +158,7 @@ export async function patchPriority(
     const complaint = await updatePriority({
       complaintId: request.params.id,
       priority,
+      reason: getString((request.body as Record<string, unknown>).reason),
       actor: requireOfficerUser(request),
     });
 
