@@ -104,7 +104,7 @@ export async function createComplaint(
 }
 
 export async function getMyComplaints(authToken: string): Promise<ComplaintsListResponse> {
-  const response = await fetch(`${baseURL}/api/complaints/my`, {
+  const response = await fetch(`${baseURL}/api/complaints/mine`, {
     method: "GET",
     headers: {
       Authorization: `Bearer ${authToken}`,

@@ -95,7 +95,7 @@ async function withSampleFallback<T>(
   } catch (error) {
     return {
       data: fallback,
-      source: "sample",
+      source: "fallback",
       error: getApiErrorMessage(error),
     };
   }

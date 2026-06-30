@@ -188,6 +188,6 @@ export interface CreateReportPayload {
 
 export interface CitizenServiceResult<T> {
   data: T;
-  source: "api" | "sample";
+  source: "api" | "fallback";
   error?: string;
 }
