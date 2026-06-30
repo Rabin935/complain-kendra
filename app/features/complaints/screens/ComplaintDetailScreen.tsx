@@ -15,6 +15,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../../../constants/colors";
+import { useRealtime } from "../../realtime/context/RealtimeContext";
+import { useRealtimeInvalidation } from "../../realtime/hooks/useRealtimeInvalidation";
 import {
   categoryMeta,
   sampleProfile,
@@ -46,6 +48,7 @@ type ComplaintDetailProps = NativeStackScreenProps<UserStackParamList, "Complain
 
 export default function ComplaintDetailScreen({ navigation, route }: ComplaintDetailProps) {
   const { complaintId } = route.params;
+  const { joinComplaint } = useRealtime();
   const [detail, setDetail] = useState<ComplaintDetailPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -81,8 +84,14 @@ export default function ComplaintDetailScreen({ navigation, route }: ComplaintDe
   }, [complaint?.location.lat, complaint?.location.lng]);
 
   useEffect(() => {
+    joinComplaint(complaintId);
     void loadDetail();
-  }, [complaintId]);
+  }, [complaintId, joinComplaint]);
+  useRealtimeInvalidation(
+    ["complaint:status_updated", "complaint:resolved", "complaint:new_comment", "complaint:upvoted"],
+    () => void loadDetail(true),
+    (payload) => payload.complaintId === complaintId,
+  );
 
   async function loadDetail(isRefresh = false) {
     if (isRefresh) {

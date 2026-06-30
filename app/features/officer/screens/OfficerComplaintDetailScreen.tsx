@@ -5,6 +5,8 @@ import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { colors } from "../../../constants/colors";
 import { getApiErrorMessage } from "../../../utils/api";
 import { useAuth } from "../../auth/context/AuthContext";
+import { useRealtime } from "../../realtime/context/RealtimeContext";
+import { useRealtimeInvalidation } from "../../realtime/hooks/useRealtimeInvalidation";
 import OfficerScreen from "../components/OfficerScreen";
 import {
   Badge,
@@ -71,6 +73,7 @@ function canAssign(role?: string): boolean {
 export default function OfficerComplaintDetailScreen({ route }: Props) {
   const navigation = useNavigation<any>();
   const { user } = useAuth();
+  const { joinComplaint } = useRealtime();
   const complaintId = route?.params?.complaintId ?? "";
   const [complaint, setComplaint] = useState<OfficerComplaint | null>(null);
   const [timeline, setTimeline] = useState<OfficerTimelineItem[]>([]);
@@ -117,8 +120,19 @@ export default function OfficerComplaintDetailScreen({ route }: Props) {
 
   useFocusEffect(
     useCallback(() => {
+      joinComplaint(complaintId);
       void loadDetail();
-    }, [loadDetail]),
+    }, [complaintId, joinComplaint, loadDetail]),
+  );
+  useRealtimeInvalidation(
+    [
+      "complaint:status_updated",
+      "complaint:resolved",
+      "complaint:new_comment",
+      "officer:queue_updated",
+    ],
+    () => void loadDetail(),
+    (payload) => payload.complaintId === complaintId,
   );
 
   const notes = useMemo(

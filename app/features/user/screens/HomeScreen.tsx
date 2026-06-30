@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../../../constants/colors";
 import { useAuth } from "../../auth/context/AuthContext";
+import { useRealtimeInvalidation } from "../../realtime/hooks/useRealtimeInvalidation";
 import { categoryMeta, sampleProfile, sampleStats } from "../data/citizenSampleData";
 import {
   fetchCitizenProfile,
@@ -133,6 +134,10 @@ export default function HomeScreen() {
   useEffect(() => {
     void loadDashboard();
   }, [loadDashboard]);
+  useRealtimeInvalidation(
+    ["complaint:created", "complaint:status_updated", "complaint:resolved", "notification:new"],
+    () => void loadDashboard(),
+  );
 
   function refreshDashboard() {
     setRefreshing(true);

@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { colors } from "../../../constants/colors";
 import { getApiErrorMessage } from "../../../utils/api";
+import { useRealtimeInvalidation } from "../../realtime/hooks/useRealtimeInvalidation";
 import OfficerScreen from "../components/OfficerScreen";
 import { Badge, EmptyState, ErrorState, LoadingState, Section } from "../components/OfficerUI";
 import { getDashboard } from "../services/officer.service";
@@ -36,6 +37,10 @@ export default function OfficerDashboardScreen() {
     useCallback(() => {
       void loadDashboard();
     }, [loadDashboard]),
+  );
+  useRealtimeInvalidation(
+    ["complaint:created", "complaint:status_updated", "complaint:resolved", "officer:queue_updated"],
+    () => void loadDashboard(),
   );
 
   const kpis = dashboard

@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { colors } from "../../../constants/colors";
 import { useAuth } from "../../auth/context/AuthContext";
 import { getApiErrorMessage } from "../../../utils/api";
+import { useRealtimeInvalidation } from "../../realtime/hooks/useRealtimeInvalidation";
 import OfficerScreen from "../components/OfficerScreen";
 import {
   Badge,
@@ -141,6 +142,10 @@ export default function OfficerQueueScreen() {
     useCallback(() => {
       void loadQueue();
     }, [loadQueue]),
+  );
+  useRealtimeInvalidation(
+    ["complaint:created", "complaint:status_updated", "complaint:resolved", "officer:queue_updated"],
+    () => void loadQueue(),
   );
 
   const totalPages = Math.max(1, Math.ceil(total / 10));

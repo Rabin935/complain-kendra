@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../../../constants/colors";
+import { useRealtimeInvalidation } from "../../realtime/hooks/useRealtimeInvalidation";
 import { categoryMeta, sampleProfile } from "../data/citizenSampleData";
 import {
   fetchCitizenProfile,
@@ -157,6 +158,10 @@ export default function BrowseScreen() {
   useEffect(() => {
     void loadComplaints();
   }, [loadComplaints]);
+  useRealtimeInvalidation(
+    ["complaint:created", "complaint:status_updated", "complaint:resolved", "complaint:upvoted"],
+    () => void loadComplaints(1),
+  );
 
   function refreshComplaints() {
     setRefreshing(true);
