@@ -19,7 +19,8 @@
     "server": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$env:PORT='5000'; nodemon --exec ts-node src/api/server.ts\"",
     "backend": "npm run server",
     "seed": "ts-node src/api/seeds/seed.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "ts-node --transpile-only tests/run-tests.ts"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
