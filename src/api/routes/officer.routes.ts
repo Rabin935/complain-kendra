@@ -47,6 +47,7 @@ officerRouter.delete("/auth/sessions/:id", protect, requireOfficer, officerSessi
 
 officerRouter.use(protect, requireOfficer);
 officerRouter.get("/dashboard", dashboard);
+officerRouter.get("/dashboard/analytics", analytics);
 officerRouter.get("/complaints", complaints);
 officerRouter.get("/complaints/:id", complaintDetail);
 officerRouter.patch("/complaints/:id/status", patchStatus);

@@ -315,9 +315,9 @@ export async function officialComment(
   }
 }
 
-export async function analytics(_request: Request, response: Response, next: NextFunction) {
+export async function analytics(request: Request, response: Response, next: NextFunction) {
   try {
-    const result = await analyticsSummary();
+    const result = await analyticsSummary(requireOfficerUser(request));
 
     response.status(200).json({
       success: true,

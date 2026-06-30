@@ -1,5 +1,7 @@
+import type { PipelineStage } from "mongoose";
 import CommentModel from "../models/Comment";
 import ComplaintModel from "../models/Complaint";
+import ComplaintTimelineModel from "../models/ComplaintTimeline";
 import EscalationRuleModel from "../models/EscalationRule";
 import OfficerModel from "../models/Officer";
 import OfficerWarningModel from "../models/OfficerWarning";
@@ -47,7 +49,7 @@ export async function getOfficerProfile(officerId: string) {
 function buildOfficerWardFilter(officer: {
   role: string;
   wardId?: string;
-}) {
+}): Record<string, unknown> {
   return officer.role === "admin" || !officer.wardId ? {} : { "location.wardId": officer.wardId };
 }
 
@@ -525,20 +527,111 @@ export async function addOfficialResponse(input: {
   });
 }
 
-export async function analyticsSummary() {
-  const [byStatus, byCategory, byWard, totalUsers] = await Promise.all([
-    ComplaintModel.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
-    ComplaintModel.aggregate([{ $group: { _id: "$category", count: { $sum: 1 } } }]),
-    ComplaintModel.aggregate([{ $group: { _id: "$location.ward", count: { $sum: 1 } } }]),
-    UserModel.countDocuments(),
-  ]);
+export async function analyticsSummary(actor?: JwtUserPayload) {
+  const officerRecord = actor ? await getOfficerProfile(actor.subjectId) : undefined;
+  const wardFilter = officerRecord ? buildOfficerWardFilter(officerRecord) : {};
+  const openStatusFilter = { status: { $in: ["pending", "accepted", "in_progress"] } };
+  const resolvedStatusFilter = { status: "resolved" };
 
-  return {
+  const groupCount = (field: string): PipelineStage[] => [
+    { $match: wardFilter },
+    { $group: { _id: `$${field}`, count: { $sum: 1 } } },
+    { $sort: { count: -1, _id: 1 as const } },
+  ];
+
+  const [
+    openComplaints,
+    resolvedComplaints,
+    averageResolution,
     byStatus,
     byCategory,
     byWard,
+    priorityDistribution,
+    departmentWorkload,
+    totalUsers,
+  ] = await Promise.all([
+    ComplaintModel.countDocuments({ ...wardFilter, ...openStatusFilter }),
+    ComplaintModel.countDocuments({ ...wardFilter, ...resolvedStatusFilter }),
+    ComplaintTimelineModel.aggregate([
+      { $match: { type: "resolved" } },
+      // A reopened complaint can be resolved multiple times; use the first resolution for duration.
+      { $group: { _id: "$complaintId", resolvedAt: { $min: "$createdAt" } } },
+      {
+        $lookup: {
+          from: "complaints",
+          localField: "_id",
+          foreignField: "_id",
+          as: "complaint",
+        },
+      },
+      { $unwind: "$complaint" },
+      { $match: { "complaint.status": "resolved", ...prefixComplaintFilter(wardFilter) } },
+      {
+        $project: {
+          resolutionTimeMs: { $subtract: ["$resolvedAt", "$complaint.createdAt"] },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          averageMs: { $avg: "$resolutionTimeMs" },
+          count: { $sum: 1 },
+        },
+      },
+    ]),
+    ComplaintModel.aggregate(groupCount("status")),
+    ComplaintModel.aggregate(groupCount("category")),
+    ComplaintModel.aggregate(groupCount("location.ward")),
+    ComplaintModel.aggregate(groupCount("priority")),
+    ComplaintModel.aggregate([
+      { $match: wardFilter },
+      {
+        $group: {
+          _id: { $ifNull: ["$assignedDepartment", "Unassigned"] },
+          total: { $sum: 1 },
+          open: {
+            $sum: {
+              $cond: [{ $in: ["$status", ["pending", "accepted", "in_progress"]] }, 1, 0],
+            },
+          },
+          resolved: { $sum: { $cond: [{ $eq: ["$status", "resolved"] }, 1, 0] } },
+          critical: { $sum: { $cond: [{ $eq: ["$priority", "critical"] }, 1, 0] } },
+        },
+      },
+      { $sort: { open: -1, total: -1, _id: 1 } },
+    ]),
+    UserModel.countDocuments(),
+  ]);
+  const averageResolutionMs = averageResolution[0]?.averageMs ?? 0;
+
+  return {
+    scope: {
+      ward: officerRecord?.ward,
+      wardId: officerRecord?.wardId,
+      department: officerRecord?.department,
+    },
+    openComplaints,
+    resolvedComplaints,
+    averageResolutionTime: {
+      milliseconds: Math.round(averageResolutionMs),
+      hours: Number((averageResolutionMs / (1000 * 60 * 60)).toFixed(2)),
+      days: Number((averageResolutionMs / (1000 * 60 * 60 * 24)).toFixed(2)),
+      sampleSize: averageResolution[0]?.count ?? 0,
+    },
+    byStatus,
+    byCategory,
+    byWard,
+    priorityDistribution,
+    departmentWorkload,
     totalUsers,
   };
+}
+
+function prefixComplaintFilter(filter: Record<string, unknown>) {
+  // Timeline analytics joins complaints under "complaint", so ward scoping needs that prefix.
+  return Object.fromEntries(
+    Object.entries(filter).map(([key, value]) => [`complaint.${key}`, value]),
+  );
 }
 
 export async function alerts() {
