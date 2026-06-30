@@ -137,4 +137,21 @@ export function getApiErrorMessage(error: unknown): string {
   return "Something went wrong. Please try again.";
 }
 
+export async function withApiRetry<T>(
+  request: () => Promise<T>,
+  retries = 1,
+  delayMs = 450,
+): Promise<T> {
+  try {
+    return await request();
+  } catch (error) {
+    if (retries <= 0) {
+      throw error;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+    return withApiRetry(request, retries - 1, delayMs * 2);
+  }
+}
+
 export { baseURL };
