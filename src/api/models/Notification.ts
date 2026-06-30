@@ -67,6 +67,8 @@ const notificationSchema = new Schema<Notification, NotificationModel>(
   },
 );
 
+notificationSchema.index({ userId: 1, recipientType: 1, readAt: 1, createdAt: -1 });
+
 const NotificationModel =
   (models.Notification as NotificationModel | undefined) ??
   model<Notification, NotificationModel>("Notification", notificationSchema);

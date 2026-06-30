@@ -84,6 +84,10 @@ const userSchema = new Schema<User, UserModel>(
   },
 );
 
+userSchema.index({ isBanned: 1, createdAt: -1 });
+userSchema.index({ ward: 1, isBanned: 1, createdAt: -1 });
+userSchema.index({ points: -1, level: -1 });
+
 userSchema.pre("save", async function () {
   if (!this.isModified("password") || BCRYPT_HASH_PATTERN.test(this.password)) {
     return;

@@ -198,6 +198,10 @@ const complaintSchema = new Schema<Complaint, ComplaintModel>(
 
 complaintSchema.index({ "location.ward": 1, status: 1, priority: 1 });
 complaintSchema.index({ "location.wardId": 1, status: 1 });
+complaintSchema.index({ "location.wardId": 1, assignedOfficerId: 1, status: 1, createdAt: -1 });
+complaintSchema.index({ assignedOfficerId: 1, status: 1, createdAt: -1 });
+complaintSchema.index({ assignedDepartment: 1, status: 1, createdAt: -1 });
+complaintSchema.index({ priorityScore: -1, createdAt: -1 });
 complaintSchema.index({ "location.city": 1, status: 1, createdAt: -1 });
 complaintSchema.index({ upvoteCount: -1, createdAt: -1 });
 complaintSchema.index({ "location.lat": 1, "location.lng": 1 });
