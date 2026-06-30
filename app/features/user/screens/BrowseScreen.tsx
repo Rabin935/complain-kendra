@@ -80,7 +80,10 @@ export default function BrowseScreen() {
   const [mainFilter, setMainFilter] = useState<MainFilter>("nearby");
   const [categoryFilter, setCategoryFilter] = useState<CitizenComplaintCategory | "all">("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [gpsPermission, setGpsPermission] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -103,8 +106,9 @@ export default function BrowseScreen() {
     });
   }, [complaints, searchQuery]);
 
-  const loadComplaints = useCallback(async () => {
+  const loadComplaints = useCallback(async (nextPage = 1, append = false) => {
     setError(null);
+    const pageSize = 12;
 
     const profileResult = await fetchCitizenProfile();
     const nextProfile = profileResult.data;
@@ -122,13 +126,16 @@ export default function BrowseScreen() {
       mainFilter === "nearby" && gpsPermission
         ? await fetchNearbyComplaints(nextProfile.location.lat, nextProfile.location.lng, 2)
         : await fetchPublicComplaints({
+            search: searchQuery,
             wardId: mainFilter === "ward" ? nextProfile.location.wardId : undefined,
             category: categoryFilter,
             status,
             priority,
             sort,
-            page: 1,
-            limit: 12,
+            lat: nextProfile.location.lat,
+            lng: nextProfile.location.lng,
+            page: nextPage,
+            limit: pageSize,
           });
 
     let nextComplaints = complaintResult.data;
@@ -137,12 +144,15 @@ export default function BrowseScreen() {
       nextComplaints = nextComplaints.filter((complaint) => complaint.category === categoryFilter);
     }
 
-    setComplaints(nextComplaints);
-    setSelectedComplaint(nextComplaints[0] ?? null);
+    setComplaints((current) => (append ? [...current, ...nextComplaints] : nextComplaints));
+    setSelectedComplaint((current) => current ?? nextComplaints[0] ?? null);
+    setPage(nextPage);
+    setHasMore(nextComplaints.length >= pageSize && mainFilter !== "nearby");
     setError(profileResult.error || complaintResult.error ? "Network error. Showing saved public complaints." : null);
     setLoading(false);
+    setLoadingMore(false);
     setRefreshing(false);
-  }, [categoryFilter, gpsPermission, mainFilter]);
+  }, [categoryFilter, gpsPermission, mainFilter, searchQuery]);
 
   useEffect(() => {
     void loadComplaints();
@@ -150,7 +160,17 @@ export default function BrowseScreen() {
 
   function refreshComplaints() {
     setRefreshing(true);
-    void loadComplaints();
+    setSelectedComplaint(null);
+    void loadComplaints(1);
+  }
+
+  function loadMoreComplaints() {
+    if (loadingMore || !hasMore) {
+      return;
+    }
+
+    setLoadingMore(true);
+    void loadComplaints(page + 1, true);
   }
 
   async function handleUpvote(complaint: CitizenComplaint) {
@@ -321,6 +341,12 @@ export default function BrowseScreen() {
                 onFollow={() => void handleFollow(complaint)}
               />
             ))}
+            {hasMore ? (
+              <Pressable style={styles.loadMoreButton} onPress={loadMoreComplaints} disabled={loadingMore}>
+                {loadingMore ? <ActivityIndicator color={colors.primary} /> : null}
+                <Text style={styles.loadMoreText}>{loadingMore ? "Loading..." : "Load more"}</Text>
+              </Pressable>
+            ) : null}
           </View>
         ) : (
           <View style={styles.emptyCard}>
@@ -802,6 +828,22 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: 13,
     fontWeight: "800",
+  },
+  loadMoreButton: {
+    minHeight: 48,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  loadMoreText: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: "900",
   },
   mapPanel: {
     height: 430,
