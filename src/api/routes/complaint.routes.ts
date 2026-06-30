@@ -10,6 +10,7 @@ import {
   getMy,
   getNearby,
   getRate,
+  getRatingSummary,
   getTimeline,
   rate,
   removeUpvote,
@@ -54,6 +55,7 @@ complaintRouter.post("/upload-photo", protect, requireCitizen, photoUpload.singl
 complaintRouter.post("/photos", protect, requireCitizen, complaintPhotoFields, uploadPhotos);
 complaintRouter.get("/:id/timeline", getTimeline);
 complaintRouter.get("/:id/rate", protect, requireCitizen, getRate);
+complaintRouter.get("/:id/ratings/summary", getRatingSummary);
 complaintRouter.post("/:id/rate", protect, requireCitizen, rate);
 complaintRouter.post("/:id/upvote", protect, requireCitizen, upvote);
 complaintRouter.delete("/:id/upvote", protect, requireCitizen, removeUpvote);

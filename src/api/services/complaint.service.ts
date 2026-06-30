@@ -1162,6 +1162,58 @@ export async function getComplaintRating(complaintId: string, userId: string) {
   });
 }
 
+export async function getComplaintRatingSummary(complaintId: string) {
+  const normalizedComplaintId = requireObjectId(complaintId, "complaint id");
+  const complaint = await ComplaintModel.findById(normalizedComplaintId);
+
+  if (!complaint) {
+    throw new AppError("Complaint not found.", 404);
+  }
+
+  const [complaintStats, officerStats, departmentStats] = await Promise.all([
+    ComplaintRatingModel.aggregate([
+      { $match: { complaintId: complaint._id } },
+      { $group: { _id: "$complaintId", average: { $avg: "$rating" }, count: { $sum: 1 } } },
+    ]),
+    complaint.assignedOfficerId
+      ? ComplaintRatingModel.aggregate([
+          {
+            $lookup: {
+              from: "complaints",
+              localField: "complaintId",
+              foreignField: "_id",
+              as: "complaint",
+            },
+          },
+          { $unwind: "$complaint" },
+          { $match: { "complaint.assignedOfficerId": complaint.assignedOfficerId } },
+          { $group: { _id: "$complaint.assignedOfficerId", average: { $avg: "$rating" }, count: { $sum: 1 } } },
+        ])
+      : [],
+    complaint.aiAnalysis?.department
+      ? ComplaintRatingModel.aggregate([
+          {
+            $lookup: {
+              from: "complaints",
+              localField: "complaintId",
+              foreignField: "_id",
+              as: "complaint",
+            },
+          },
+          { $unwind: "$complaint" },
+          { $match: { "complaint.aiAnalysis.department": complaint.aiAnalysis.department } },
+          { $group: { _id: "$complaint.aiAnalysis.department", average: { $avg: "$rating" }, count: { $sum: 1 } } },
+        ])
+      : [],
+  ]);
+
+  return {
+    complaint: complaintStats[0] ?? { average: complaint.ratingAverage ?? null, count: 0 },
+    officer: officerStats[0] ?? { average: null, count: 0 },
+    department: departmentStats[0] ?? { average: null, count: 0 },
+  };
+}
+
 export async function incrementCommentCount(complaintId: string): Promise<void> {
   await ComplaintModel.updateOne({ _id: complaintId }, { $inc: { commentCount: 1 } });
 }

@@ -8,6 +8,7 @@ import {
   getAllComplaints as getAllComplaintsService,
   getComplaintDetail as getComplaintDetailService,
   getComplaintRating as getComplaintRatingService,
+  getComplaintRatingSummary as getComplaintRatingSummaryService,
   getComplaintTimeline as getComplaintTimelineService,
   getMyComplaints as getMyComplaintsService,
   getNearbyComplaints as getNearbyComplaintsService,
@@ -468,6 +469,23 @@ export async function getRate(
     response.status(200).json({
       success: true,
       rating,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getRatingSummary(
+  request: Request<{ id: string }>,
+  response: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const ratings = await getComplaintRatingSummaryService(request.params.id);
+
+    response.status(200).json({
+      success: true,
+      ratings,
     });
   } catch (error) {
     next(error);
