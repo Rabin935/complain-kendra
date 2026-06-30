@@ -90,3 +90,12 @@ Sprint 5 turns ComplainKendra from a private complaint tracker into a public civ
 | Complaint Detail | Images, map preview, AI analysis, stats, timeline, comments, share, rating |
 | Profile | Backend profile data, stats, badges, public toggle, leaderboard, preferences |
 | Notifications | Existing list uses backend notification payloads |
+
+## Data Ownership
+
+- `Complaint` owns public complaint metadata and engagement counters.
+- `Comment` owns discussion content, parent-child relationships, official flags, and comment upvotes.
+- `Follow` and `ComplaintUpvote` own deduplicated engagement history.
+- `PointEvent`, `Badge`, and `UserBadge` own gamification history and unlock state.
+- `ComplaintRating` owns resolution feedback and aggregate rating source data.
+- `NotificationPreference` owns per-user channel and category settings.
