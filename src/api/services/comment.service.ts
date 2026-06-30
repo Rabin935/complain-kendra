@@ -181,6 +181,9 @@ export async function createComment(input: {
 
   emitRealtimeEvent("complaint:new_comment", {
     complaintId,
+    userId: ownerId,
+    officerId: complaint.assignedOfficerId?.toString(),
+    wardId: complaint.location?.wardId,
     commentId: comment._id.toString(),
     official,
   });

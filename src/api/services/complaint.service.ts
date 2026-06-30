@@ -481,6 +481,7 @@ async function runComplaintAiAnalysis(complaintId: string): Promise<void> {
     complaintId,
     userId: getComplaintOwnerId(complaint),
     officerId: complaint.assignedOfficerId?.toString(),
+    wardId: complaint.location?.wardId,
     complaintNo: complaint.complaintNo,
     aiMetadata,
   });
@@ -585,11 +586,13 @@ export async function createComplaint(
   emitRealtimeEvent("complaint:created", {
     complaintId: complaint._id.toString(),
     userId: normalizedUserId,
+    wardId: complaint.location?.wardId,
     complaintNo: complaint.complaintNo,
   });
   emitRealtimeEvent("officer:queue_updated", {
     complaintId: complaint._id.toString(),
     ward: complaint.location?.ward,
+    wardId: complaint.location?.wardId,
   });
   // Automatically starts mock AI analysis for every new complaint.
   queueComplaintAnalysis(complaint._id.toString());
@@ -1007,6 +1010,8 @@ export async function upvoteComplaint(id: string, userId: string) {
 
   emitRealtimeEvent("complaint:upvoted", {
     complaintId,
+    userId: getComplaintOwnerId(complaint),
+    wardId: complaint.location?.wardId,
     upvotes: complaint.upvoteCount,
   });
 
@@ -1034,6 +1039,8 @@ export async function removeComplaintUpvote(id: string, userId: string) {
 
   emitRealtimeEvent("complaint:upvote_removed", {
     complaintId,
+    userId: getComplaintOwnerId(complaint),
+    wardId: complaint.location?.wardId,
     upvotes: complaint.upvoteCount,
   });
 

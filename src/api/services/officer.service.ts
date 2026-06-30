@@ -420,12 +420,19 @@ async function applyComplaintWorkflow(input: {
     input.status === "resolved" ? "complaint:resolved" : "complaint:status_updated",
     {
       complaintId,
+      userId: complaint.userId.toString(),
+      officerId: complaint.assignedOfficerId?.toString(),
+      wardId: complaint.location?.wardId,
       status: input.status,
       previousStatus,
       complaintNo: complaint.complaintNo,
     },
   );
-  emitRealtimeEvent("officer:queue_updated", { complaintId });
+  emitRealtimeEvent("officer:queue_updated", {
+    complaintId,
+    officerId: complaint.assignedOfficerId?.toString(),
+    wardId: complaint.location?.wardId,
+  });
 
   return toComplaintPayload(complaint);
 }
@@ -515,7 +522,11 @@ export async function assignOfficer(input: {
     },
   });
 
-  emitRealtimeEvent("officer:queue_updated", { complaintId });
+  emitRealtimeEvent("officer:queue_updated", {
+    complaintId,
+    officerId,
+    wardId: complaint.location?.wardId,
+  });
 
   return toComplaintPayload(complaint);
 }
@@ -552,7 +563,10 @@ export async function removeAssignment(input: {
     isInternal: true,
   });
 
-  emitRealtimeEvent("officer:queue_updated", { complaintId });
+  emitRealtimeEvent("officer:queue_updated", {
+    complaintId,
+    wardId: complaint.location?.wardId,
+  });
 
   return toComplaintPayload(complaint);
 }
@@ -634,7 +648,11 @@ export async function updateDepartmentAssignment(input: {
     isInternal: true,
   });
 
-  emitRealtimeEvent("officer:queue_updated", { complaintId });
+  emitRealtimeEvent("officer:queue_updated", {
+    complaintId,
+    officerId: complaint.assignedOfficerId?.toString(),
+    wardId: complaint.location?.wardId,
+  });
 
   return toComplaintPayload(complaint);
 }
