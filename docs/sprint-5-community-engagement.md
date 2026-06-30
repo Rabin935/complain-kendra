@@ -43,3 +43,11 @@ Sprint 5 turns ComplainKendra from a private complaint tracker into a public civ
 - Citizens can toggle public profile visibility.
 - Citizens can update language and avatar through the profile module.
 - Civic level, point total, and earned badge progress are visible in profile.
+
+## Gamification Acceptance
+
+- Points are awarded for verified complaint submission, resolved complaints, comments, upvotes, and ratings.
+- Civic levels update when point thresholds are crossed.
+- Badges unlock automatically from point progress.
+- Leaderboard APIs expose public rankings while respecting private profiles.
+- The frontend displays a leaderboard preview in the citizen profile flow.
