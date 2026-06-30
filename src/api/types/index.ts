@@ -99,6 +99,13 @@ export interface Officer {
 export interface ComplaintLocation extends WardLocation {}
 
 export interface ComplaintAiAnalysis {
+  // Snake-case fields are stored for the database/reporting contract requested by the AI task.
+  detected_category: ComplaintCategory;
+  confidence_score: number;
+  severity: "low" | "medium" | "high" | "critical";
+  estimated_resolution_days: number;
+  duplicate_probability: number;
+  // Camel-case fields are kept so existing controllers and mobile screens do not need to change.
   detectedCategory: ComplaintCategory;
   confidence: number;
   severityLabel: "low" | "medium" | "high" | "critical";
@@ -112,6 +119,7 @@ export interface ComplaintAiAnalysis {
     complaintNo?: string;
     title?: string;
     distanceMeters?: number;
+    probability?: number;
   };
   verified: boolean;
   summary: string;

@@ -325,6 +325,7 @@ async function runComplaintAiAnalysis(complaintId: string): Promise<void> {
     photoUrl: complaint.photos[0],
   });
 
+  // Store the AI result directly on the complaint so reads do not need a second query.
   complaint.aiAnalysis = analysis;
   complaint.aiVerified = analysis.verified;
   complaint.priority = analysis.priority;
@@ -374,6 +375,7 @@ async function runComplaintAiAnalysis(complaintId: string): Promise<void> {
 }
 
 export function queueComplaintAnalysis(complaintId: string): void {
+  // Run after the response cycle starts so creating a complaint is not blocked by AI work.
   setTimeout(() => {
     void runComplaintAiAnalysis(complaintId).catch((error) => {
       console.error("Complaint AI analysis job failed:", error);
@@ -430,6 +432,7 @@ export async function createComplaint(
     complaintId: complaint._id.toString(),
     ward: complaint.location?.ward,
   });
+  // Automatically starts mock AI analysis for every new complaint.
   queueComplaintAnalysis(complaint._id.toString());
 
   return toComplaintPayload(complaint);

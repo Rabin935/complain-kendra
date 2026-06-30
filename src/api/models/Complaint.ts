@@ -30,6 +30,21 @@ const complaintLocationSchema = new Schema<ComplaintLocation>(
 
 const aiAnalysisSchema = new Schema<ComplaintAiAnalysis>(
   {
+    // These snake-case fields make the persisted document match the complaint_ai contract.
+    detected_category: {
+      type: String,
+      enum: COMPLAINT_CATEGORIES,
+      default: undefined,
+    },
+    confidence_score: { type: Number, min: 0, max: 100, default: undefined },
+    severity: {
+      type: String,
+      enum: ["low", "medium", "high", "critical"],
+      default: undefined,
+    },
+    estimated_resolution_days: { type: Number, min: 1, default: undefined },
+    duplicate_probability: { type: Number, min: 0, max: 1, default: undefined },
+    // Existing camel-case fields remain for backward compatibility with the app UI.
     detectedCategory: {
       type: String,
       enum: COMPLAINT_CATEGORIES,
@@ -51,6 +66,7 @@ const aiAnalysisSchema = new Schema<ComplaintAiAnalysis>(
       complaintNo: { type: String, trim: true, default: undefined },
       title: { type: String, trim: true, default: undefined },
       distanceMeters: { type: Number, default: undefined },
+      probability: { type: Number, min: 0, max: 1, default: undefined },
     },
     verified: { type: Boolean, default: true, required: true },
     summary: { type: String, trim: true, required: true },
