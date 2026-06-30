@@ -6,6 +6,10 @@ export interface AuthUser {
   email: string;
   role: UserRole;
   phone?: string;
+  ward?: string;
+  wardId?: string;
+  city?: string;
+  municipality?: string;
   avatarUrl?: string;
 }
 
@@ -32,6 +36,12 @@ export interface RegisterPayload {
   email: string;
   password: string;
   phone?: string;
+  ward?: string;
+  wardId?: string;
+  city: string;
+  municipality?: string;
+  homeArea?: string;
+  address?: string;
 }
 
 export interface ResetPasswordPayload {

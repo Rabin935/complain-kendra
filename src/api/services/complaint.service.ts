@@ -8,6 +8,7 @@ import UserModel from "../models/User";
 import {
   type ComplaintCategory,
   type ComplaintFilterDto,
+  type ComplaintAiMetadata,
   type ComplaintLocation,
   type ComplaintPayload,
   type ComplaintPriority,
@@ -23,7 +24,6 @@ import {
   getString,
   isRecord,
   normalizeCategory,
-  normalizePriority,
   normalizeStatus,
   parsePagination,
   requireObjectId,
@@ -31,9 +31,13 @@ import {
 } from "../utils/request.utils";
 import { saveUploadedImage } from "../utils/upload.utils";
 import { analyzeComplaint } from "./ai.service";
+import { getDepartmentForCategory } from "./department-routing.service";
 import { createNotification } from "./notification.service";
 import { awardPoints } from "./points.service";
 import { emitRealtimeEvent } from "../sockets/realtime";
+import { buildWardLocation, resolveWardFromPayload } from "./ward.service";
+import { calculateComplaintPriority } from "./priority-engine.service";
+import { detectDuplicateComplaint } from "./duplicate-detection.service";
 
 type UploadedComplaintPhoto = {
   buffer: Buffer;
@@ -44,6 +48,7 @@ type UploadedComplaintPhoto = {
 
 const statusProgress: Record<ComplaintStatus, number> = {
   pending: 18,
+  accepted: 35,
   in_progress: 58,
   resolved: 100,
   rejected: 100,
@@ -56,7 +61,19 @@ function mapComplaintLocation(location: ComplaintDocument["location"]): Complain
 
   const mapped: ComplaintLocation = {};
 
-  for (const key of ["lat", "lng", "address", "area", "ward", "wardId", "city"] as const) {
+  for (const key of [
+    "lat",
+    "lng",
+    "address",
+    "area",
+    "ward",
+    "wardId",
+    "wardName",
+    "wardNumber",
+    "city",
+    "municipality",
+    "province",
+  ] as const) {
     const value = location[key];
 
     if (value !== undefined && value !== null && value !== "") {
@@ -71,6 +88,30 @@ function getComplaintOwnerId(complaint: ComplaintDocument): string {
   return typeof complaint.userId === "string"
     ? complaint.userId
     : complaint.userId.toString();
+}
+
+function buildAiMetadata(input: {
+  duplicateCount: number;
+  priorityResult: ReturnType<typeof calculateComplaintPriority>;
+  routedDepartment: string;
+  source: ComplaintAiMetadata["source"];
+}): ComplaintAiMetadata {
+  const hasGeminiKey = Boolean(
+    process.env.EXPO_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY,
+  );
+  const usesMockProvider = process.env.AI_PROVIDER?.toLowerCase() === "mock" || !hasGeminiKey;
+
+  return {
+    provider: usesMockProvider ? "mock" : "gemini",
+    model: usesMockProvider ? undefined : process.env.GEMINI_MODEL || "gemini-1.5-flash",
+    source: input.source,
+    completedAt: new Date(),
+    routedDepartment: input.routedDepartment,
+    duplicateCount: input.duplicateCount,
+    priority: input.priorityResult.priority,
+    priorityScore: input.priorityResult.score,
+    priorityReasons: input.priorityResult.reasons,
+  };
 }
 
 export function toComplaintPayload(
@@ -93,8 +134,28 @@ export function toComplaintPayload(
     category: complaint.category,
     status: complaint.status,
     priority: complaint.priority,
+    calculatedPriority: complaint.calculatedPriority,
+    priorityScore: complaint.priorityScore,
+    priorityReasons: complaint.priorityReasons ?? [],
+    priorityOverriddenBy: complaint.priorityOverriddenBy?.toString(),
+    priorityOverriddenAt: complaint.priorityOverriddenAt,
+    priorityOverrideReason: complaint.priorityOverrideReason,
+    duplicateOfComplaintId: complaint.duplicateOfComplaintId?.toString(),
+    duplicateSimilarityScore: complaint.duplicateSimilarityScore,
+    duplicateCheckedAt: complaint.duplicateCheckedAt,
     progress: statusProgress[complaint.status],
     aiAnalysis: complaint.aiAnalysis,
+    aiMetadata: complaint.aiMetadata,
+    ai: {
+      // Complaint detail clients can read one cohesive AI block instead of stitching legacy fields.
+      analysis: complaint.aiAnalysis,
+      metadata: complaint.aiMetadata,
+      verified: complaint.aiVerified,
+      suggestedCategory: complaint.aiSuggestedCategory,
+      severity: complaint.aiSeverity,
+      summary: complaint.aiSummary,
+      keywords: complaint.aiKeywords ?? [],
+    },
     aiVerified: complaint.aiVerified,
     aiSuggestedCategory: complaint.aiSuggestedCategory,
     aiSeverity: complaint.aiSeverity,
@@ -103,6 +164,10 @@ export function toComplaintPayload(
     embedding: complaint.embedding ?? [],
     assignedOfficerId,
     assignedOfficerName: complaint.assignedOfficerName,
+    assignedDepartment: complaint.assignedDepartment,
+    departmentOverriddenBy: complaint.departmentOverriddenBy?.toString(),
+    departmentOverriddenAt: complaint.departmentOverriddenAt,
+    departmentOverrideReason: complaint.departmentOverrideReason,
     rejectionReason: complaint.rejectionReason,
     resolutionNote: complaint.resolutionNote,
     upvotes: complaint.upvoteCount,
@@ -116,7 +181,7 @@ export function toComplaintPayload(
   };
 }
 
-function normalizeLocation(payload: Record<string, unknown>): ComplaintLocation | undefined {
+async function normalizeLocation(payload: Record<string, unknown>): Promise<ComplaintLocation | undefined> {
   const rawLocation = isRecord(payload.location) ? payload.location : payload;
   const location: ComplaintLocation = {};
   const lat = getNumber(rawLocation.lat ?? rawLocation.latitude);
@@ -131,17 +196,13 @@ function normalizeLocation(payload: Record<string, unknown>): ComplaintLocation 
   }
 
   const address = getString(rawLocation.address);
-  const ward = getString(rawLocation.ward ?? rawLocation.ward_id ?? rawLocation.wardId);
   const area = getString(rawLocation.area);
   const city = getString(rawLocation.city);
+  const municipality = getString(rawLocation.municipality);
+  const province = getString(rawLocation.province);
 
   if (address) {
     location.address = address;
-  }
-
-  if (ward) {
-    location.ward = ward.startsWith("Ward") ? ward : `Ward ${ward}`;
-    location.wardId = ward.replace(/^Ward\s+/i, "");
   }
 
   if (area) {
@@ -150,6 +211,20 @@ function normalizeLocation(payload: Record<string, unknown>): ComplaintLocation 
 
   if (city) {
     location.city = city;
+  }
+
+  if (municipality) {
+    location.municipality = municipality;
+  }
+
+  if (province) {
+    location.province = province;
+  }
+
+  const selectedWard = await resolveWardFromPayload(payload, { fallbackCity: city });
+
+  if (selectedWard) {
+    return buildWardLocation(selectedWard, location);
   }
 
   return Object.keys(location).length > 0 ? location : undefined;
@@ -176,10 +251,9 @@ async function generateComplaintNo(): Promise<string> {
   return `CK-${year}-${Date.now().toString().slice(-4)}`;
 }
 
-function normalizeCreateComplaintInput(payload: CreateComplaintDto | Record<string, unknown>) {
+async function normalizeCreateComplaintInput(payload: CreateComplaintDto | Record<string, unknown>) {
   const record = isRecord(payload) ? payload : {};
   const category = normalizeCategory(record.category, true) as ComplaintCategory;
-  const priority = normalizePriority(record.priority) ?? "medium";
   const photos = Array.isArray(record.photos)
     ? record.photos.map(String).filter(Boolean)
     : getString(record.photo)
@@ -190,15 +264,26 @@ function normalizeCreateComplaintInput(payload: CreateComplaintDto | Record<stri
     title: requireString(record.title, "Title"),
     description: requireString(record.description, "Description"),
     category,
-    priority,
     status: normalizeStatus(record.status) ?? "pending",
-    location: normalizeLocation(record),
+    location: await normalizeLocation(record),
     photos,
     photo: photos[0],
   };
 }
 
-function normalizeUpdateComplaintInput(payload: UpdateComplaintDto | Record<string, unknown>) {
+function getBoolean(value: unknown): boolean {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    return ["true", "1", "yes", "on"].includes(value.toLowerCase());
+  }
+
+  return false;
+}
+
+async function normalizeUpdateComplaintInput(payload: UpdateComplaintDto | Record<string, unknown>) {
   const record = isRecord(payload) ? payload : {};
   const updates: Record<string, unknown> = {};
 
@@ -218,12 +303,10 @@ function normalizeUpdateComplaintInput(payload: UpdateComplaintDto | Record<stri
     updates.status = normalizeStatus(record.status, true);
   }
 
-  if (record.priority !== undefined) {
-    updates.priority = normalizePriority(record.priority, true);
-  }
+  // Citizens cannot manually set priority; the priority engine or officer override owns it.
 
   if (record.location !== undefined || record.lat !== undefined || record.lng !== undefined) {
-    updates.location = normalizeLocation(record);
+    updates.location = await normalizeLocation(record);
   }
 
   if (record.photo !== undefined) {
@@ -258,11 +341,15 @@ export async function addTimeline(input: {
     | "ai_verified"
     | "status_changed"
     | "assigned"
+    | "accepted"
+    | "work_started"
+    | "department_changed"
     | "priority_changed"
     | "comment_added"
     | "note_added"
     | "resolved"
     | "rejected"
+    | "reopened"
     | "rated";
   title: string;
   message?: string;
@@ -302,11 +389,11 @@ async function runComplaintAiAnalysis(complaintId: string): Promise<void> {
     photoUrl: complaint.photos[0],
   });
 
+  // Store the AI result directly on the complaint so reads do not need a second query.
   complaint.aiAnalysis = analysis;
   complaint.aiVerified = analysis.verified;
-  complaint.priority = analysis.priority;
   complaint.aiSuggestedCategory = analysis.detectedCategory;
-  complaint.aiSeverity =
+  const aiSeverity =
     analysis.severityLabel === "critical"
       ? 10
       : analysis.severityLabel === "high"
@@ -314,16 +401,47 @@ async function runComplaintAiAnalysis(complaintId: string): Promise<void> {
         : analysis.severityLabel === "medium"
           ? 5
           : 2;
+  complaint.aiSeverity = aiSeverity;
   complaint.aiSummary = analysis.summary;
   complaint.aiKeywords = analysis.keywords;
+  const duplicateCount = await countSimilarOpenComplaints({
+    category: analysis.detectedCategory,
+    description: complaint.description,
+    wardId: complaint.location?.wardId,
+    excludeComplaintId: complaintId,
+  });
+  const priorityResult = calculateComplaintPriority({
+    category: analysis.detectedCategory,
+    description: complaint.description,
+    duplicateCount,
+    aiSeverity,
+  });
+  complaint.calculatedPriority = priorityResult.priority;
+  complaint.priorityScore = priorityResult.score;
+  complaint.priorityReasons = priorityResult.reasons;
+  if (!complaint.priorityOverriddenAt) {
+    // Automatic priority updates stop once an officer manually overrides the complaint.
+    complaint.priority = priorityResult.priority;
+  }
+  // If an officer has not overridden the route, keep the department aligned with AI category detection.
+  if (!complaint.departmentOverriddenAt) {
+    complaint.assignedDepartment = getDepartmentForCategory(analysis.detectedCategory);
+  }
+  const aiMetadata = buildAiMetadata({
+    duplicateCount,
+    priorityResult,
+    routedDepartment: complaint.assignedDepartment ?? analysis.department,
+    source: "background_queue",
+  });
+  complaint.aiMetadata = aiMetadata;
   await complaint.save();
 
   await addTimeline({
     complaintId,
     type: "ai_verified",
     title: "AI analysis completed",
-    message: `${analysis.department} routed with ${analysis.priority} priority.`,
-    metadata: { analysis },
+    message: `${analysis.department} routed with ${complaint.priority} priority.`,
+    metadata: { analysis, aiMetadata, priorityResult, duplicateCount },
   });
 
   if (analysis.verified) {
@@ -340,17 +458,36 @@ async function runComplaintAiAnalysis(complaintId: string): Promise<void> {
     type: "ai_analysis_completed",
     title: "AI analysis completed",
     body: `Your complaint ${complaint.complaintNo} was routed to ${analysis.department}.`,
-    data: { complaintId, complaintNo: complaint.complaintNo },
+    data: { complaintId, complaintNo: complaint.complaintNo, aiMetadata },
   });
+
+  if (complaint.assignedOfficerId) {
+    await createNotification({
+      userId: complaint.assignedOfficerId.toString(),
+      recipientType: "officer",
+      type: "ai_analysis_completed",
+      title: "AI analysis completed",
+      body: `${complaint.complaintNo} was routed to ${aiMetadata.routedDepartment} with ${complaint.priority} priority.`,
+      data: {
+        complaintId,
+        complaintNo: complaint.complaintNo,
+        citizenId: getComplaintOwnerId(complaint),
+        aiMetadata,
+      },
+    });
+  }
 
   emitRealtimeEvent("complaint:ai_complete", {
     complaintId,
     userId: getComplaintOwnerId(complaint),
+    officerId: complaint.assignedOfficerId?.toString(),
     complaintNo: complaint.complaintNo,
+    aiMetadata,
   });
 }
 
 export function queueComplaintAnalysis(complaintId: string): void {
+  // Run after the response cycle starts so creating a complaint is not blocked by AI work.
   setTimeout(() => {
     void runComplaintAiAnalysis(complaintId).catch((error) => {
       console.error("Complaint AI analysis job failed:", error);
@@ -373,9 +510,56 @@ export async function createComplaint(
     throw new AppError(user.banReason || "This account is banned.", 403);
   }
 
-  const normalizedPayload = normalizeCreateComplaintInput(payload);
+  const normalizedPayload = await normalizeCreateComplaintInput(payload);
+  const assignedDepartment = getDepartmentForCategory(normalizedPayload.category);
+  const continueAsNew = getBoolean(
+    (payload as Record<string, unknown>).continue_as_new ??
+      (payload as Record<string, unknown>).continueAsNew,
+  );
+  const duplicateResult = await detectDuplicateComplaint({
+    category: normalizedPayload.category,
+    description: normalizedPayload.description,
+    lat: normalizedPayload.location?.lat,
+    lng: normalizedPayload.location?.lng,
+    wardId: normalizedPayload.location?.wardId,
+  });
+
+  if (duplicateResult.duplicate_found && !continueAsNew) {
+    throw new AppError("Similar complaint already exists.", 409, {
+      duplicate: duplicateResult,
+      duplicate_found: duplicateResult.duplicate_found,
+      duplicate_complaint_id: duplicateResult.duplicate_complaint_id,
+      similarity_score: duplicateResult.similarity_score,
+      action_required: "follow_existing_or_continue",
+    });
+  }
+
+  const duplicateCount = await countSimilarOpenComplaints({
+    category: normalizedPayload.category,
+    description: normalizedPayload.description,
+    wardId: normalizedPayload.location?.wardId,
+  });
+  const priorityResult = calculateComplaintPriority({
+    category: normalizedPayload.category,
+    description: normalizedPayload.description,
+    duplicateCount,
+  });
   const complaint = await ComplaintModel.create({
     ...normalizedPayload,
+    // Store the first calculated priority before AI analysis refines it.
+    priority: priorityResult.priority,
+    calculatedPriority: priorityResult.priority,
+    priorityScore: priorityResult.score,
+    priorityReasons: priorityResult.reasons,
+    // If the user continues anyway, keep a link to the matched complaint for review.
+    duplicateOfComplaintId:
+      duplicateResult.duplicate_found && duplicateResult.duplicate_complaint_id
+        ? duplicateResult.duplicate_complaint_id
+        : undefined,
+    duplicateSimilarityScore: duplicateResult.similarity_score,
+    duplicateCheckedAt: new Date(),
+    // Automatically route a new complaint from its selected category.
+    assignedDepartment,
     complaintNo: await generateComplaintNo(),
     userId: normalizedUserId,
   });
@@ -384,7 +568,7 @@ export async function createComplaint(
     complaintId: complaint._id.toString(),
     type: "submitted",
     title: "Complaint submitted",
-    message: "Citizen complaint received by ComplainKendra.",
+    message: `Citizen complaint received and routed to ${assignedDepartment}.`,
     actorType: "citizen",
     actorId: normalizedUserId,
     actorName: user.name,
@@ -407,9 +591,43 @@ export async function createComplaint(
     complaintId: complaint._id.toString(),
     ward: complaint.location?.ward,
   });
+  // Automatically starts mock AI analysis for every new complaint.
   queueComplaintAnalysis(complaint._id.toString());
 
   return toComplaintPayload(complaint);
+}
+
+async function countSimilarOpenComplaints(input: {
+  category: ComplaintCategory;
+  description: string;
+  wardId?: string;
+  excludeComplaintId?: string;
+}): Promise<number> {
+  const words = input.description
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((word) => word.length > 4)
+    .slice(0, 6);
+  const query: Record<string, unknown> = {
+    category: input.category,
+    status: { $nin: ["resolved", "rejected"] },
+  };
+
+  if (input.wardId) {
+    query["location.wardId"] = input.wardId;
+  }
+
+  if (input.excludeComplaintId) {
+    query._id = { $ne: input.excludeComplaintId };
+  }
+
+  if (words.length > 0) {
+    query.$text = { $search: words.join(" ") };
+  }
+
+  // Duplicate count gives the priority engine a crowd-signal without needing a real duplicate model.
+  return ComplaintModel.countDocuments(query);
 }
 
 export async function uploadComplaintPhoto(file: UploadedComplaintPhoto): Promise<string> {
@@ -448,7 +666,11 @@ function buildComplaintQuery(filter: ComplaintFilterDto = {}): Record<string, un
   }
 
   if (filter.wardId) {
-    query["location.wardId"] = new RegExp(`^${escapeRegex(filter.wardId)}$`, "i");
+    query["location.wardId"] = filter.wardId;
+  }
+
+  if (filter.city) {
+    query["location.city"] = new RegExp(`^${escapeRegex(filter.city)}$`, "i");
   }
 
   if (filter.category) {
@@ -623,7 +845,33 @@ export async function updateComplaint(
 
   assertCitizenCanModify(complaint, actor);
 
-  const updates = normalizeUpdateComplaintInput(payload);
+  const updates = await normalizeUpdateComplaintInput(payload);
+  if (updates.category && !complaint.departmentOverriddenAt) {
+    // Keep automatic department routing synced when the complaint category changes.
+    updates.assignedDepartment = getDepartmentForCategory(updates.category as ComplaintCategory);
+  }
+  if ((updates.category || updates.description) && !complaint.priorityOverriddenAt) {
+    const nextCategory = (updates.category as ComplaintCategory | undefined) ?? complaint.category;
+    const nextDescription = (updates.description as string | undefined) ?? complaint.description;
+    const duplicateCount = await countSimilarOpenComplaints({
+      category: nextCategory,
+      description: nextDescription,
+      wardId: complaint.location?.wardId,
+      excludeComplaintId: normalizedComplaintId,
+    });
+    const priorityResult = calculateComplaintPriority({
+      category: nextCategory,
+      description: nextDescription,
+      duplicateCount,
+      aiSeverity: complaint.aiSeverity,
+    });
+
+    // Recalculate priority after meaningful complaint edits unless an officer overrode it.
+    updates.priority = priorityResult.priority;
+    updates.calculatedPriority = priorityResult.priority;
+    updates.priorityScore = priorityResult.score;
+    updates.priorityReasons = priorityResult.reasons;
+  }
   const updatedComplaint = await ComplaintModel.findByIdAndUpdate(
     normalizedComplaintId,
     updates,

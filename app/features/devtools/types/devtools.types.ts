@@ -50,7 +50,7 @@ export interface OfficerLoginForm {
 
 export interface OfficerActionForm {
   complaintId: string;
-  status: "pending" | "in_progress" | "resolved" | "rejected";
+  status: "pending" | "accepted" | "in_progress" | "resolved" | "rejected";
   priority: "low" | "medium" | "high" | "critical";
   note: string;
 }

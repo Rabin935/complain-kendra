@@ -16,6 +16,7 @@ import notificationRouter from "./routes/notification.routes";
 import officerRouter from "./routes/officer.routes";
 import uploadRouter from "./routes/upload.routes";
 import userRouter from "./routes/user.routes";
+import wardRouter from "./routes/ward.routes";
 import { initializeRealtime } from "./sockets/realtime";
 import { getUploadRoot } from "./utils/upload.utils";
 
@@ -42,6 +43,7 @@ app.use("/uploads", express.static(getUploadRoot()));
 
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/users", userRouter);
+app.use("/api/v1/wards", wardRouter);
 app.use("/api/v1/complaints", complaintRouter);
 app.use("/api/v1", commentRouter);
 app.use("/api/v1/notifications", notificationRouter);
@@ -52,6 +54,7 @@ app.use("/internal", internalRouter);
 
 // Compatibility aliases for the existing Expo services.
 app.use("/api/auth", authRouter);
+app.use("/api/wards", wardRouter);
 app.use("/api/complaints", complaintRouter);
 
 app.get("/api/health", (_request, response) => {

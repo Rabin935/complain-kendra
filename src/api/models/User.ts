@@ -16,7 +16,11 @@ const locationSchema = new Schema<WardLocation>(
     area: { type: String, trim: true, default: undefined },
     ward: { type: String, trim: true, default: undefined },
     wardId: { type: String, trim: true, default: undefined },
+    wardName: { type: String, trim: true, default: undefined },
+    wardNumber: { type: String, trim: true, default: undefined },
     city: { type: String, trim: true, default: undefined },
+    municipality: { type: String, trim: true, default: undefined },
+    province: { type: String, trim: true, default: undefined },
   },
   { _id: false },
 );
@@ -41,7 +45,11 @@ const userSchema = new Schema<User, UserModel>(
       required: true,
     },
     ward: { type: String, trim: true, default: undefined },
+    wardId: { type: String, trim: true, default: undefined, index: true },
+    homeArea: { type: String, trim: true, default: undefined },
     address: { type: String, trim: true, default: undefined },
+    city: { type: String, trim: true, default: undefined },
+    municipality: { type: String, trim: true, default: undefined },
     location: { type: locationSchema, default: undefined },
     language: {
       type: String,

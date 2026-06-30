@@ -35,6 +35,7 @@ type MineNavigation = NavigationProp<UserTabParamList & UserStackParamList>;
 const statusFilters: { label: string; value: StatusFilter }[] = [
   { label: "All", value: "all" },
   { label: "Pending", value: "pending" },
+  { label: "Accepted", value: "accepted" },
   { label: "In Progress", value: "in_progress" },
   { label: "Resolved", value: "resolved" },
   { label: "Rejected", value: "rejected" },

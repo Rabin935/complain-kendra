@@ -1,5 +1,5 @@
 export type ComplaintCategory = "Road Damage" | "Garbage" | "Water Supply" | "Electricity" | "Drainage" | "Other";
-export type ComplaintStatus = "Pending" | "In Progress" | "Resolved";
+export type ComplaintStatus = "Pending" | "Accepted" | "In Progress" | "Resolved";
 
 export interface ComplaintLocation {
   lat?: number;

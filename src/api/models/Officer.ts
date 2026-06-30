@@ -28,6 +28,10 @@ const officerSchema = new Schema<Officer, OfficerModel>(
       required: true,
     },
     ward: { type: String, trim: true, default: undefined, index: true },
+    wardId: { type: String, trim: true, default: undefined, index: true },
+    wardNumber: { type: String, trim: true, default: undefined },
+    city: { type: String, trim: true, default: undefined },
+    municipality: { type: String, trim: true, default: undefined },
     department: {
       type: String,
       default: "Ward Office",

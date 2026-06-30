@@ -7,11 +7,15 @@ export interface ComplaintTimeline {
     | "ai_verified"
     | "status_changed"
     | "assigned"
+    | "accepted"
+    | "work_started"
+    | "department_changed"
     | "priority_changed"
     | "comment_added"
     | "note_added"
     | "resolved"
     | "rejected"
+    | "reopened"
     | "rated";
   title: string;
   message?: string;
@@ -41,11 +45,15 @@ const complaintTimelineSchema = new Schema<ComplaintTimeline, ComplaintTimelineM
         "ai_verified",
         "status_changed",
         "assigned",
+        "accepted",
+        "work_started",
+        "department_changed",
         "priority_changed",
         "comment_added",
         "note_added",
         "resolved",
         "rejected",
+        "reopened",
         "rated",
       ],
       required: true,

@@ -526,7 +526,7 @@ export default function DevConsoleScreen() {
               <DevConsoleSelect
                 label="Status"
                 value={consoleState.officerAction.status}
-                options={["pending", "in_progress", "resolved", "rejected"]}
+                options={["pending", "accepted", "in_progress", "resolved", "rejected"]}
                 onChange={(status) =>
                   consoleState.setOfficerAction({
                     ...consoleState.officerAction,

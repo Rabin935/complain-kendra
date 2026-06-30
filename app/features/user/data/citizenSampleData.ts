@@ -55,7 +55,11 @@ export const sampleLocation: CitizenLocation = {
   area: "Koteshwor",
   ward: "Ward 12",
   wardId: "ward-12-kathmandu",
+  wardName: "Ward 12",
+  wardNumber: "12",
   city: "Kathmandu",
+  municipality: "Kathmandu Metropolitan City",
+  province: "Bagmati Province",
   lat: 27.6783,
   lng: 85.349,
 };

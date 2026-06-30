@@ -4,6 +4,8 @@ export interface Ward {
   wardNumber: string;
   name: string;
   city: string;
+  municipality: string;
+  province: string;
   area?: string;
   contactEmail?: string;
   contactPhone?: string;
@@ -18,9 +20,11 @@ type WardModel = Model<Ward>;
 
 const wardSchema = new Schema<Ward, WardModel>(
   {
-    wardNumber: { type: String, required: true, trim: true, unique: true },
+    wardNumber: { type: String, required: true, trim: true },
     name: { type: String, required: true, trim: true },
     city: { type: String, required: true, trim: true },
+    municipality: { type: String, required: true, trim: true },
+    province: { type: String, required: true, trim: true },
     area: { type: String, trim: true, default: undefined },
     contactEmail: { type: String, trim: true, default: undefined },
     contactPhone: { type: String, trim: true, default: undefined },
@@ -32,6 +36,9 @@ const wardSchema = new Schema<Ward, WardModel>(
     versionKey: false,
   },
 );
+
+wardSchema.index({ city: 1, wardNumber: 1 }, { unique: true });
+wardSchema.index({ municipality: 1, wardNumber: 1 });
 
 const WardModel =
   (models.Ward as WardModel | undefined) ?? model<Ward, WardModel>("Ward", wardSchema);

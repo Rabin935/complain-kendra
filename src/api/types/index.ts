@@ -21,6 +21,7 @@ export type ComplaintCategory = (typeof COMPLAINT_CATEGORIES)[number];
 
 export const COMPLAINT_STATUSES = [
   "pending",
+  "accepted",
   "in_progress",
   "resolved",
   "rejected",
@@ -43,7 +44,11 @@ export interface WardLocation {
   area?: string;
   ward?: string;
   wardId?: string;
+  wardName?: string;
+  wardNumber?: string;
   city?: string;
+  municipality?: string;
+  province?: string;
 }
 
 export interface User {
@@ -53,7 +58,11 @@ export interface User {
   phone?: string;
   role: CitizenRole;
   ward?: string;
+  wardId?: string;
+  homeArea?: string;
   address?: string;
+  city?: string;
+  municipality?: string;
   location?: WardLocation;
   language: "English" | "Nepali";
   isPublic: boolean;
@@ -76,6 +85,10 @@ export interface Officer {
   phone?: string;
   role: OfficerRole;
   ward?: string;
+  wardId?: string;
+  wardNumber?: string;
+  city?: string;
+  municipality?: string;
   department: string;
   avatarUrl?: string;
   isActive: boolean;
@@ -87,6 +100,13 @@ export interface Officer {
 export interface ComplaintLocation extends WardLocation {}
 
 export interface ComplaintAiAnalysis {
+  // Snake-case fields are stored for the database/reporting contract requested by the AI task.
+  detected_category: ComplaintCategory;
+  confidence_score: number;
+  severity: "low" | "medium" | "high" | "critical";
+  estimated_resolution_days: number;
+  duplicate_probability: number;
+  // Camel-case fields are kept so existing controllers and mobile screens do not need to change.
   detectedCategory: ComplaintCategory;
   confidence: number;
   severityLabel: "low" | "medium" | "high" | "critical";
@@ -100,11 +120,24 @@ export interface ComplaintAiAnalysis {
     complaintNo?: string;
     title?: string;
     distanceMeters?: number;
+    probability?: number;
   };
   verified: boolean;
   summary: string;
   keywords: string[];
   analyzedAt: Date;
+}
+
+export interface ComplaintAiMetadata {
+  provider: "mock" | "gemini";
+  model?: string;
+  source: "background_queue" | "manual";
+  completedAt: Date;
+  routedDepartment: string;
+  duplicateCount: number;
+  priority: ComplaintPriority;
+  priorityScore: number;
+  priorityReasons: string[];
 }
 
 export interface Complaint {
@@ -118,7 +151,17 @@ export interface Complaint {
   category: ComplaintCategory;
   status: ComplaintStatus;
   priority: ComplaintPriority;
+  calculatedPriority?: ComplaintPriority;
+  priorityScore?: number;
+  priorityReasons: string[];
+  priorityOverriddenBy?: Types.ObjectId | string;
+  priorityOverriddenAt?: Date;
+  priorityOverrideReason?: string;
+  duplicateOfComplaintId?: Types.ObjectId | string;
+  duplicateSimilarityScore?: number;
+  duplicateCheckedAt?: Date;
   aiAnalysis?: ComplaintAiAnalysis;
+  aiMetadata?: ComplaintAiMetadata;
   aiVerified: boolean;
   aiSuggestedCategory?: string;
   aiSeverity?: number;
@@ -127,6 +170,10 @@ export interface Complaint {
   embedding: number[];
   assignedOfficerId?: Types.ObjectId | string;
   assignedOfficerName?: string;
+  assignedDepartment?: string;
+  departmentOverriddenBy?: Types.ObjectId | string;
+  departmentOverriddenAt?: Date;
+  departmentOverrideReason?: string;
   rejectionReason?: string;
   resolutionNote?: string;
   upvoteCount: number;
@@ -143,7 +190,11 @@ export interface CreateUserDto {
   password: string;
   phone?: string;
   ward?: string;
+  wardId?: string;
   address?: string;
+  city?: string;
+  municipality?: string;
+  homeArea?: string;
   location?: WardLocation;
   googleId?: string;
   isGoogleUser?: boolean;
@@ -203,6 +254,7 @@ export interface UpdateComplaintDto {
 export interface ComplaintFilterDto {
   ward?: string;
   wardId?: string;
+  city?: string;
   category?: ComplaintCategory;
   status?: ComplaintStatus;
   priority?: ComplaintPriority | "high";
@@ -218,6 +270,9 @@ export interface AuthUser {
   role: UserRole;
   phone?: string;
   ward?: string;
+  wardId?: string;
+  city?: string;
+  municipality?: string;
   department?: string;
   isGoogleUser?: boolean;
   avatarUrl?: string;
@@ -256,8 +311,27 @@ export interface ComplaintPayload {
   category: ComplaintCategory;
   status: ComplaintStatus;
   priority: ComplaintPriority;
+  calculatedPriority?: ComplaintPriority;
+  priorityScore?: number;
+  priorityReasons: string[];
+  priorityOverriddenBy?: string;
+  priorityOverriddenAt?: Date;
+  priorityOverrideReason?: string;
+  duplicateOfComplaintId?: string;
+  duplicateSimilarityScore?: number;
+  duplicateCheckedAt?: Date;
   progress: number;
   aiAnalysis?: ComplaintAiAnalysis;
+  aiMetadata?: ComplaintAiMetadata;
+  ai?: {
+    analysis?: ComplaintAiAnalysis;
+    metadata?: ComplaintAiMetadata;
+    verified: boolean;
+    suggestedCategory?: string;
+    severity?: number;
+    summary?: string;
+    keywords: string[];
+  };
   aiVerified: boolean;
   aiSuggestedCategory?: string;
   aiSeverity?: number;
@@ -266,6 +340,10 @@ export interface ComplaintPayload {
   embedding: number[];
   assignedOfficerId?: string;
   assignedOfficerName?: string;
+  assignedDepartment?: string;
+  departmentOverriddenBy?: string;
+  departmentOverriddenAt?: Date;
+  departmentOverrideReason?: string;
   rejectionReason?: string;
   resolutionNote?: string;
   upvotes: number;

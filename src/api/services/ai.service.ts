@@ -1,5 +1,4 @@
 import type { Content } from "@google/generative-ai";
-import ComplaintModel from "../models/Complaint";
 import { geminiModel } from "../config/gemini";
 import {
   COMPLAINT_CATEGORIES,
@@ -9,6 +8,8 @@ import {
 } from "../types";
 import { AppError } from "../utils/appError";
 import { normalizeCategory } from "../utils/request.utils";
+import { getDepartmentForCategory } from "./department-routing.service";
+import { detectDuplicateComplaint } from "./duplicate-detection.service";
 
 export type AnalysisResult = ComplaintAiAnalysis;
 
@@ -22,14 +23,11 @@ interface AnalyzeInput {
   photoUrl?: string;
 }
 
-const categoryDepartmentMap: Record<ComplaintCategory, string> = {
-  road: "Roads and Infrastructure",
-  water: "Water Supply and Drainage",
-  power: "Electricity Coordination Desk",
-  waste: "Waste Management",
-  trees: "Parks and Urban Forestry",
-  other: "Ward Office Review Desk",
-};
+// Every AI provider must implement this small contract. Controllers call analyzeComplaint()
+// only, so a real model can replace the mock without controller changes.
+interface ComplaintAnalyzer {
+  analyze(input: AnalyzeInput): Promise<AnalysisResult>;
+}
 
 const priorityEtaMap: Record<ComplaintPriority, number> = {
   low: 10,
@@ -144,29 +142,74 @@ function extractKeywords(description: string, category: ComplaintCategory): stri
   return unique.slice(0, 5);
 }
 
-async function findDuplicate(input: AnalyzeInput, category: ComplaintCategory) {
-  const titleText = input.title?.trim();
-  const keyword = titleText || input.description.split(/\s+/).slice(0, 5).join(" ");
-  const candidate = await ComplaintModel.findOne({
-    category,
-    status: { $ne: "resolved" },
-    $text: keyword ? { $search: keyword } : undefined,
-  }).sort({ createdAt: -1 });
+function buildAnalysisResult(input: {
+  detectedCategory: ComplaintCategory;
+  confidence: number;
+  severityLabel: AnalysisResult["severityLabel"];
+  sizeEstimate?: string;
+  priority: ComplaintPriority;
+  department: string;
+  etaDays: number;
+  duplicateCheck: AnalysisResult["duplicateCheck"];
+  verified: boolean;
+  summary: string;
+  keywords: string[];
+}): AnalysisResult {
+  // The snake-case fields mirror the exact values used by the app-facing camel-case fields.
+  // Keeping both lets the database satisfy the complaint_ai shape without breaking current UI code.
+  return {
+    detected_category: input.detectedCategory,
+    confidence_score: input.confidence,
+    severity: input.severityLabel,
+    estimated_resolution_days: input.etaDays,
+    duplicate_probability: input.duplicateCheck.probability ?? 0,
+    detectedCategory: input.detectedCategory,
+    confidence: input.confidence,
+    severityLabel: input.severityLabel,
+    sizeEstimate: input.sizeEstimate,
+    priority: input.priority,
+    department: input.department,
+    etaDays: input.etaDays,
+    duplicateCheck: input.duplicateCheck,
+    verified: input.verified,
+    summary: input.summary,
+    keywords: input.keywords,
+    analyzedAt: new Date(),
+  };
+}
 
-  if (!candidate) {
+async function findDuplicate(input: AnalyzeInput, category: ComplaintCategory) {
+  const duplicate = await detectDuplicateComplaint({
+    category,
+    description: input.description,
+    lat: input.lat,
+    lng: input.lng,
+  });
+
+  if (!duplicate.duplicate_found) {
     return {
       isDuplicate: false,
+      complaintId: duplicate.duplicate_complaint_id,
+      complaintNo: duplicate.duplicate_complaint_no,
+      title: duplicate.duplicate_title,
+      distanceMeters: duplicate.distance_meters,
+      probability: duplicate.similarity_score,
     };
   }
 
   return {
     isDuplicate: true,
-    complaintId: candidate._id.toString(),
-    complaintNo: candidate.complaintNo,
-    title: candidate.title,
-    distanceMeters: input.lat && input.lng ? 280 : undefined,
+    complaintId: duplicate.duplicate_complaint_id,
+    complaintNo: duplicate.duplicate_complaint_no,
+    title: duplicate.duplicate_title,
+    distanceMeters: duplicate.distance_meters,
+    probability: duplicate.similarity_score,
   };
 }
+
+const mockAnalyzer: ComplaintAnalyzer = {
+  analyze: mockAnalyzeComplaint,
+};
 
 async function mockAnalyzeComplaint(input: AnalyzeInput): Promise<AnalysisResult> {
   const category = input.category ?? inferCategory(input.description);
@@ -181,20 +224,22 @@ async function mockAnalyzeComplaint(input: AnalyzeInput): Promise<AnalysisResult
     98,
   );
 
-  return {
+  const sizeEstimate = estimateSize(input.description, input.photoCount);
+  const duplicateCheck = await findDuplicate(input, category);
+
+  return buildAnalysisResult({
     detectedCategory: category,
     confidence,
     severityLabel,
-    sizeEstimate: estimateSize(input.description, input.photoCount),
+    sizeEstimate,
     priority,
-    department: categoryDepartmentMap[category],
+    department: getDepartmentForCategory(category),
     etaDays: priorityEtaMap[priority],
-    duplicateCheck: await findDuplicate(input, category),
+    duplicateCheck,
     verified: confidence >= 70,
-    summary: `${categoryDepartmentMap[category]} should review this ${severityLabel} priority complaint. The report suggests ${estimateSize(input.description, input.photoCount).toLowerCase()}.`,
+    summary: `${getDepartmentForCategory(category)} should review this ${severityLabel} priority complaint. The report suggests ${sizeEstimate.toLowerCase()}.`,
     keywords: extractKeywords(input.description, category),
-    analyzedAt: new Date(),
-  };
+  });
 }
 
 async function fetchImageAsBase64(imageUrl: string): Promise<string> {
@@ -214,7 +259,7 @@ async function geminiAnalyzeComplaint(input: AnalyzeInput): Promise<AnalysisResu
   }
 
   const categories = COMPLAINT_CATEGORIES.join(", ");
-  const systemPrompt = `Analyze a Nepal ward-level civic complaint. Return JSON only with keys detectedCategory, confidence, severityLabel, sizeEstimate, priority, department, etaDays, verified, summary, keywords. Use categories ${categories}. Use priorities low, medium, high, critical.`;
+  const systemPrompt = `Analyze a Nepal ward-level civic complaint. Return JSON only with keys detected_category, confidence_score, severity, priority, department, estimated_resolution_days, duplicate_probability, summary, keywords. Use categories ${categories}. Use priorities low, medium, high, critical.`;
   const text = `Title: ${input.title ?? ""}\nCategory hint: ${input.category ?? ""}\nDescription: ${input.description}`;
   const parts: Content["parts"] = [{ text }];
 
@@ -240,28 +285,49 @@ async function geminiAnalyzeComplaint(input: AnalyzeInput): Promise<AnalysisResu
 
   const parsed = JSON.parse(jsonMatch[0]) as Partial<AnalysisResult>;
   const detectedCategory =
-    normalizeCategory(parsed.detectedCategory, false) ?? input.category ?? "other";
+    normalizeCategory(parsed.detected_category ?? parsed.detectedCategory, false) ??
+    input.category ??
+    "other";
   const priority = (parsed.priority && ["low", "medium", "high", "critical"].includes(parsed.priority)
     ? parsed.priority
     : inferPriority(input.description, detectedCategory)) as ComplaintPriority;
+  const duplicateCheck = await findDuplicate(input, detectedCategory);
+  const duplicateProbability =
+    typeof parsed.duplicate_probability === "number"
+      ? clamp(parsed.duplicate_probability, 0, 1)
+      : duplicateCheck.probability;
+  const etaDays = clamp(
+    Number(parsed.estimated_resolution_days ?? parsed.etaDays ?? priorityEtaMap[priority]),
+    1,
+    30,
+  );
 
-  return {
+  return buildAnalysisResult({
     detectedCategory,
-    confidence: clamp(Number(parsed.confidence ?? 75), 0, 100),
-    severityLabel: severityFromPriority(priority),
+    confidence: clamp(Number(parsed.confidence_score ?? parsed.confidence ?? 75), 0, 100),
+    severityLabel:
+      parsed.severity && ["low", "medium", "high", "critical"].includes(parsed.severity)
+        ? parsed.severity
+        : severityFromPriority(priority),
     sizeEstimate: parsed.sizeEstimate || estimateSize(input.description, input.photoCount),
     priority,
-    department: parsed.department || categoryDepartmentMap[detectedCategory],
-    etaDays: clamp(Number(parsed.etaDays ?? priorityEtaMap[priority]), 1, 30),
-    duplicateCheck: await findDuplicate(input, detectedCategory),
+    department: parsed.department || getDepartmentForCategory(detectedCategory),
+    etaDays,
+    duplicateCheck: {
+      ...duplicateCheck,
+      probability: duplicateProbability,
+    },
     verified: Boolean(parsed.verified ?? true),
-    summary: parsed.summary || `${categoryDepartmentMap[detectedCategory]} should review this complaint.`,
+    summary: parsed.summary || `${getDepartmentForCategory(detectedCategory)} should review this complaint.`,
     keywords: Array.isArray(parsed.keywords)
       ? parsed.keywords.map(String).slice(0, 5)
       : extractKeywords(input.description, detectedCategory),
-    analyzedAt: new Date(),
-  };
+  });
 }
+
+const geminiAnalyzer: ComplaintAnalyzer = {
+  analyze: geminiAnalyzeComplaint,
+};
 
 export async function analyzeComplaint(inputOrDescription: AnalyzeInput | string, photoUrl?: string): Promise<AnalysisResult> {
   const input =
@@ -274,13 +340,13 @@ export async function analyzeComplaint(inputOrDescription: AnalyzeInput | string
   }
 
   if (!geminiModel || process.env.AI_PROVIDER?.toLowerCase() === "mock") {
-    return mockAnalyzeComplaint(input);
+    return mockAnalyzer.analyze(input);
   }
 
   try {
-    return await geminiAnalyzeComplaint(input);
+    return await geminiAnalyzer.analyze(input);
   } catch (error) {
     console.warn("AI provider failed; using mock complaint analysis.", error);
-    return mockAnalyzeComplaint(input);
+    return mockAnalyzer.analyze(input);
   }
 }

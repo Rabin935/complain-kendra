@@ -14,8 +14,10 @@ import {
   listEscalationRules,
   listOfficerComplaints,
   listUsers,
+  runWorkflowAction,
   setUserBan,
   updateEscalationRule,
+  updateDepartmentAssignment,
   updateOfficerSettings,
   updatePriority,
   updateStatus,
@@ -53,8 +55,8 @@ export async function dashboard(request: Request, response: Response, next: Next
 
 export async function complaints(request: Request, response: Response, next: NextFunction) {
   try {
-    requireOfficerUser(request);
-    const result = await listOfficerComplaints(request.query as Record<string, unknown>);
+    const officer = requireOfficerUser(request);
+    const result = await listOfficerComplaints(request.query as Record<string, unknown>, officer);
 
     response.status(200).json({
       success: true,
@@ -71,8 +73,8 @@ export async function complaintDetail(
   next: NextFunction,
 ) {
   try {
-    requireOfficerUser(request);
-    const result = await getOfficerComplaintDetail(request.params.id);
+    const officer = requireOfficerUser(request);
+    const result = await getOfficerComplaintDetail(request.params.id, officer);
 
     response.status(200).json({
       success: true,
@@ -111,6 +113,78 @@ export async function patchStatus(
   } catch (error) {
     next(error);
   }
+}
+
+function getWorkflowReason(request: Request): string | undefined {
+  const body = request.body as Record<string, unknown>;
+  return getString(body.reason ?? body.note ?? body.resolutionNote);
+}
+
+async function runComplaintWorkflowController(
+  request: Request<{ id: string }>,
+  response: Response,
+  next: NextFunction,
+  action: "accept" | "start_work" | "resolve" | "reject" | "reopen",
+  message: string,
+) {
+  try {
+    const complaint = await runWorkflowAction({
+      complaintId: request.params.id,
+      action,
+      reason: getWorkflowReason(request),
+      actor: requireOfficerUser(request),
+    });
+
+    response.status(200).json({
+      success: true,
+      message,
+      complaint,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function acceptComplaint(
+  request: Request<{ id: string }>,
+  response: Response,
+  next: NextFunction,
+) {
+  // Accepting confirms the complaint is valid, but work has not started yet.
+  await runComplaintWorkflowController(request, response, next, "accept", "Complaint accepted.");
+}
+
+export async function startWork(
+  request: Request<{ id: string }>,
+  response: Response,
+  next: NextFunction,
+) {
+  // Starting work moves the complaint into the active officer queue.
+  await runComplaintWorkflowController(request, response, next, "start_work", "Work started.");
+}
+
+export async function resolveComplaint(
+  request: Request<{ id: string }>,
+  response: Response,
+  next: NextFunction,
+) {
+  await runComplaintWorkflowController(request, response, next, "resolve", "Complaint resolved.");
+}
+
+export async function rejectComplaint(
+  request: Request<{ id: string }>,
+  response: Response,
+  next: NextFunction,
+) {
+  await runComplaintWorkflowController(request, response, next, "reject", "Complaint rejected.");
+}
+
+export async function reopenComplaint(
+  request: Request<{ id: string }>,
+  response: Response,
+  next: NextFunction,
+) {
+  await runComplaintWorkflowController(request, response, next, "reopen", "Complaint reopened.");
 }
 
 export async function patchAssign(
@@ -157,12 +231,43 @@ export async function patchPriority(
     const complaint = await updatePriority({
       complaintId: request.params.id,
       priority,
+      reason: getString((request.body as Record<string, unknown>).reason),
       actor: requireOfficerUser(request),
     });
 
     response.status(200).json({
       success: true,
       message: "Complaint priority updated.",
+      complaint,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function patchDepartment(
+  request: Request<{ id: string }>,
+  response: Response,
+  next: NextFunction,
+) {
+  try {
+    const body = request.body as Record<string, unknown>;
+    const department = getString(body.department ?? body.assignedDepartment);
+
+    if (!department) {
+      throw new AppError("Department is required.", 400);
+    }
+
+    const complaint = await updateDepartmentAssignment({
+      complaintId: request.params.id,
+      department,
+      reason: getString(body.reason),
+      actor: requireOfficerUser(request),
+    });
+
+    response.status(200).json({
+      success: true,
+      message: "Department assignment updated.",
       complaint,
     });
   } catch (error) {
@@ -210,9 +315,9 @@ export async function officialComment(
   }
 }
 
-export async function analytics(_request: Request, response: Response, next: NextFunction) {
+export async function analytics(request: Request, response: Response, next: NextFunction) {
   try {
-    const result = await analyticsSummary();
+    const result = await analyticsSummary(requireOfficerUser(request));
 
     response.status(200).json({
       success: true,

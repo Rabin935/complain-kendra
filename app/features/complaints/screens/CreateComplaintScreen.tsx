@@ -24,6 +24,7 @@ import {
   followComplaint,
   submitCitizenComplaint,
 } from "../../user/services/citizen.service";
+import { lookupWardForCoordinates } from "../../user/services/ward.service";
 import type {
   AiAnalysisResult,
   CitizenComplaint,
@@ -113,6 +114,7 @@ function getCurrentCoordinates(): Promise<{ lat: number; lng: number }> {
 function getWardFromAddress(address: ReverseGeocodeAddress | undefined, displayName: string): {
   ward: string;
   wardId: string;
+  wardNumber: string;
 } {
   const wardMatch = displayName.match(/ward\s*(?:no\.?\s*)?(\d+)/i);
 
@@ -120,6 +122,7 @@ function getWardFromAddress(address: ReverseGeocodeAddress | undefined, displayN
     return {
       ward: `Ward ${wardMatch[1]}`,
       wardId: wardMatch[1],
+      wardNumber: wardMatch[1],
     };
   }
 
@@ -129,12 +132,14 @@ function getWardFromAddress(address: ReverseGeocodeAddress | undefined, displayN
     return {
       ward: `Ward ${countyMatch[0]}`,
       wardId: countyMatch[0],
+      wardNumber: countyMatch[0],
     };
   }
 
   return {
     ward: sampleLocation.ward,
     wardId: sampleLocation.wardId,
+    wardNumber: sampleLocation.wardNumber ?? "12",
   };
 }
 
@@ -150,7 +155,8 @@ async function reverseGeocodeCoordinates(lat: number, lng: number): Promise<Citi
   const result = (await response.json()) as ReverseGeocodeResult;
   const address = result.address;
   const displayName = result.display_name ?? `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-  const ward = getWardFromAddress(address, displayName);
+  const derivedWard = getWardFromAddress(address, displayName);
+  const wardRecord = await lookupWardForCoordinates(lat, lng);
   const area = address?.neighbourhood ?? address?.suburb ?? address?.road ?? sampleLocation.area;
   const city =
     address?.city ??
@@ -162,9 +168,13 @@ async function reverseGeocodeCoordinates(lat: number, lng: number): Promise<Citi
   return {
     address: displayName,
     area,
-    ward: ward.ward,
-    wardId: ward.wardId,
-    city,
+    ward: wardRecord?.wardName ?? derivedWard.ward,
+    wardId: wardRecord?.id ?? derivedWard.wardId,
+    wardName: wardRecord?.wardName ?? derivedWard.ward,
+    wardNumber: wardRecord?.wardNumber ?? derivedWard.wardNumber,
+    city: wardRecord?.city ?? city,
+    municipality: wardRecord?.municipality ?? sampleLocation.municipality,
+    province: wardRecord?.province ?? sampleLocation.province,
     lat,
     lng,
   };
@@ -345,7 +355,10 @@ export default function CreateComplaintScreen() {
       area: location.area,
       ward: location.ward,
       wardId: location.wardId,
+      wardNumber: location.wardNumber,
       city: location.city,
+      municipality: location.municipality,
+      province: location.province,
       photos,
     };
   }
@@ -458,7 +471,16 @@ export default function CreateComplaintScreen() {
   }
 
   async function followDuplicate() {
-    const duplicateId = aiResult?.duplicateCheck.complaintNo ?? "existing";
+    const duplicateId = aiResult?.duplicateCheck.complaintId;
+
+    if (!duplicateId) {
+      setErrors((current) => ({
+        ...current,
+        photos: "Could not find the existing complaint to follow.",
+      }));
+      return;
+    }
+
     await followComplaint(duplicateId, true);
     setDuplicateChoice("followed");
   }
@@ -480,7 +502,10 @@ export default function CreateComplaintScreen() {
     setSubmitting(true);
 
     try {
-      const result = await submitCitizenComplaint(buildPayload(category));
+      const result = await submitCitizenComplaint({
+        ...buildPayload(category),
+        continueAsNew: duplicateChoice === "new",
+      });
       setSuccessComplaint(result.data);
       setAiWarning(null);
       setErrors({});
@@ -957,7 +982,7 @@ function StepThree({
           <View style={styles.duplicateBody}>
             <Text style={styles.duplicateTitle}>Similar complaint already exists nearby</Text>
             <Text style={styles.duplicateText}>
-              {aiResult.duplicateCheck.complaintNo} · {aiResult.duplicateCheck.title} · {aiResult.duplicateCheck.distanceMeters}m away
+              {aiResult.duplicateCheck.complaintNo} · {aiResult.duplicateCheck.title} · {aiResult.duplicateCheck.distanceMeters}m away · {Math.round((aiResult.duplicateCheck.similarityScore ?? 0) * 100)}% similar
             </Text>
             <View style={styles.duplicateActions}>
               <Pressable

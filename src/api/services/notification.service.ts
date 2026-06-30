@@ -4,6 +4,7 @@ import { emitRealtimeEvent } from "../sockets/realtime";
 
 interface CreateNotificationInput {
   userId: string;
+  recipientType?: "citizen" | "officer";
   title: string;
   body: string;
   type:
@@ -20,19 +21,27 @@ interface CreateNotificationInput {
 }
 
 export async function createNotification(input: CreateNotificationInput) {
-  const preference = await NotificationPreferenceModel.findOneAndUpdate(
-    { userId: input.userId },
-    { $setOnInsert: { userId: input.userId } },
-    { new: true, upsert: true },
-  );
+  const recipientType = input.recipientType ?? "citizen";
 
-  if (!preference.inApp) {
-    return null;
+  if (recipientType === "citizen") {
+    const preference = await NotificationPreferenceModel.findOneAndUpdate(
+      { userId: input.userId },
+      { $setOnInsert: { userId: input.userId } },
+      { new: true, upsert: true },
+    );
+
+    if (!preference.inApp) {
+      return null;
+    }
   }
 
-  const notification = await NotificationModel.create(input);
+  const notification = await NotificationModel.create({
+    ...input,
+    recipientType,
+  });
   emitRealtimeEvent("notification:new", {
     userId: input.userId,
+    recipientType,
     notification,
   });
 

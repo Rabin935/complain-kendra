@@ -6,6 +6,7 @@ import type {
 
 export const statusLabels: Record<CitizenComplaintStatus, string> = {
   pending: "Pending",
+  accepted: "Accepted",
   in_progress: "In Progress",
   resolved: "Resolved",
   rejected: "Rejected",
@@ -13,6 +14,7 @@ export const statusLabels: Record<CitizenComplaintStatus, string> = {
 
 export const statusColors: Record<CitizenComplaintStatus, string> = {
   pending: colors.warning,
+  accepted: colors.info,
   in_progress: colors.info,
   resolved: colors.success,
   rejected: colors.error,

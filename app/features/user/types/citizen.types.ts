@@ -1,6 +1,6 @@
 export type CitizenComplaintCategory = "road" | "water" | "power" | "waste" | "trees" | "other";
 
-export type CitizenComplaintStatus = "pending" | "in_progress" | "resolved" | "rejected";
+export type CitizenComplaintStatus = "pending" | "accepted" | "in_progress" | "resolved" | "rejected";
 
 export type CitizenComplaintPriority = "normal" | "high" | "critical";
 
@@ -9,7 +9,11 @@ export interface CitizenLocation {
   area: string;
   ward: string;
   wardId: string;
+  wardName?: string;
+  wardNumber?: string;
   city: string;
+  municipality?: string;
+  province?: string;
   lat: number;
   lng: number;
 }
@@ -118,9 +122,11 @@ export interface AiAnalysisResult {
   keywords?: string[];
   duplicateCheck: {
     isDuplicate: boolean;
+    complaintId?: string;
     complaintNo?: string;
     title?: string;
     distanceMeters?: number;
+    similarityScore?: number;
   };
 }
 
@@ -141,8 +147,12 @@ export interface CreateReportPayload {
   area: string;
   ward: string;
   wardId: string;
+  wardNumber?: string;
   city: string;
+  municipality?: string;
+  province?: string;
   photos: ReportPhoto[];
+  continueAsNew?: boolean;
 }
 
 export interface CitizenServiceResult<T> {
