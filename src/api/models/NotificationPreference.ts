@@ -8,6 +8,9 @@ export interface NotificationPreference {
   sms: boolean;
   complaintUpdates: boolean;
   comments: boolean;
+  followers: boolean;
+  officerUpdates: boolean;
+  leaderboard: boolean;
   badges: boolean;
   deviceTokens: string[];
   createdAt: Date;
@@ -35,6 +38,9 @@ const notificationPreferenceSchema = new Schema<
     sms: { type: Boolean, default: false, required: true },
     complaintUpdates: { type: Boolean, default: true, required: true },
     comments: { type: Boolean, default: true, required: true },
+    followers: { type: Boolean, default: true, required: true },
+    officerUpdates: { type: Boolean, default: true, required: true },
+    leaderboard: { type: Boolean, default: true, required: true },
     badges: { type: Boolean, default: true, required: true },
     deviceTokens: { type: [String], default: [] },
   },

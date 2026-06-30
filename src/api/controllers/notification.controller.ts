@@ -115,6 +115,9 @@ export async function updatePreferences(
       "sms",
       "complaintUpdates",
       "comments",
+      "followers",
+      "officerUpdates",
+      "leaderboard",
       "badges",
     ];
     const updates: Record<string, boolean> = {};
