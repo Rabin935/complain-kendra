@@ -12,6 +12,7 @@ import {
   getRate,
   getTimeline,
   rate,
+  removeUpvote,
   unfollow,
   update,
   uploadPhoto,
@@ -55,6 +56,7 @@ complaintRouter.get("/:id/timeline", getTimeline);
 complaintRouter.get("/:id/rate", protect, requireCitizen, getRate);
 complaintRouter.post("/:id/rate", protect, requireCitizen, rate);
 complaintRouter.post("/:id/upvote", protect, requireCitizen, upvote);
+complaintRouter.delete("/:id/upvote", protect, requireCitizen, removeUpvote);
 complaintRouter.post("/:id/follow", protect, requireCitizen, follow);
 complaintRouter.delete("/:id/follow", protect, requireCitizen, unfollow);
 complaintRouter.get("/:id", getById);

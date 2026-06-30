@@ -1013,6 +1013,33 @@ export async function upvoteComplaint(id: string, userId: string) {
   return toComplaintPayload(complaint);
 }
 
+export async function removeComplaintUpvote(id: string, userId: string) {
+  const complaintId = requireObjectId(id, "complaint id");
+  const normalizedUserId = requireObjectId(userId, "user id");
+  const complaint = await ComplaintModel.findById(complaintId);
+
+  if (!complaint) {
+    throw new AppError("Complaint not found.", 404);
+  }
+
+  const deleted = await ComplaintUpvoteModel.deleteOne({
+    complaintId,
+    userId: normalizedUserId,
+  });
+
+  if (deleted.deletedCount > 0) {
+    complaint.upvoteCount = Math.max(0, complaint.upvoteCount - 1);
+    await complaint.save();
+  }
+
+  emitRealtimeEvent("complaint:upvote_removed", {
+    complaintId,
+    upvotes: complaint.upvoteCount,
+  });
+
+  return toComplaintPayload(complaint);
+}
+
 export async function followComplaint(id: string, userId: string) {
   const complaintId = requireObjectId(id, "complaint id");
   const normalizedUserId = requireObjectId(userId, "user id");

@@ -12,6 +12,7 @@ import {
   getMyComplaints as getMyComplaintsService,
   getNearbyComplaints as getNearbyComplaintsService,
   rateComplaint as rateComplaintService,
+  removeComplaintUpvote as removeComplaintUpvoteService,
   unfollowComplaint as unfollowComplaintService,
   updateComplaint as updateComplaintService,
   uploadComplaintPhoto as uploadComplaintPhotoService,
@@ -358,6 +359,27 @@ export async function upvote(
     response.status(200).json({
       success: true,
       message: "Complaint upvoted.",
+      complaint,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function removeUpvote(
+  request: Request<{ id: string }>,
+  response: Response<ComplaintResponse>,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const complaint = await removeComplaintUpvoteService(
+      request.params.id,
+      requireAuthenticatedUser(request).subjectId,
+    );
+
+    response.status(200).json({
+      success: true,
+      message: "Complaint upvote removed.",
       complaint,
     });
   } catch (error) {
