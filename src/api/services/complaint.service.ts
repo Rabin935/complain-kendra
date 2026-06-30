@@ -869,6 +869,29 @@ export async function getComplaintById(
   return toComplaintPayload(complaint, { followed });
 }
 
+export async function getComplaintDetail(
+  id: string,
+  actor?: JwtUserPayload,
+) {
+  const normalizedComplaintId = requireObjectId(id, "complaint id");
+  const [complaint, timeline, comments] = await Promise.all([
+    getComplaintById(normalizedComplaintId, actor),
+    getComplaintTimeline(normalizedComplaintId, actor?.type === "officer"),
+    CommentModel.find({
+      complaintId: normalizedComplaintId,
+      deletedAt: undefined,
+    })
+      .sort({ createdAt: 1 })
+      .limit(100),
+  ]);
+
+  return {
+    complaint,
+    timeline,
+    comments,
+  };
+}
+
 export async function getComplaintTimeline(id: string, includeInternal = false) {
   const complaintId = requireObjectId(id, "complaint id");
   const query: Record<string, unknown> = { complaintId };

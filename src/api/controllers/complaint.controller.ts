@@ -6,7 +6,7 @@ import {
   deleteComplaint as deleteComplaintService,
   followComplaint as followComplaintService,
   getAllComplaints as getAllComplaintsService,
-  getComplaintById as getComplaintByIdService,
+  getComplaintDetail as getComplaintDetailService,
   getComplaintRating as getComplaintRatingService,
   getComplaintTimeline as getComplaintTimelineService,
   getMyComplaints as getMyComplaintsService,
@@ -230,15 +230,15 @@ export async function getMy(
 
 export async function getById(
   request: Request<{ id: string }>,
-  response: Response<ComplaintResponse>,
+  response: Response,
   next: NextFunction,
 ): Promise<void> {
   try {
-    const complaint = await getComplaintByIdService(request.params.id, request.user);
+    const detail = await getComplaintDetailService(request.params.id, request.user);
 
     response.status(200).json({
       success: true,
-      complaint,
+      ...detail,
     });
   } catch (error) {
     next(error);
