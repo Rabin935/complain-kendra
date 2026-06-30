@@ -51,3 +51,11 @@ Sprint 5 turns ComplainKendra from a private complaint tracker into a public civ
 - Badges unlock automatically from point progress.
 - Leaderboard APIs expose public rankings while respecting private profiles.
 - The frontend displays a leaderboard preview in the citizen profile flow.
+
+## Resolution Rating Acceptance
+
+- Only resolved complaints can be rated.
+- Only the complaint owner can rate the resolution.
+- Ratings accept one to five stars and optional feedback text.
+- Each complaint can have one rating per owner, updated through upsert behavior.
+- Rating summaries expose complaint, officer, and department aggregates.
