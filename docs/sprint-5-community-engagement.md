@@ -27,3 +27,11 @@ Sprint 5 turns ComplainKendra from a private complaint tracker into a public civ
 - Authors can edit or delete their own comments.
 - Officer comments can be flagged as official and shown with an official badge.
 - Complaint comment counts update when comments are added or removed.
+
+## Engagement Acceptance
+
+- Citizens can follow and unfollow complaints.
+- Citizens can upvote and remove their upvote from complaints.
+- Duplicate follows and duplicate upvotes are prevented by unique engagement records.
+- Complaint follower and upvote counts update automatically after each action.
+- Complaint owners are notified when another citizen follows or upvotes their complaint.
