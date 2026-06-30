@@ -15,14 +15,29 @@ import type {
   ComplaintComment,
   ComplaintDetailPayload,
   ComplaintTimelineItem,
+  CitizenLeaderboardEntry,
   CitizenNotification,
   CitizenProfile,
   CitizenServiceResult,
   CitizenStats,
   CreateReportPayload,
+  NotificationPreferences,
+  ResolutionRatingPayload,
 } from "../types/citizen.types";
 
 const API_PREFIX = "/api/v1";
+const defaultNotificationPreferences: NotificationPreferences = {
+  inApp: true,
+  email: true,
+  push: false,
+  sms: false,
+  complaintUpdates: true,
+  comments: true,
+  followers: true,
+  officerUpdates: true,
+  leaderboard: true,
+  badges: true,
+};
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -259,15 +274,18 @@ function normalizeTimelineItem(raw: unknown, index: number): ComplaintTimelineIt
 
 function normalizeComment(raw: unknown, index: number): ComplaintComment {
   const item = isRecord(raw) ? raw : {};
+  const replies = Array.isArray(item.replies) ? item.replies.map(normalizeComment) : [];
 
   return {
     id: stringFrom(item.id ?? item._id, `comment-${index}`),
+    parentId: stringFrom(item.parentId ?? item.parent_id, ""),
     authorName: stringFrom(item.authorName, "Citizen"),
     authorType: stringFrom(item.authorType, "citizen") === "officer" ? "officer" : "citizen",
     official: booleanFrom(item.official, false),
     body: stringFrom(item.body, "Community update"),
     upvoteCount: numberFrom(item.upvoteCount, 0),
     createdAt: stringFrom(item.createdAt ?? item.created_at, new Date().toISOString()),
+    replies,
   };
 }
 
@@ -399,6 +417,46 @@ function normalizeAiAnalysis(payload: unknown): AiAnalysisResult {
   };
 }
 
+function normalizeNotificationPreferences(payload: unknown): NotificationPreferences {
+  const preferences = unwrapRecord(payload);
+
+  return {
+    inApp: booleanFrom(preferences.inApp, defaultNotificationPreferences.inApp),
+    email: booleanFrom(preferences.email, defaultNotificationPreferences.email),
+    push: booleanFrom(preferences.push, defaultNotificationPreferences.push),
+    sms: booleanFrom(preferences.sms, defaultNotificationPreferences.sms),
+    complaintUpdates: booleanFrom(
+      preferences.complaintUpdates,
+      defaultNotificationPreferences.complaintUpdates,
+    ),
+    comments: booleanFrom(preferences.comments, defaultNotificationPreferences.comments),
+    followers: booleanFrom(preferences.followers, defaultNotificationPreferences.followers),
+    officerUpdates: booleanFrom(
+      preferences.officerUpdates,
+      defaultNotificationPreferences.officerUpdates,
+    ),
+    leaderboard: booleanFrom(preferences.leaderboard, defaultNotificationPreferences.leaderboard),
+    badges: booleanFrom(preferences.badges, defaultNotificationPreferences.badges),
+  };
+}
+
+function normalizeLeaderboard(payload: unknown): CitizenLeaderboardEntry[] {
+  return unwrapArray<unknown>(payload, "leaderboard", []).map((item, index) => {
+    const row = isRecord(item) ? item : {};
+
+    return {
+      rank: numberFrom(row.rank, index + 1),
+      id: stringFrom(row.id ?? row._id, `leader-${index}`),
+      name: stringFrom(row.name, "Private citizen"),
+      ward: stringFrom(row.ward, ""),
+      points: numberFrom(row.points, 0),
+      level: numberFrom(row.level, 1),
+      levelTitle: stringFrom(row.levelTitle ?? row.level_title, "Community Starter"),
+      avatarUrl: stringFrom(row.avatarUrl, ""),
+    };
+  });
+}
+
 export async function fetchCitizenProfile(): Promise<CitizenServiceResult<CitizenProfile>> {
   return withSampleFallback(async () => {
     const response = await apiClient.get(`${API_PREFIX}/users/me`);
@@ -477,21 +535,29 @@ export async function fetchMyComplaints(options: {
 }
 
 export async function fetchPublicComplaints(options: {
+  search?: string;
   wardId?: string;
+  city?: string;
   category?: CitizenComplaintCategory | "all";
   status?: CitizenComplaintStatus | "all";
   priority?: "all" | "high";
-  sort?: "newest" | "upvotes" | "nearby";
+  sort?: "newest" | "oldest" | "upvotes" | "most_upvoted" | "nearby" | "nearest";
+  lat?: number;
+  lng?: number;
   page?: number;
   limit?: number;
 }): Promise<CitizenServiceResult<CitizenComplaint[]>> {
   return withSampleFallback(async () => {
     const response = await apiClient.get(`${API_PREFIX}/complaints`, {
       params: {
+        search: options.search,
         ward_id: options.wardId,
+        city: options.city,
         category: options.category && options.category !== "all" ? options.category : undefined,
         status: options.status && options.status !== "all" ? options.status : undefined,
         priority: options.priority === "high" ? "high" : undefined,
+        lat: options.lat,
+        lng: options.lng,
         page: options.page ?? 1,
         limit: options.limit ?? 12,
         sort: options.sort ?? "newest",
@@ -503,10 +569,13 @@ export async function fetchPublicComplaints(options: {
 
 export async function fetchComplaintById(id: string): Promise<ComplaintDetailPayload> {
   const response = await apiClient.get(`${API_PREFIX}/complaints/${id}`);
-  const complaint = normalizeComplaint(unwrapRecord(response.data).complaint ?? response.data, 0);
+  const payload = unwrapRecord(response.data);
+  const complaint = normalizeComplaint(payload.complaint ?? response.data, 0);
+  const timelineItems = unwrapArray<unknown>(response.data, "timeline", []);
+  const commentItems = unwrapArray<unknown>(response.data, "comments", []);
   const [timeline, comments] = await Promise.all([
-    fetchComplaintTimeline(id),
-    fetchComplaintComments(id),
+    timelineItems.length ? Promise.resolve(timelineItems.map(normalizeTimelineItem)) : fetchComplaintTimeline(id),
+    commentItems.length ? Promise.resolve(commentItems.map(normalizeComment)) : fetchComplaintComments(id),
   ]);
 
   return {
@@ -530,8 +599,45 @@ export async function fetchComplaintComments(id: string): Promise<ComplaintComme
   return items.map(normalizeComment);
 }
 
+export async function addComplaintComment(
+  complaintId: string,
+  body: string,
+  parentId?: string,
+): Promise<ComplaintComment> {
+  const response = await apiClient.post(`${API_PREFIX}/complaints/${complaintId}/comments`, {
+    body,
+    parentId,
+  });
+
+  return normalizeComment(unwrapRecord(response.data).comment, 0);
+}
+
+export async function editComplaintComment(
+  complaintId: string,
+  commentId: string,
+  body: string,
+): Promise<ComplaintComment> {
+  const response = await apiClient.patch(`${API_PREFIX}/complaints/${complaintId}/comments/${commentId}`, {
+    body,
+  });
+
+  return normalizeComment(unwrapRecord(response.data).comment, 0);
+}
+
+export async function deleteComplaintComment(complaintId: string, commentId: string): Promise<void> {
+  await apiClient.delete(`${API_PREFIX}/complaints/${complaintId}/comments/${commentId}`);
+}
+
+export async function upvoteComplaintComment(complaintId: string, commentId: string): Promise<void> {
+  await apiClient.post(`${API_PREFIX}/complaints/${complaintId}/comments/${commentId}/upvote`);
+}
+
 export async function upvoteComplaintApi(id: string): Promise<void> {
   await apiClient.post(`${API_PREFIX}/complaints/${id}/upvote`);
+}
+
+export async function removeComplaintUpvoteApi(id: string): Promise<void> {
+  await apiClient.delete(`${API_PREFIX}/complaints/${id}/upvote`);
 }
 
 export async function followComplaintApi(id: string): Promise<void> {
@@ -540,6 +646,39 @@ export async function followComplaintApi(id: string): Promise<void> {
 
 export async function unfollowComplaintApi(id: string): Promise<void> {
   await apiClient.delete(`${API_PREFIX}/complaints/${id}/follow`);
+}
+
+export async function rateComplaintResolution(
+  id: string,
+  payload: ResolutionRatingPayload,
+): Promise<void> {
+  await apiClient.post(`${API_PREFIX}/complaints/${id}/rate`, payload);
+}
+
+export async function fetchLeaderboard(): Promise<CitizenServiceResult<CitizenLeaderboardEntry[]>> {
+  return withSampleFallback(async () => {
+    const response = await apiClient.get(`${API_PREFIX}/leaderboard`);
+    return normalizeLeaderboard(response.data);
+  }, []);
+}
+
+export async function fetchNotificationPreferences(): Promise<CitizenServiceResult<NotificationPreferences>> {
+  return withSampleFallback(async () => {
+    const response = await apiClient.get(`${API_PREFIX}/notifications/preferences`);
+    return normalizeNotificationPreferences(response.data);
+  }, defaultNotificationPreferences);
+}
+
+export async function updateNotificationPreferences(
+  preferences: Partial<NotificationPreferences>,
+): Promise<CitizenServiceResult<NotificationPreferences>> {
+  return withSampleFallback(async () => {
+    const response = await apiClient.patch(`${API_PREFIX}/notifications/preferences`, preferences);
+    return normalizeNotificationPreferences(response.data);
+  }, {
+    ...defaultNotificationPreferences,
+    ...preferences,
+  });
 }
 
 export async function analyzeReportDraft(
