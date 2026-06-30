@@ -7,17 +7,21 @@ import {
   assignOfficer,
   createEscalationRule,
   deleteEscalationRule,
+  deleteInternalNote,
   getOfficerComplaintDetail,
   getOfficerDashboard,
   getOfficerProfile,
   getUserDetail,
+  listOfficers,
   listEscalationRules,
   listOfficerComplaints,
   listUsers,
+  removeAssignment,
   runWorkflowAction,
   setUserBan,
   updateEscalationRule,
   updateDepartmentAssignment,
+  updateInternalNote,
   updateOfficerSettings,
   updatePriority,
   updateStatus,
@@ -218,6 +222,27 @@ export async function patchAssign(
   }
 }
 
+export async function deleteAssign(
+  request: Request<{ id: string }>,
+  response: Response,
+  next: NextFunction,
+) {
+  try {
+    const complaint = await removeAssignment({
+      complaintId: request.params.id,
+      actor: requireOfficerUser(request),
+    });
+
+    response.status(200).json({
+      success: true,
+      message: "Officer assignment removed.",
+      complaint,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function patchPriority(
   request: Request<{ id: string }>,
   response: Response,
@@ -293,6 +318,50 @@ export async function note(request: Request<{ id: string }>, response: Response,
   }
 }
 
+export async function patchNote(
+  request: Request<{ id: string; noteId: string }>,
+  response: Response,
+  next: NextFunction,
+) {
+  try {
+    const result = await updateInternalNote({
+      complaintId: request.params.id,
+      noteId: request.params.noteId,
+      note: getString((request.body as Record<string, unknown>).note) ?? "",
+      actor: requireOfficerUser(request),
+    });
+
+    response.status(200).json({
+      success: true,
+      message: "Internal note updated.",
+      note: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function removeNote(
+  request: Request<{ id: string; noteId: string }>,
+  response: Response,
+  next: NextFunction,
+) {
+  try {
+    await deleteInternalNote({
+      complaintId: request.params.id,
+      noteId: request.params.noteId,
+      actor: requireOfficerUser(request),
+    });
+
+    response.status(200).json({
+      success: true,
+      message: "Internal note deleted.",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function officialComment(
   request: Request<{ id: string }>,
   response: Response,
@@ -317,7 +386,10 @@ export async function officialComment(
 
 export async function analytics(request: Request, response: Response, next: NextFunction) {
   try {
-    const result = await analyticsSummary(requireOfficerUser(request));
+    const result = await analyticsSummary(
+      requireOfficerUser(request),
+      request.query as Record<string, unknown>,
+    );
 
     response.status(200).json({
       success: true,
@@ -338,6 +410,22 @@ export async function alerts(request: Request, response: Response, next: NextFun
       success: true,
       alerts: result,
       ...result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function officers(request: Request, response: Response, next: NextFunction) {
+  try {
+    const result = await listOfficers(
+      request.query as Record<string, unknown>,
+      requireOfficerUser(request),
+    );
+
+    response.status(200).json({
+      success: true,
+      officers: result,
     });
   } catch (error) {
     next(error);

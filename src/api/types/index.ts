@@ -91,6 +91,14 @@ export interface Officer {
   municipality?: string;
   department: string;
   avatarUrl?: string;
+  notificationPreferences?: {
+    inApp: boolean;
+    email: boolean;
+    push: boolean;
+    assignmentUpdates: boolean;
+    urgentAlerts: boolean;
+    dailyDigest: boolean;
+  };
   isActive: boolean;
   lastLoginAt?: Date;
   createdAt: Date;

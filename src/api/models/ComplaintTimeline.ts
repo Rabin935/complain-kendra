@@ -24,6 +24,7 @@ export interface ComplaintTimeline {
   actorName?: string;
   isInternal: boolean;
   metadata?: Record<string, unknown>;
+  deletedAt?: Date;
   createdAt: Date;
 }
 
@@ -71,6 +72,7 @@ const complaintTimelineSchema = new Schema<ComplaintTimeline, ComplaintTimelineM
     actorName: { type: String, trim: true, default: undefined },
     isInternal: { type: Boolean, default: false, required: true },
     metadata: { type: Schema.Types.Mixed, default: undefined },
+    deletedAt: { type: Date, default: undefined },
   },
   {
     timestamps: { createdAt: true, updatedAt: false },

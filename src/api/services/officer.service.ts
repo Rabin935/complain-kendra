@@ -1,3 +1,4 @@
+import bcrypt from "bcryptjs";
 import type { PipelineStage } from "mongoose";
 import CommentModel from "../models/Comment";
 import ComplaintModel from "../models/Complaint";
@@ -55,10 +56,25 @@ function buildOfficerWardFilter(officer: {
 
 function buildOfficerComplaintQuery(query: Record<string, unknown>) {
   const filter: Record<string, unknown> = {};
+  const search = getString(query.search);
   const status = normalizeStatus(query.status);
   const category = normalizeCategory(query.category);
   const priority = normalizePriority(query.priority);
   const ward = getString(query.ward);
+  const wardId = getString(query.wardId ?? query.ward_id);
+  const department = getString(query.department ?? query.assignedDepartment);
+  const assignedOfficer = getString(
+    query.assignedOfficer ?? query.assignedOfficerId ?? query.assigned_officer,
+  );
+
+  if (search) {
+    const escapedSearch = escapeRegex(search);
+    filter.$or = [
+      { complaintNo: new RegExp(escapedSearch, "i") },
+      { title: new RegExp(escapedSearch, "i") },
+      { description: new RegExp(escapedSearch, "i") },
+    ];
+  }
 
   if (status) {
     filter.status = status;
@@ -77,19 +93,54 @@ function buildOfficerComplaintQuery(query: Record<string, unknown>) {
     filter["location.ward"] = new RegExp(`^(Ward\\s*)?${escapeRegex(wardNumber)}$`, "i");
   }
 
+  if (wardId) {
+    filter["location.wardId"] = wardId;
+  }
+
+  if (department) {
+    filter.assignedDepartment = new RegExp(`^${escapeRegex(department)}$`, "i");
+  }
+
+  if (assignedOfficer === "unassigned") {
+    filter.assignedOfficerId = { $exists: false };
+  } else if (assignedOfficer) {
+    filter.assignedOfficerId = requireObjectId(assignedOfficer, "assigned officer id");
+  }
+
   return filter;
 }
 
 export async function getOfficerDashboard(officer: JwtUserPayload) {
   const officerRecord = await getOfficerProfile(officer.subjectId);
   const wardFilter = buildOfficerWardFilter(officerRecord);
-  const [total, pending, inProgress, resolved, critical, recent] = await Promise.all([
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const [total, pending, inProgress, resolvedToday, highPriority, assignedToMe, recent, urgentQueue, recentActivity] = await Promise.all([
     ComplaintModel.countDocuments(wardFilter),
     ComplaintModel.countDocuments({ ...wardFilter, status: "pending" }),
     ComplaintModel.countDocuments({ ...wardFilter, status: "in_progress" }),
-    ComplaintModel.countDocuments({ ...wardFilter, status: "resolved" }),
-    ComplaintModel.countDocuments({ ...wardFilter, priority: "critical", status: { $ne: "resolved" } }),
+    ComplaintModel.countDocuments({ ...wardFilter, status: "resolved", updatedAt: { $gte: today } }),
+    ComplaintModel.countDocuments({
+      ...wardFilter,
+      priority: { $in: ["high", "critical"] },
+      status: { $ne: "resolved" },
+    }),
+    ComplaintModel.countDocuments({ ...wardFilter, assignedOfficerId: officer.subjectId }),
     ComplaintModel.find(wardFilter).sort({ createdAt: -1 }).limit(5),
+    ComplaintModel.find({
+      ...wardFilter,
+      $or: [
+        { priority: { $in: ["high", "critical"] } },
+        { "aiAnalysis.confidence": { $gte: 85 } },
+        { "aiAnalysis.confidence_score": { $gte: 85 } },
+      ],
+      status: { $nin: ["resolved", "rejected"] },
+    })
+      .sort({ priorityScore: -1, createdAt: -1 })
+      .limit(5),
+    ComplaintTimelineModel.find({ isInternal: { $ne: true } })
+      .sort({ createdAt: -1 })
+      .limit(8),
   ]);
 
   return {
@@ -98,11 +149,33 @@ export async function getOfficerDashboard(officer: JwtUserPayload) {
       total,
       pending,
       in_progress: inProgress,
-      resolved,
-      critical,
+      resolved_today: resolvedToday,
+      high_priority: highPriority,
+      assigned_to_me: assignedToMe,
     },
     recentComplaints: recent.map((complaint) => toComplaintPayload(complaint)),
+    urgentQueue: urgentQueue.map((complaint) => toComplaintPayload(complaint)),
+    recentActivity,
   };
+}
+
+function buildOfficerComplaintSort(sortValue: unknown): Record<string, 1 | -1> {
+  const sort = getString(sortValue)?.toLowerCase();
+
+  if (sort === "oldest") {
+    return { createdAt: 1 };
+  }
+
+  if (sort === "highest_priority" || sort === "priority") {
+    // Priority score is numeric when the priority engine has run; createdAt keeps ties stable.
+    return { priorityScore: -1, createdAt: -1 };
+  }
+
+  if (sort === "ai_confidence") {
+    return { "aiAnalysis.confidence": -1, "aiAnalysis.confidence_score": -1, createdAt: -1 };
+  }
+
+  return { createdAt: -1 };
 }
 
 export async function listOfficerComplaints(
@@ -115,7 +188,7 @@ export async function listOfficerComplaints(
   const scopedFilter = { ...buildOfficerWardFilter(officerRecord), ...filter };
   const [complaints, total] = await Promise.all([
     ComplaintModel.find(scopedFilter)
-      .sort({ priority: -1, createdAt: -1 })
+      .sort(buildOfficerComplaintSort(query.sort))
       .skip(pagination.skip)
       .limit(pagination.limit),
     ComplaintModel.countDocuments(scopedFilter),
@@ -127,6 +200,46 @@ export async function listOfficerComplaints(
     page: pagination.page,
     limit: pagination.limit,
   };
+}
+
+export async function listOfficers(query: Record<string, unknown>, actor: JwtUserPayload) {
+  const officerRecord = await getOfficerProfile(actor.subjectId);
+  const search = getString(query.search);
+  const filter: Record<string, unknown> = { isActive: true };
+
+  if (officerRecord.role !== "admin" && officerRecord.wardId) {
+    filter.wardId = officerRecord.wardId;
+  }
+
+  if (search) {
+    const escapedSearch = escapeRegex(search);
+    filter.$or = [
+      { name: new RegExp(escapedSearch, "i") },
+      { email: new RegExp(escapedSearch, "i") },
+      { department: new RegExp(escapedSearch, "i") },
+    ];
+  }
+
+  const officers = await OfficerModel.find(filter)
+    .sort({ role: 1, name: 1 })
+    .limit(100);
+
+  return officers.map((item) => ({
+    id: item._id.toString(),
+    name: item.name,
+    email: item.email,
+    role: item.role,
+    ward: item.ward,
+    wardId: item.wardId,
+    department: item.department,
+    phone: item.phone,
+  }));
+}
+
+function assertCanManageAssignment(actor: JwtUserPayload): void {
+  if (actor.role !== "supervisor" && actor.role !== "admin") {
+    throw new AppError("Only supervisors and administrators can manage assignments.", 403);
+  }
 }
 
 async function assertOfficerCanAccessComplaint(actor: JwtUserPayload, complaint: { location?: { wardId?: string } }) {
@@ -355,6 +468,7 @@ export async function assignOfficer(input: {
   officerId: string;
   actor: JwtUserPayload;
 }) {
+  assertCanManageAssignment(input.actor);
   const complaintId = requireObjectId(input.complaintId, "complaint id");
   const officerId = requireObjectId(input.officerId, "officer id");
   const [complaint, officer] = await Promise.all([
@@ -399,6 +513,43 @@ export async function assignOfficer(input: {
       officerName: officer.name,
       action: "assign_officer",
     },
+  });
+
+  emitRealtimeEvent("officer:queue_updated", { complaintId });
+
+  return toComplaintPayload(complaint);
+}
+
+export async function removeAssignment(input: {
+  complaintId: string;
+  actor: JwtUserPayload;
+}) {
+  assertCanManageAssignment(input.actor);
+  const complaintId = requireObjectId(input.complaintId, "complaint id");
+  const complaint = await ComplaintModel.findById(complaintId);
+
+  if (!complaint) {
+    throw new AppError("Complaint not found.", 404);
+  }
+
+  await assertOfficerCanAccessComplaint(input.actor, complaint);
+
+  const previousOfficer = complaint.assignedOfficerName;
+  complaint.assignedOfficerId = undefined;
+  complaint.assignedOfficerName = undefined;
+  await complaint.save();
+
+  await addTimeline({
+    complaintId,
+    type: "assigned",
+    title: "Officer assignment removed",
+    message: previousOfficer
+      ? `${previousOfficer} was removed from this complaint.`
+      : "Complaint moved back to the unassigned queue.",
+    actorType: "officer",
+    actorId: input.actor.subjectId,
+    actorName: await getActorName(input.actor),
+    isInternal: true,
   });
 
   emitRealtimeEvent("officer:queue_updated", { complaintId });
@@ -514,6 +665,63 @@ export async function addInternalNote(input: {
   });
 }
 
+export async function updateInternalNote(input: {
+  complaintId: string;
+  noteId: string;
+  note: string;
+  actor: JwtUserPayload;
+}) {
+  const complaintId = requireObjectId(input.complaintId, "complaint id");
+  await getOfficerComplaintDetail(complaintId, input.actor);
+  const note = await ComplaintTimelineModel.findOne({
+    _id: requireObjectId(input.noteId, "note id"),
+    complaintId,
+    type: "note_added",
+    deletedAt: undefined,
+  });
+
+  if (!note) {
+    throw new AppError("Internal note not found.", 404);
+  }
+
+  if (note.actorId?.toString() !== input.actor.subjectId) {
+    throw new AppError("You can only edit your own note.", 403);
+  }
+
+  note.message = requireString(input.note, "Note");
+  await note.save();
+
+  return note;
+}
+
+export async function deleteInternalNote(input: {
+  complaintId: string;
+  noteId: string;
+  actor: JwtUserPayload;
+}) {
+  const complaintId = requireObjectId(input.complaintId, "complaint id");
+  await getOfficerComplaintDetail(complaintId, input.actor);
+  const note = await ComplaintTimelineModel.findOne({
+    _id: requireObjectId(input.noteId, "note id"),
+    complaintId,
+    type: "note_added",
+    deletedAt: undefined,
+  });
+
+  if (!note) {
+    throw new AppError("Internal note not found.", 404);
+  }
+
+  const canDelete = note.actorId?.toString() === input.actor.subjectId || input.actor.role === "admin";
+
+  if (!canDelete) {
+    throw new AppError("You can only delete your own note.", 403);
+  }
+
+  note.deletedAt = new Date();
+  await note.save();
+}
+
 export async function addOfficialResponse(input: {
   complaintId: string;
   body: string;
@@ -527,11 +735,47 @@ export async function addOfficialResponse(input: {
   });
 }
 
-export async function analyticsSummary(actor?: JwtUserPayload) {
+export async function analyticsSummary(actor?: JwtUserPayload, query: Record<string, unknown> = {}) {
   const officerRecord = actor ? await getOfficerProfile(actor.subjectId) : undefined;
-  const wardFilter = officerRecord ? buildOfficerWardFilter(officerRecord) : {};
+  const wardFilter: Record<string, unknown> = officerRecord ? buildOfficerWardFilter(officerRecord) : {};
+  const category = normalizeCategory(query.category);
+  const ward = getString(query.ward);
+  const fromDate = getString(query.from ?? query.startDate ?? query.start_date);
+  const toDate = getString(query.to ?? query.endDate ?? query.end_date);
+
+  if (ward && !wardFilter["location.wardId"]) {
+    const wardNumber = ward.replace(/^Ward\s+/i, "");
+    wardFilter["location.ward"] = new RegExp(`^(Ward\\s*)?${escapeRegex(wardNumber)}$`, "i");
+  }
+
+  if (category) {
+    wardFilter.category = category;
+  }
+
+  if (fromDate || toDate) {
+    const createdAt: Record<string, Date> = {};
+    const parsedFromDate = fromDate ? new Date(fromDate) : undefined;
+    const parsedToDate = toDate ? new Date(toDate) : undefined;
+
+    if (parsedFromDate && !Number.isNaN(parsedFromDate.getTime())) {
+      createdAt.$gte = parsedFromDate;
+    }
+
+    if (parsedToDate && !Number.isNaN(parsedToDate.getTime())) {
+      parsedToDate.setHours(23, 59, 59, 999);
+      createdAt.$lte = parsedToDate;
+    }
+
+    if (Object.keys(createdAt).length > 0) {
+      wardFilter.createdAt = createdAt;
+    }
+  }
+
   const openStatusFilter = { status: { $in: ["pending", "accepted", "in_progress"] } };
   const resolvedStatusFilter = { status: "resolved" };
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
 
   const groupCount = (field: string): PipelineStage[] => [
     { $match: wardFilter },
@@ -549,6 +793,12 @@ export async function analyticsSummary(actor?: JwtUserPayload) {
     priorityDistribution,
     departmentWorkload,
     totalUsers,
+    monthlyTotal,
+    monthlyResolved,
+    resolutionTrend,
+    dailyVolume,
+    aiCategoryDistribution,
+    officerPerformance,
   ] = await Promise.all([
     ComplaintModel.countDocuments({ ...wardFilter, ...openStatusFilter }),
     ComplaintModel.countDocuments({ ...wardFilter, ...resolvedStatusFilter }),
@@ -601,8 +851,53 @@ export async function analyticsSummary(actor?: JwtUserPayload) {
       { $sort: { open: -1, total: -1, _id: 1 } },
     ]),
     UserModel.countDocuments(),
+    ComplaintModel.countDocuments({ ...wardFilter, createdAt: { $gte: monthStart } }),
+    ComplaintModel.countDocuments({ ...wardFilter, status: "resolved", updatedAt: { $gte: monthStart } }),
+    ComplaintModel.aggregate([
+      { $match: { ...wardFilter, status: "resolved" } },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$updatedAt" } },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 as const } },
+    ]),
+    ComplaintModel.aggregate([
+      { $match: wardFilter },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 as const } },
+    ]),
+    ComplaintModel.aggregate([
+      { $match: { ...wardFilter, "aiAnalysis.detectedCategory": { $exists: true } } },
+      { $group: { _id: "$aiAnalysis.detectedCategory", count: { $sum: 1 } } },
+      { $sort: { count: -1, _id: 1 as const } },
+    ]),
+    ComplaintModel.aggregate([
+      { $match: { ...wardFilter, assignedOfficerName: { $exists: true } } },
+      {
+        $group: {
+          _id: "$assignedOfficerName",
+          total: { $sum: 1 },
+          resolved: { $sum: { $cond: [{ $eq: ["$status", "resolved"] }, 1, 0] } },
+          active: {
+            $sum: {
+              $cond: [{ $in: ["$status", ["pending", "accepted", "in_progress"]] }, 1, 0],
+            },
+          },
+        },
+      },
+      { $sort: { resolved: -1, total: -1, _id: 1 } },
+    ]),
   ]);
   const averageResolutionMs = averageResolution[0]?.averageMs ?? 0;
+  const monthlyResolutionRate =
+    monthlyTotal > 0 ? Number(((monthlyResolved / monthlyTotal) * 100).toFixed(1)) : 0;
 
   return {
     scope: {
@@ -623,6 +918,11 @@ export async function analyticsSummary(actor?: JwtUserPayload) {
     byWard,
     priorityDistribution,
     departmentWorkload,
+    monthlyResolutionRate,
+    aiCategoryDistribution,
+    officerPerformance,
+    resolutionTrend,
+    dailyVolume,
     totalUsers,
   };
 }
@@ -654,6 +954,8 @@ export async function alerts() {
 export async function listUsers(query: Record<string, unknown>) {
   const pagination = parsePagination(query);
   const search = getString(query.search);
+  const status = getString(query.status);
+  const ward = getString(query.ward);
   const filter: Record<string, unknown> = {};
 
   if (search) {
@@ -661,6 +963,17 @@ export async function listUsers(query: Record<string, unknown>) {
       { name: new RegExp(escapeRegex(search), "i") },
       { email: new RegExp(escapeRegex(search), "i") },
     ];
+  }
+
+  if (status === "banned") {
+    filter.isBanned = true;
+  } else if (status === "active") {
+    filter.isBanned = false;
+  }
+
+  if (ward) {
+    const wardNumber = ward.replace(/^Ward\s+/i, "");
+    filter.ward = new RegExp(`^(Ward\\s*)?${escapeRegex(wardNumber)}$`, "i");
   }
 
   const [users, total] = await Promise.all([
@@ -838,9 +1151,26 @@ export async function deleteEscalationRule(id: string) {
 export async function updateOfficerSettings(officerId: string, payload: Record<string, unknown>) {
   const updates: Record<string, unknown> = {};
 
-  for (const field of ["name", "phone", "department", "ward"]) {
+  for (const field of ["name", "phone", "department", "ward", "avatarUrl"]) {
     if (payload[field] !== undefined) {
       updates[field] = getString(payload[field]);
+    }
+  }
+
+  if (isRecord(payload.notificationPreferences)) {
+    for (const field of [
+      "inApp",
+      "email",
+      "push",
+      "assignmentUpdates",
+      "urgentAlerts",
+      "dailyDigest",
+    ]) {
+      const value = payload.notificationPreferences[field];
+
+      if (typeof value === "boolean") {
+        updates[`notificationPreferences.${field}`] = value;
+      }
     }
   }
 
@@ -857,15 +1187,29 @@ export async function updateOfficerSettings(officerId: string, payload: Record<s
     updates.municipality = location.municipality;
   }
 
-  const officer = await OfficerModel.findByIdAndUpdate(
-    requireObjectId(officerId, "officer id"),
-    updates,
-    { new: true, runValidators: true },
-  );
+  const officerObjectId = requireObjectId(officerId, "officer id");
+  const currentPassword = getString(payload.currentPassword);
+  const newPassword = getString(payload.newPassword);
+  const officer = await OfficerModel.findById(officerObjectId);
 
   if (!officer) {
     throw new AppError("Officer not found.", 404);
   }
+
+  if (newPassword) {
+    if (newPassword.length < 6) {
+      throw new AppError("New password must be at least 6 characters.", 400);
+    }
+
+    if (!currentPassword || !(await bcrypt.compare(currentPassword, officer.password))) {
+      throw new AppError("Current password is incorrect.", 400);
+    }
+
+    officer.password = newPassword;
+  }
+
+  officer.set(updates);
+  await officer.save();
 
   return officer;
 }

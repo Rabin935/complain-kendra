@@ -77,8 +77,14 @@ async function exchangeGoogleIdToken(idToken: string): Promise<AuthResponse> {
 }
 
 export async function login(payload: LoginPayload): Promise<AuthResponse> {
-  const { data } = await apiClient.post<AuthResponse>("/api/auth/login", payload);
-  return data;
+  try {
+    const { data } = await apiClient.post<AuthResponse>("/api/auth/login", payload);
+    return data;
+  } catch (error) {
+    // Officer accounts authenticate against a separate backend subject store.
+    const { data } = await apiClient.post<AuthResponse>("/api/v1/officer/auth/login", payload);
+    return data;
+  }
 }
 
 export async function register(payload: RegisterPayload): Promise<AuthResponse> {
