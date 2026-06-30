@@ -67,3 +67,17 @@ Sprint 5 turns ComplainKendra from a private complaint tracker into a public civ
 - Preferences are stored per user.
 - Notification creation checks preferences before storing in-app notifications.
 - The profile screen exposes a preferences modal connected to the backend.
+
+## API Matrix
+
+| Area | Endpoint |
+| --- | --- |
+| Browse | `GET /api/v1/complaints` |
+| Nearby | `GET /api/v1/complaints/nearby` |
+| Detail | `GET /api/v1/complaints/:id` |
+| Timeline | `GET /api/v1/complaints/:id/timeline` |
+| Comments | `GET/POST /api/v1/complaints/:id/comments` |
+| Engagement | `POST/DELETE /api/v1/complaints/:id/upvote`, `POST/DELETE /api/v1/complaints/:id/follow` |
+| Ratings | `POST /api/v1/complaints/:id/rate`, `GET /api/v1/complaints/:id/ratings/summary` |
+| Gamification | `GET /api/v1/leaderboard`, `GET /api/v1/badges` |
+| Preferences | `GET/PATCH /api/v1/notifications/preferences` |
