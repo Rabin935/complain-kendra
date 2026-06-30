@@ -6,6 +6,7 @@ import {
   normalizeStatus,
   parsePagination,
 } from "../src/api/utils/request.utils";
+import { cachedRequest, getCachedValue, invalidateCache } from "../app/utils/requestCache";
 
 function testRequestNormalization() {
   assert.equal(normalizeStatus("In Progress"), "in_progress");
@@ -51,10 +52,31 @@ function testRequestSanitization() {
   assert.equal("$ne" in request.query, false);
 }
 
-function run() {
+async function testRequestCache() {
+  invalidateCache();
+  let calls = 0;
+  const first = await cachedRequest("test:key", 10_000, async () => {
+    calls += 1;
+    return { value: "fresh" };
+  });
+  const second = await cachedRequest("test:key", 10_000, async () => {
+    calls += 1;
+    return { value: "stale" };
+  });
+
+  assert.deepEqual(first, { value: "fresh" });
+  assert.deepEqual(second, { value: "fresh" });
+  assert.equal(calls, 1);
+  assert.deepEqual(getCachedValue("test:key"), { value: "fresh" });
+  invalidateCache("test:");
+  assert.equal(getCachedValue("test:key"), null);
+}
+
+async function run() {
   testRequestNormalization();
   testRequestSanitization();
+  await testRequestCache();
   console.log("All lightweight tests passed.");
 }
 
-run();
+void run();
