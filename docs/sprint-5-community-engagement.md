@@ -108,3 +108,12 @@ Sprint 5 turns ComplainKendra from a private complaint tracker into a public civ
 - Follow events use the followers preference.
 - Complaint upvotes use the leaderboard preference because they affect civic score visibility.
 - Badge unlocks use the badges preference.
+
+## Backend QA Checklist
+
+- Run `npm run typecheck`.
+- Browse complaints with search, filters, and sort aliases.
+- Create, reply to, edit, delete, and upvote comments.
+- Follow, unfollow, upvote, and remove upvote on a complaint.
+- Rate a resolved complaint as the owner and confirm unresolved complaints are rejected.
+- Toggle notification preferences and confirm muted categories do not create in-app notifications.
