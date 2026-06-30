@@ -20,7 +20,8 @@
     "backend": "npm run server",
     "seed": "ts-node src/api/seeds/seed.ts",
     "typecheck": "tsc --noEmit",
-    "test": "ts-node --project tests/tsconfig.json --transpile-only tests/run-tests.ts"
+    "test": "ts-node --project tests/tsconfig.json --transpile-only tests/run-tests.ts",
+    "qa": "npm run typecheck && npm test"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
