@@ -18,3 +18,12 @@ Sprint 5 turns ComplainKendra from a private complaint tracker into a public civ
 - Citizen actions include follow, upvote, share, comment, and resolution rating when resolved.
 - Timeline entries remain visible to citizens while internal officer notes stay hidden.
 - Officer and department context are surfaced when available from assignment or AI routing.
+
+## Comment System Acceptance
+
+- Authenticated citizens and officers can add comments to complaints.
+- Comments support replies through parent comment IDs.
+- Comment responses are returned in threaded format.
+- Authors can edit or delete their own comments.
+- Officer comments can be flagged as official and shown with an official badge.
+- Complaint comment counts update when comments are added or removed.
