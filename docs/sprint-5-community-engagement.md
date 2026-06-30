@@ -126,3 +126,11 @@ Sprint 5 turns ComplainKendra from a private complaint tracker into a public civ
 - Add a comment from the detail page and verify the visible comment count increases.
 - Follow, upvote, and share from the detail page.
 - Open Profile and verify stats, badges, leaderboard, and notification preferences render.
+
+## Implementation Notes
+
+- Nearest sorting uses supplied latitude and longitude on the public browse endpoint.
+- Comment threading is built from parent IDs and returned as nested replies.
+- Complaint detail keeps the older timeline and comments endpoints available for compatibility.
+- Notification channel delivery is represented in preferences; in-app creation is enforced now.
+- Leaderboard rows hide private profile names and avatars.
