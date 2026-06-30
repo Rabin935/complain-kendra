@@ -1,4 +1,5 @@
 import { apiClient } from "../../../utils/api";
+import { cachedRequest, invalidateCache } from "../../../utils/requestCache";
 import type {
   ComplaintCategory,
   ComplaintPriority,
@@ -56,11 +57,13 @@ export async function getComplaintDetail(
 }
 
 export async function listOfficers(search?: string): Promise<OfficerDirectoryItem[]> {
-  const { data } = await apiClient.get<{ success: boolean; officers: OfficerDirectoryItem[] }>(
-    "/api/v1/officer/officers",
-    { params: { search } },
-  );
-  return data.officers;
+  return cachedRequest(`officer:directory:${search ?? ""}`, 60_000, async () => {
+    const { data } = await apiClient.get<{ success: boolean; officers: OfficerDirectoryItem[] }>(
+      "/api/v1/officer/officers",
+      { params: { search } },
+    );
+    return data.officers;
+  });
 }
 
 export async function assignComplaint(complaintId: string, officerId: string): Promise<void> {
@@ -189,10 +192,12 @@ export async function unbanUser(userId: string): Promise<void> {
 }
 
 export async function getSettings() {
-  const { data } = await apiClient.get<{ success: boolean; officer: OfficerProfile; settings: OfficerProfile }>(
-    "/api/v1/officer/settings",
-  );
-  return data.officer ?? data.settings;
+  return cachedRequest("officer:settings", 30_000, async () => {
+    const { data } = await apiClient.get<{ success: boolean; officer: OfficerProfile; settings: OfficerProfile }>(
+      "/api/v1/officer/settings",
+    );
+    return data.officer ?? data.settings;
+  });
 }
 
 export async function updateSettings(payload: {
@@ -209,6 +214,7 @@ export async function updateSettings(payload: {
     "/api/v1/officer/settings",
     payload,
   );
+  invalidateCache("officer:settings");
   return data.officer;
 }
 
@@ -224,17 +230,21 @@ export async function revokeSession(sessionId: string): Promise<void> {
 }
 
 export async function listEscalationRules() {
-  const { data } = await apiClient.get<{ success: boolean; rules: Array<Record<string, unknown>> }>(
-    "/api/v1/officer/escalation-rules",
-  );
-  return data.rules;
+  return cachedRequest("officer:escalation-rules", 60_000, async () => {
+    const { data } = await apiClient.get<{ success: boolean; rules: Array<Record<string, unknown>> }>(
+      "/api/v1/officer/escalation-rules",
+    );
+    return data.rules;
+  });
 }
 
 export async function saveEscalationRule(rule: Record<string, unknown>): Promise<void> {
   if (typeof rule.id === "string" || typeof rule._id === "string") {
     await apiClient.patch(`/api/v1/officer/escalation-rules/${rule.id ?? rule._id}`, rule);
+    invalidateCache("officer:escalation-rules");
     return;
   }
 
   await apiClient.post("/api/v1/officer/escalation-rules", rule);
+  invalidateCache("officer:escalation-rules");
 }
