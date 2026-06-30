@@ -59,3 +59,11 @@ Sprint 5 turns ComplainKendra from a private complaint tracker into a public civ
 - Ratings accept one to five stars and optional feedback text.
 - Each complaint can have one rating per owner, updated through upsert behavior.
 - Rating summaries expose complaint, officer, and department aggregates.
+
+## Notification Preference Acceptance
+
+- Citizens can configure in-app, email, push, and SMS notification channels.
+- Citizens can toggle complaint updates, comments, followers, officer updates, leaderboard, and badge notifications.
+- Preferences are stored per user.
+- Notification creation checks preferences before storing in-app notifications.
+- The profile screen exposes a preferences modal connected to the backend.
