@@ -50,6 +50,7 @@ function getQueryFilter(request: Request): ComplaintFilterDto {
   const query = request.query as Record<string, unknown>;
 
   return {
+    search: getString(query.search ?? query.q),
     ward: getString(query.ward),
     wardId: getString(query.ward_id ?? query.wardId),
     city: getString(query.city),
@@ -57,6 +58,8 @@ function getQueryFilter(request: Request): ComplaintFilterDto {
     status: normalizeStatus(query.status),
     priority: normalizePriority(query.priority),
     sort: getString(query.sort) as ComplaintFilterDto["sort"],
+    lat: getNumber(query.lat),
+    lng: getNumber(query.lng),
     page: getNumber(query.page),
     limit: getNumber(query.limit),
   };
