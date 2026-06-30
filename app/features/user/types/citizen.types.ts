@@ -51,12 +51,14 @@ export interface ComplaintTimelineItem {
 
 export interface ComplaintComment {
   id: string;
+  parentId?: string;
   authorName: string;
   authorType: "citizen" | "officer";
   official: boolean;
   body: string;
   upvoteCount: number;
   createdAt: string;
+  replies: ComplaintComment[];
 }
 
 export interface CitizenComplaint {
@@ -107,6 +109,35 @@ export interface CitizenBadge {
   icon: string;
   earned: boolean;
   progress: number;
+}
+
+export interface CitizenLeaderboardEntry {
+  rank: number;
+  id: string;
+  name: string;
+  ward?: string;
+  points: number;
+  level: number;
+  levelTitle: string;
+  avatarUrl?: string;
+}
+
+export interface NotificationPreferences {
+  inApp: boolean;
+  email: boolean;
+  push: boolean;
+  sms: boolean;
+  complaintUpdates: boolean;
+  comments: boolean;
+  followers: boolean;
+  officerUpdates: boolean;
+  leaderboard: boolean;
+  badges: boolean;
+}
+
+export interface ResolutionRatingPayload {
+  rating: number;
+  comment?: string;
 }
 
 export interface AiAnalysisResult {
