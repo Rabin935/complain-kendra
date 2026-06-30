@@ -128,6 +128,18 @@ export interface ComplaintAiAnalysis {
   analyzedAt: Date;
 }
 
+export interface ComplaintAiMetadata {
+  provider: "mock" | "gemini";
+  model?: string;
+  source: "background_queue" | "manual";
+  completedAt: Date;
+  routedDepartment: string;
+  duplicateCount: number;
+  priority: ComplaintPriority;
+  priorityScore: number;
+  priorityReasons: string[];
+}
+
 export interface Complaint {
   userId: Types.ObjectId | string;
   complaintNo: string;
@@ -149,6 +161,7 @@ export interface Complaint {
   duplicateSimilarityScore?: number;
   duplicateCheckedAt?: Date;
   aiAnalysis?: ComplaintAiAnalysis;
+  aiMetadata?: ComplaintAiMetadata;
   aiVerified: boolean;
   aiSuggestedCategory?: string;
   aiSeverity?: number;
@@ -309,6 +322,16 @@ export interface ComplaintPayload {
   duplicateCheckedAt?: Date;
   progress: number;
   aiAnalysis?: ComplaintAiAnalysis;
+  aiMetadata?: ComplaintAiMetadata;
+  ai?: {
+    analysis?: ComplaintAiAnalysis;
+    metadata?: ComplaintAiMetadata;
+    verified: boolean;
+    suggestedCategory?: string;
+    severity?: number;
+    summary?: string;
+    keywords: string[];
+  };
   aiVerified: boolean;
   aiSuggestedCategory?: string;
   aiSeverity?: number;

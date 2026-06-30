@@ -2,6 +2,7 @@ import { HydratedDocument, Model, Schema, model, models } from "mongoose";
 
 export interface Notification {
   userId: Schema.Types.ObjectId | string;
+  recipientType: "citizen" | "officer";
   title: string;
   body: string;
   type:
@@ -28,6 +29,14 @@ const notificationSchema = new Schema<Notification, NotificationModel>(
     userId: {
       type: Schema.Types.ObjectId,
       ref: "User",
+      required: true,
+      index: true,
+    },
+    // userId is the recipient id; recipientType tells readers whether it belongs to a citizen or officer.
+    recipientType: {
+      type: String,
+      enum: ["citizen", "officer"],
+      default: "citizen",
       required: true,
       index: true,
     },

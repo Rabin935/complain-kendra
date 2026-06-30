@@ -20,7 +20,7 @@ export async function listNotifications(
 ): Promise<void> {
   try {
     const userId = requireCitizenId(request);
-    const notifications = await NotificationModel.find({ userId })
+    const notifications = await NotificationModel.find({ userId, recipientType: "citizen" })
       .sort({ createdAt: -1 })
       .limit(50);
 
@@ -31,6 +31,7 @@ export async function listNotifications(
         title: notification.title,
         body: notification.body,
         type: notification.type,
+        recipientType: notification.recipientType,
         data: notification.data,
         unread: !notification.readAt,
         readAt: notification.readAt,
@@ -51,7 +52,7 @@ export async function markRead(
     const userId = requireCitizenId(request);
     const id = requireObjectId(request.params.id, "notification id");
     const notification = await NotificationModel.findOneAndUpdate(
-      { _id: id, userId },
+      { _id: id, userId, recipientType: "citizen" },
       { $set: { readAt: new Date() } },
       { new: true },
     );
@@ -74,7 +75,7 @@ export async function readAll(request: Request, response: Response, next: NextFu
   try {
     const userId = requireCitizenId(request);
     await NotificationModel.updateMany(
-      { userId, readAt: undefined },
+      { userId, recipientType: "citizen", readAt: undefined },
       { $set: { readAt: new Date() } },
     );
 

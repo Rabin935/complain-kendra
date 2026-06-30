@@ -8,6 +8,7 @@ import UserModel from "../models/User";
 import {
   type ComplaintCategory,
   type ComplaintFilterDto,
+  type ComplaintAiMetadata,
   type ComplaintLocation,
   type ComplaintPayload,
   type ComplaintPriority,
@@ -89,6 +90,30 @@ function getComplaintOwnerId(complaint: ComplaintDocument): string {
     : complaint.userId.toString();
 }
 
+function buildAiMetadata(input: {
+  duplicateCount: number;
+  priorityResult: ReturnType<typeof calculateComplaintPriority>;
+  routedDepartment: string;
+  source: ComplaintAiMetadata["source"];
+}): ComplaintAiMetadata {
+  const hasGeminiKey = Boolean(
+    process.env.EXPO_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY,
+  );
+  const usesMockProvider = process.env.AI_PROVIDER?.toLowerCase() === "mock" || !hasGeminiKey;
+
+  return {
+    provider: usesMockProvider ? "mock" : "gemini",
+    model: usesMockProvider ? undefined : process.env.GEMINI_MODEL || "gemini-1.5-flash",
+    source: input.source,
+    completedAt: new Date(),
+    routedDepartment: input.routedDepartment,
+    duplicateCount: input.duplicateCount,
+    priority: input.priorityResult.priority,
+    priorityScore: input.priorityResult.score,
+    priorityReasons: input.priorityResult.reasons,
+  };
+}
+
 export function toComplaintPayload(
   complaint: ComplaintDocument,
   extras: { followed?: boolean; distanceKm?: number } = {},
@@ -120,6 +145,17 @@ export function toComplaintPayload(
     duplicateCheckedAt: complaint.duplicateCheckedAt,
     progress: statusProgress[complaint.status],
     aiAnalysis: complaint.aiAnalysis,
+    aiMetadata: complaint.aiMetadata,
+    ai: {
+      // Complaint detail clients can read one cohesive AI block instead of stitching legacy fields.
+      analysis: complaint.aiAnalysis,
+      metadata: complaint.aiMetadata,
+      verified: complaint.aiVerified,
+      suggestedCategory: complaint.aiSuggestedCategory,
+      severity: complaint.aiSeverity,
+      summary: complaint.aiSummary,
+      keywords: complaint.aiKeywords ?? [],
+    },
     aiVerified: complaint.aiVerified,
     aiSuggestedCategory: complaint.aiSuggestedCategory,
     aiSeverity: complaint.aiSeverity,
@@ -391,6 +427,13 @@ async function runComplaintAiAnalysis(complaintId: string): Promise<void> {
   if (!complaint.departmentOverriddenAt) {
     complaint.assignedDepartment = getDepartmentForCategory(analysis.detectedCategory);
   }
+  const aiMetadata = buildAiMetadata({
+    duplicateCount,
+    priorityResult,
+    routedDepartment: complaint.assignedDepartment ?? analysis.department,
+    source: "background_queue",
+  });
+  complaint.aiMetadata = aiMetadata;
   await complaint.save();
 
   await addTimeline({
@@ -398,7 +441,7 @@ async function runComplaintAiAnalysis(complaintId: string): Promise<void> {
     type: "ai_verified",
     title: "AI analysis completed",
     message: `${analysis.department} routed with ${complaint.priority} priority.`,
-    metadata: { analysis, priorityResult, duplicateCount },
+    metadata: { analysis, aiMetadata, priorityResult, duplicateCount },
   });
 
   if (analysis.verified) {
@@ -415,13 +458,31 @@ async function runComplaintAiAnalysis(complaintId: string): Promise<void> {
     type: "ai_analysis_completed",
     title: "AI analysis completed",
     body: `Your complaint ${complaint.complaintNo} was routed to ${analysis.department}.`,
-    data: { complaintId, complaintNo: complaint.complaintNo },
+    data: { complaintId, complaintNo: complaint.complaintNo, aiMetadata },
   });
+
+  if (complaint.assignedOfficerId) {
+    await createNotification({
+      userId: complaint.assignedOfficerId.toString(),
+      recipientType: "officer",
+      type: "ai_analysis_completed",
+      title: "AI analysis completed",
+      body: `${complaint.complaintNo} was routed to ${aiMetadata.routedDepartment} with ${complaint.priority} priority.`,
+      data: {
+        complaintId,
+        complaintNo: complaint.complaintNo,
+        citizenId: getComplaintOwnerId(complaint),
+        aiMetadata,
+      },
+    });
+  }
 
   emitRealtimeEvent("complaint:ai_complete", {
     complaintId,
     userId: getComplaintOwnerId(complaint),
+    officerId: complaint.assignedOfficerId?.toString(),
     complaintNo: complaint.complaintNo,
+    aiMetadata,
   });
 }
 

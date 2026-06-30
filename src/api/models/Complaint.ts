@@ -5,6 +5,7 @@ import {
   COMPLAINT_STATUSES,
   type Complaint,
   type ComplaintAiAnalysis,
+  type ComplaintAiMetadata,
   type ComplaintLocation,
 } from "../types";
 
@@ -76,6 +77,26 @@ const aiAnalysisSchema = new Schema<ComplaintAiAnalysis>(
   { _id: false },
 );
 
+const aiMetadataSchema = new Schema<ComplaintAiMetadata>(
+  {
+    // Metadata captures the AI job context separately from the model's civic analysis.
+    provider: { type: String, enum: ["mock", "gemini"], required: true },
+    model: { type: String, trim: true, default: undefined },
+    source: {
+      type: String,
+      enum: ["background_queue", "manual"],
+      required: true,
+    },
+    completedAt: { type: Date, required: true },
+    routedDepartment: { type: String, trim: true, required: true },
+    duplicateCount: { type: Number, min: 0, required: true },
+    priority: { type: String, enum: COMPLAINT_PRIORITIES, required: true },
+    priorityScore: { type: Number, min: 0, max: 12, required: true },
+    priorityReasons: { type: [String], default: [] },
+  },
+  { _id: false },
+);
+
 const complaintSchema = new Schema<Complaint, ComplaintModel>(
   {
     userId: {
@@ -140,6 +161,7 @@ const complaintSchema = new Schema<Complaint, ComplaintModel>(
     duplicateSimilarityScore: { type: Number, min: 0, max: 1, default: undefined },
     duplicateCheckedAt: { type: Date, default: undefined },
     aiAnalysis: { type: aiAnalysisSchema, default: undefined },
+    aiMetadata: { type: aiMetadataSchema, default: undefined },
     aiVerified: { type: Boolean, default: false, required: true },
     aiSuggestedCategory: { type: String, trim: true, default: undefined },
     aiSeverity: { type: Number, min: 1, max: 10, default: undefined },
