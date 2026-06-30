@@ -21,7 +21,7 @@ export function errorHandler(
     const statusCode = error.code === "LIMIT_FILE_SIZE" ? 413 : 400;
     const message =
       error.code === "LIMIT_FILE_SIZE"
-        ? "Photo must be 10 MB or smaller."
+        ? "Photo must be 5 MB or smaller."
         : error.message;
 
     response.status(statusCode).json({

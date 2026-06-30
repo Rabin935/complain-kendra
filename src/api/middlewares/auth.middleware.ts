@@ -66,6 +66,14 @@ export function protect(request: Request, response: Response, next: NextFunction
       return;
     }
 
+    if (decoded.tokenType && decoded.tokenType !== "access") {
+      response.status(401).json({
+        success: false,
+        message: "Invalid token type.",
+      });
+      return;
+    }
+
     request.user = {
       ...decoded,
       subjectId: decoded.subjectId ?? decoded.userId,

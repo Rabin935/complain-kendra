@@ -11,6 +11,7 @@ export interface UploadToCloudinaryInput {
 }
 
 const uploadRoot = path.resolve(__dirname, "..", "uploads");
+const allowedImageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 function getExtension(mimeType: string, originalName?: string): string {
   const originalExtension = originalName ? path.extname(originalName).toLowerCase() : "";
@@ -52,8 +53,8 @@ export async function saveUploadedImage({
   folder,
   originalName,
 }: UploadToCloudinaryInput): Promise<string> {
-  if (!mimeType.startsWith("image/")) {
-    throw new AppError("Only image uploads are supported.", 400);
+  if (!allowedImageTypes.has(mimeType)) {
+    throw new AppError("Only JPEG, PNG, and WebP image uploads are supported.", 400);
   }
 
   if (buffer.length === 0) {

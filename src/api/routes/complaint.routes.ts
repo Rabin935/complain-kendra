@@ -27,12 +27,14 @@ const complaintRouter = Router();
 const photoUpload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 10 * 1024 * 1024,
+    fileSize: 5 * 1024 * 1024,
     files: 4,
   },
   fileFilter(_request, file, callback) {
-    if (!file.mimetype.startsWith("image/")) {
-      callback(new AppError("Only image files are allowed.", 400));
+    const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+
+    if (!allowedTypes.has(file.mimetype)) {
+      callback(new AppError("Only JPEG, PNG, and WebP images are allowed.", 400));
       return;
     }
 

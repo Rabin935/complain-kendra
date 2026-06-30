@@ -7,6 +7,7 @@ import morgan from "morgan";
 import path from "node:path";
 import { connectDatabase } from "./config/database";
 import { errorHandler } from "./middlewares/error.middleware";
+import { apiRateLimiter, sanitizeRequest } from "./middlewares/security.middleware";
 import authRouter from "./routes/auth.routes";
 import commentRouter from "./routes/comment.routes";
 import complaintRouter from "./routes/complaint.routes";
@@ -26,19 +27,30 @@ const app = express();
 const parsedPort = Number.parseInt(process.env.PORT ?? "", 10);
 const PORT = Number.isNaN(parsedPort) ? 5000 : parsedPort;
 let databaseStatus: "connecting" | "connected" | "error" = "connecting";
+const allowedOrigins = (process.env.CORS_ORIGINS ?? "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
 app.use(
   cors({
     origin(origin, callback) {
-      callback(null, true);
+      if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error("Origin is not allowed by CORS."));
     },
     credentials: true,
   }),
 );
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
+app.use(apiRateLimiter);
 app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true }));
+app.use(sanitizeRequest);
 app.use("/uploads", express.static(getUploadRoot()));
 
 app.use("/api/v1/auth", authRouter);
