@@ -117,3 +117,12 @@ Sprint 5 turns ComplainKendra from a private complaint tracker into a public civ
 - Follow, unfollow, upvote, and remove upvote on a complaint.
 - Rate a resolved complaint as the owner and confirm unresolved complaints are rejected.
 - Toggle notification preferences and confirm muted categories do not create in-app notifications.
+
+## Frontend QA Checklist
+
+- Confirm Browse loads backend cards and can request another page.
+- Confirm Browse search updates backend results.
+- Open a complaint and verify the detail page renders timeline and comments from the optimized payload.
+- Add a comment from the detail page and verify the visible comment count increases.
+- Follow, upvote, and share from the detail page.
+- Open Profile and verify stats, badges, leaderboard, and notification preferences render.
