@@ -1,6 +1,6 @@
 export type CitizenComplaintCategory = "road" | "water" | "power" | "waste" | "trees" | "other";
 
-export type CitizenComplaintStatus = "pending" | "in_progress" | "resolved" | "rejected";
+export type CitizenComplaintStatus = "pending" | "accepted" | "in_progress" | "resolved" | "rejected";
 
 export type CitizenComplaintPriority = "normal" | "high" | "critical";
 

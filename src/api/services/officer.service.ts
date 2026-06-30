@@ -166,10 +166,68 @@ async function getActorName(actor: JwtUserPayload): Promise<string> {
   return officer?.name ?? "Ward officer";
 }
 
-export async function updateStatus(input: {
+type WorkflowAction = "accept" | "start_work" | "resolve" | "reject" | "reopen" | "status_update";
+
+const workflowStatusByAction: Record<WorkflowAction, ComplaintStatus | undefined> = {
+  accept: "accepted",
+  start_work: "in_progress",
+  resolve: "resolved",
+  reject: "rejected",
+  reopen: "in_progress",
+  status_update: undefined,
+};
+
+const workflowTimelineByStatus: Record<ComplaintStatus, Parameters<typeof addTimeline>[0]["type"]> = {
+  pending: "status_changed",
+  accepted: "accepted",
+  in_progress: "work_started",
+  resolved: "resolved",
+  rejected: "rejected",
+};
+
+const allowedWorkflowTransitions: Record<ComplaintStatus, ComplaintStatus[]> = {
+  pending: ["accepted", "in_progress", "rejected"],
+  accepted: ["in_progress", "resolved", "rejected"],
+  in_progress: ["resolved", "rejected"],
+  resolved: ["in_progress"],
+  rejected: ["in_progress"],
+};
+
+function assertWorkflowTransition(previous: ComplaintStatus, next: ComplaintStatus): void {
+  if (previous === next) {
+    return;
+  }
+
+  if (!allowedWorkflowTransitions[previous]?.includes(next)) {
+    throw new AppError(`Cannot move complaint from ${previous} to ${next}.`, 400);
+  }
+}
+
+function workflowMessage(status: ComplaintStatus, reason?: string): string {
+  if (status === "accepted") {
+    return "Your complaint has been accepted by the ward office.";
+  }
+
+  if (status === "in_progress") {
+    return reason || "Work has started on your complaint.";
+  }
+
+  if (status === "resolved") {
+    return reason || "Your complaint has been marked resolved.";
+  }
+
+  if (status === "rejected") {
+    return reason || "Your complaint has been rejected.";
+  }
+
+  return reason || "Your complaint status was updated.";
+}
+
+async function applyComplaintWorkflow(input: {
   complaintId: string;
   status: ComplaintStatus;
   reason?: string;
+  action?: WorkflowAction;
   actor: JwtUserPayload;
 }) {
   const complaintId = requireObjectId(input.complaintId, "complaint id");
@@ -182,28 +240,35 @@ export async function updateStatus(input: {
   await assertOfficerCanAccessComplaint(input.actor, complaint);
 
   const previousStatus = complaint.status;
+  assertWorkflowTransition(previousStatus, input.status);
+
+  // This is the single workflow state writer so all status changes create the same side effects.
   complaint.status = input.status;
 
   if (input.status === "rejected") {
     complaint.rejectionReason = requireString(input.reason, "Rejection reason");
-  }
-
-  if (input.status === "resolved") {
+    complaint.resolutionNote = undefined;
+  } else if (input.status === "resolved") {
     complaint.resolutionNote = input.reason || "Complaint resolved by ward officer.";
+    complaint.rejectionReason = undefined;
+  } else if (input.action === "reopen") {
+    complaint.rejectionReason = undefined;
+    complaint.resolutionNote = undefined;
   }
 
   await complaint.save();
 
   const actorName = await getActorName(input.actor);
+  const timelineType =
+    input.action === "reopen" ? "reopened" : workflowTimelineByStatus[input.status];
+
   await addTimeline({
     complaintId,
-    type:
-      input.status === "resolved"
-        ? "resolved"
-        : input.status === "rejected"
-          ? "rejected"
-          : "status_changed",
-    title: `Status changed to ${input.status.replace("_", " ")}`,
+    type: timelineType,
+    title:
+      input.action === "reopen"
+        ? "Complaint reopened"
+        : `Status changed to ${input.status.replace("_", " ")}`,
     message: input.reason,
     actorType: "officer",
     actorId: input.actor.subjectId,
@@ -222,9 +287,18 @@ export async function updateStatus(input: {
   await createNotification({
     userId: complaint.userId.toString(),
     type: input.status === "resolved" ? "complaint_resolved" : "status_changed",
-    title: "Complaint status updated",
-    body: `${complaint.complaintNo} is now ${input.status.replace("_", " ")}.`,
-    data: { complaintId, complaintNo: complaint.complaintNo, status: input.status },
+    title:
+      input.action === "reopen"
+        ? "Complaint reopened"
+        : `Complaint ${input.status.replace("_", " ")}`,
+    body: workflowMessage(input.status, input.reason),
+    data: {
+      complaintId,
+      complaintNo: complaint.complaintNo,
+      previousStatus,
+      status: input.status,
+      action: input.action ?? "status_update",
+    },
   });
 
   emitRealtimeEvent(
@@ -232,12 +306,46 @@ export async function updateStatus(input: {
     {
       complaintId,
       status: input.status,
+      previousStatus,
       complaintNo: complaint.complaintNo,
     },
   );
   emitRealtimeEvent("officer:queue_updated", { complaintId });
 
   return toComplaintPayload(complaint);
+}
+
+export async function updateStatus(input: {
+  complaintId: string;
+  status: ComplaintStatus;
+  reason?: string;
+  actor: JwtUserPayload;
+}) {
+  return applyComplaintWorkflow({
+    ...input,
+    action: "status_update",
+  });
+}
+
+export async function runWorkflowAction(input: {
+  complaintId: string;
+  action: Exclude<WorkflowAction, "status_update">;
+  reason?: string;
+  actor: JwtUserPayload;
+}) {
+  const status = workflowStatusByAction[input.action];
+
+  if (!status) {
+    throw new AppError("Unsupported workflow action.", 400);
+  }
+
+  return applyComplaintWorkflow({
+    complaintId: input.complaintId,
+    status,
+    reason: input.reason,
+    action: input.action,
+    actor: input.actor,
+  });
 }
 
 export async function assignOfficer(input: {
@@ -275,6 +383,20 @@ export async function assignOfficer(input: {
     actorId: input.actor.subjectId,
     actorName: await getActorName(input.actor),
     isInternal: true,
+  });
+
+  await createNotification({
+    userId: complaint.userId.toString(),
+    type: "status_changed",
+    title: "Officer assigned",
+    body: `${officer.name} has been assigned to ${complaint.complaintNo}.`,
+    data: {
+      complaintId,
+      complaintNo: complaint.complaintNo,
+      officerId,
+      officerName: officer.name,
+      action: "assign_officer",
+    },
   });
 
   emitRealtimeEvent("officer:queue_updated", { complaintId });

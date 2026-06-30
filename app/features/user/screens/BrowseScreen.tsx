@@ -39,13 +39,14 @@ import {
 } from "../utils/citizenUi";
 
 type BrowseMode = "map" | "list";
-type MainFilter = "nearby" | "ward" | "pending" | "in_progress" | "resolved" | "high";
+type MainFilter = "nearby" | "ward" | "pending" | "accepted" | "in_progress" | "resolved" | "high";
 type BrowseNavigation = NavigationProp<UserTabParamList & UserStackParamList>;
 
 const mainFilters: { label: string; value: MainFilter }[] = [
   { label: "Nearby", value: "nearby" },
   { label: "Ward 12", value: "ward" },
   { label: "Pending", value: "pending" },
+  { label: "Accepted", value: "accepted" },
   { label: "In Progress", value: "in_progress" },
   { label: "Resolved", value: "resolved" },
   { label: "High Priority", value: "high" },
@@ -110,7 +111,7 @@ export default function BrowseScreen() {
     setProfile(nextProfile);
 
     const status =
-      mainFilter === "pending" || mainFilter === "in_progress" || mainFilter === "resolved"
+      mainFilter === "pending" || mainFilter === "accepted" || mainFilter === "in_progress" || mainFilter === "resolved"
         ? (mainFilter as CitizenComplaintStatus)
         : "all";
 

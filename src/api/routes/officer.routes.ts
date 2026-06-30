@@ -9,6 +9,7 @@ import {
 import {
   alerts,
   analytics,
+  acceptComplaint,
   ban,
   complaintDetail,
   complaints,
@@ -22,8 +23,12 @@ import {
   patchPriority,
   patchRule,
   patchStatus,
+  rejectComplaint,
+  reopenComplaint,
   removeRule,
+  resolveComplaint,
   settings,
+  startWork,
   unban,
   updateSettings,
   userDetail,
@@ -46,6 +51,11 @@ officerRouter.get("/complaints", complaints);
 officerRouter.get("/complaints/:id", complaintDetail);
 officerRouter.patch("/complaints/:id/status", patchStatus);
 officerRouter.patch("/complaints/:id/assign", patchAssign);
+officerRouter.patch("/complaints/:id/accept", acceptComplaint);
+officerRouter.patch("/complaints/:id/start", startWork);
+officerRouter.patch("/complaints/:id/resolve", resolveComplaint);
+officerRouter.patch("/complaints/:id/reject", rejectComplaint);
+officerRouter.patch("/complaints/:id/reopen", reopenComplaint);
 officerRouter.patch("/complaints/:id/department", patchDepartment);
 officerRouter.patch("/complaints/:id/priority", patchPriority);
 officerRouter.post("/complaints/:id/notes", note);

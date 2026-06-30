@@ -14,6 +14,7 @@ import {
   listEscalationRules,
   listOfficerComplaints,
   listUsers,
+  runWorkflowAction,
   setUserBan,
   updateEscalationRule,
   updateDepartmentAssignment,
@@ -112,6 +113,78 @@ export async function patchStatus(
   } catch (error) {
     next(error);
   }
+}
+
+function getWorkflowReason(request: Request): string | undefined {
+  const body = request.body as Record<string, unknown>;
+  return getString(body.reason ?? body.note ?? body.resolutionNote);
+}
+
+async function runComplaintWorkflowController(
+  request: Request<{ id: string }>,
+  response: Response,
+  next: NextFunction,
+  action: "accept" | "start_work" | "resolve" | "reject" | "reopen",
+  message: string,
+) {
+  try {
+    const complaint = await runWorkflowAction({
+      complaintId: request.params.id,
+      action,
+      reason: getWorkflowReason(request),
+      actor: requireOfficerUser(request),
+    });
+
+    response.status(200).json({
+      success: true,
+      message,
+      complaint,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function acceptComplaint(
+  request: Request<{ id: string }>,
+  response: Response,
+  next: NextFunction,
+) {
+  // Accepting confirms the complaint is valid, but work has not started yet.
+  await runComplaintWorkflowController(request, response, next, "accept", "Complaint accepted.");
+}
+
+export async function startWork(
+  request: Request<{ id: string }>,
+  response: Response,
+  next: NextFunction,
+) {
+  // Starting work moves the complaint into the active officer queue.
+  await runComplaintWorkflowController(request, response, next, "start_work", "Work started.");
+}
+
+export async function resolveComplaint(
+  request: Request<{ id: string }>,
+  response: Response,
+  next: NextFunction,
+) {
+  await runComplaintWorkflowController(request, response, next, "resolve", "Complaint resolved.");
+}
+
+export async function rejectComplaint(
+  request: Request<{ id: string }>,
+  response: Response,
+  next: NextFunction,
+) {
+  await runComplaintWorkflowController(request, response, next, "reject", "Complaint rejected.");
+}
+
+export async function reopenComplaint(
+  request: Request<{ id: string }>,
+  response: Response,
+  next: NextFunction,
+) {
+  await runComplaintWorkflowController(request, response, next, "reopen", "Complaint reopened.");
 }
 
 export async function patchAssign(

@@ -304,6 +304,10 @@ function normalizeStatus(value: unknown, fallback: CitizenComplaintStatus): Citi
     return "pending";
   }
 
+  if (normalized === "accepted") {
+    return "accepted";
+  }
+
   if (normalized === "inprogress") {
     return "in_progress";
   }

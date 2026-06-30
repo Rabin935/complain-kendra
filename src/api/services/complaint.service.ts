@@ -47,6 +47,7 @@ type UploadedComplaintPhoto = {
 
 const statusProgress: Record<ComplaintStatus, number> = {
   pending: 18,
+  accepted: 35,
   in_progress: 58,
   resolved: 100,
   rejected: 100,
@@ -304,12 +305,15 @@ export async function addTimeline(input: {
     | "ai_verified"
     | "status_changed"
     | "assigned"
+    | "accepted"
+    | "work_started"
     | "department_changed"
     | "priority_changed"
     | "comment_added"
     | "note_added"
     | "resolved"
     | "rejected"
+    | "reopened"
     | "rated";
   title: string;
   message?: string;

@@ -21,6 +21,7 @@ export type ComplaintCategory = (typeof COMPLAINT_CATEGORIES)[number];
 
 export const COMPLAINT_STATUSES = [
   "pending",
+  "accepted",
   "in_progress",
   "resolved",
   "rejected",
