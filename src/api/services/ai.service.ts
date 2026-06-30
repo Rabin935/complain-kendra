@@ -1,5 +1,4 @@
 import type { Content } from "@google/generative-ai";
-import ComplaintModel from "../models/Complaint";
 import { geminiModel } from "../config/gemini";
 import {
   COMPLAINT_CATEGORIES,
@@ -10,6 +9,7 @@ import {
 import { AppError } from "../utils/appError";
 import { normalizeCategory } from "../utils/request.utils";
 import { getDepartmentForCategory } from "./department-routing.service";
+import { detectDuplicateComplaint } from "./duplicate-detection.service";
 
 export type AnalysisResult = ComplaintAiAnalysis;
 
@@ -179,28 +179,31 @@ function buildAnalysisResult(input: {
 }
 
 async function findDuplicate(input: AnalyzeInput, category: ComplaintCategory) {
-  const titleText = input.title?.trim();
-  const keyword = titleText || input.description.split(/\s+/).slice(0, 5).join(" ");
-  const candidate = await ComplaintModel.findOne({
+  const duplicate = await detectDuplicateComplaint({
     category,
-    status: { $ne: "resolved" },
-    $text: keyword ? { $search: keyword } : undefined,
-  }).sort({ createdAt: -1 });
+    description: input.description,
+    lat: input.lat,
+    lng: input.lng,
+  });
 
-  if (!candidate) {
+  if (!duplicate.duplicate_found) {
     return {
       isDuplicate: false,
-      probability: input.lat && input.lng ? 0.18 : 0.08,
+      complaintId: duplicate.duplicate_complaint_id,
+      complaintNo: duplicate.duplicate_complaint_no,
+      title: duplicate.duplicate_title,
+      distanceMeters: duplicate.distance_meters,
+      probability: duplicate.similarity_score,
     };
   }
 
   return {
     isDuplicate: true,
-    complaintId: candidate._id.toString(),
-    complaintNo: candidate.complaintNo,
-    title: candidate.title,
-    distanceMeters: input.lat && input.lng ? 280 : undefined,
-    probability: input.lat && input.lng ? 0.87 : 0.72,
+    complaintId: duplicate.duplicate_complaint_id,
+    complaintNo: duplicate.duplicate_complaint_no,
+    title: duplicate.duplicate_title,
+    distanceMeters: duplicate.distance_meters,
+    probability: duplicate.similarity_score,
   };
 }
 

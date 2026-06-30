@@ -132,6 +132,13 @@ const complaintSchema = new Schema<Complaint, ComplaintModel>(
     },
     priorityOverriddenAt: { type: Date, default: undefined },
     priorityOverrideReason: { type: String, trim: true, default: undefined },
+    duplicateOfComplaintId: {
+      type: Schema.Types.ObjectId,
+      ref: "Complaint",
+      default: undefined,
+    },
+    duplicateSimilarityScore: { type: Number, min: 0, max: 1, default: undefined },
+    duplicateCheckedAt: { type: Date, default: undefined },
     aiAnalysis: { type: aiAnalysisSchema, default: undefined },
     aiVerified: { type: Boolean, default: false, required: true },
     aiSuggestedCategory: { type: String, trim: true, default: undefined },

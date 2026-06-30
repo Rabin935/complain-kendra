@@ -372,6 +372,12 @@ function normalizeAiAnalysis(payload: unknown): AiAnalysisResult {
         duplicate.is_duplicate ?? duplicate.isDuplicate,
         sampleAiAnalysis.duplicateCheck.isDuplicate,
       ),
+      complaintId: stringFrom(
+        duplicate.complaint_id ??
+          duplicate.complaintId ??
+          analysis.duplicate_complaint_id,
+        "",
+      ),
       complaintNo: stringFrom(
         duplicate.complaint_no ?? duplicate.complaintNo,
         sampleAiAnalysis.duplicateCheck.complaintNo ?? "",
@@ -380,6 +386,10 @@ function normalizeAiAnalysis(payload: unknown): AiAnalysisResult {
       distanceMeters: numberFrom(
         duplicate.distance_meters ?? duplicate.distanceMeters,
         sampleAiAnalysis.duplicateCheck.distanceMeters ?? 0,
+      ),
+      similarityScore: numberFrom(
+        duplicate.similarity_score ?? duplicate.probability ?? analysis.similarity_score,
+        0,
       ),
     },
   };
@@ -573,6 +583,9 @@ export async function submitCitizenComplaint(
   }
   if (payload.province) {
     formData.append("province", payload.province);
+  }
+  if (payload.continueAsNew) {
+    formData.append("continue_as_new", "true");
   }
 
   payload.photos.forEach((photo) => {

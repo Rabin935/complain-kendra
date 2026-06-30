@@ -144,6 +144,9 @@ export interface Complaint {
   priorityOverriddenBy?: Types.ObjectId | string;
   priorityOverriddenAt?: Date;
   priorityOverrideReason?: string;
+  duplicateOfComplaintId?: Types.ObjectId | string;
+  duplicateSimilarityScore?: number;
+  duplicateCheckedAt?: Date;
   aiAnalysis?: ComplaintAiAnalysis;
   aiVerified: boolean;
   aiSuggestedCategory?: string;
@@ -300,6 +303,9 @@ export interface ComplaintPayload {
   priorityOverriddenBy?: string;
   priorityOverriddenAt?: Date;
   priorityOverrideReason?: string;
+  duplicateOfComplaintId?: string;
+  duplicateSimilarityScore?: number;
+  duplicateCheckedAt?: Date;
   progress: number;
   aiAnalysis?: ComplaintAiAnalysis;
   aiVerified: boolean;

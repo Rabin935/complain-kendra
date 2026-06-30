@@ -471,7 +471,16 @@ export default function CreateComplaintScreen() {
   }
 
   async function followDuplicate() {
-    const duplicateId = aiResult?.duplicateCheck.complaintNo ?? "existing";
+    const duplicateId = aiResult?.duplicateCheck.complaintId;
+
+    if (!duplicateId) {
+      setErrors((current) => ({
+        ...current,
+        photos: "Could not find the existing complaint to follow.",
+      }));
+      return;
+    }
+
     await followComplaint(duplicateId, true);
     setDuplicateChoice("followed");
   }
@@ -493,7 +502,10 @@ export default function CreateComplaintScreen() {
     setSubmitting(true);
 
     try {
-      const result = await submitCitizenComplaint(buildPayload(category));
+      const result = await submitCitizenComplaint({
+        ...buildPayload(category),
+        continueAsNew: duplicateChoice === "new",
+      });
       setSuccessComplaint(result.data);
       setAiWarning(null);
       setErrors({});
@@ -970,7 +982,7 @@ function StepThree({
           <View style={styles.duplicateBody}>
             <Text style={styles.duplicateTitle}>Similar complaint already exists nearby</Text>
             <Text style={styles.duplicateText}>
-              {aiResult.duplicateCheck.complaintNo} · {aiResult.duplicateCheck.title} · {aiResult.duplicateCheck.distanceMeters}m away
+              {aiResult.duplicateCheck.complaintNo} · {aiResult.duplicateCheck.title} · {aiResult.duplicateCheck.distanceMeters}m away · {Math.round((aiResult.duplicateCheck.similarityScore ?? 0) * 100)}% similar
             </Text>
             <View style={styles.duplicateActions}>
               <Pressable

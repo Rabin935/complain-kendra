@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { analyzeComplaint as analyzeComplaintService } from "../services/ai.service";
+import { detectDuplicateComplaint } from "../services/duplicate-detection.service";
 import {
   createComplaint as createComplaintService,
   deleteComplaint as deleteComplaintService,
@@ -303,14 +304,37 @@ export async function analyze(
       photoCount: getNumber(request.body.photo_count ?? request.body.photoCount),
       photoUrl: getString(request.body.photoUrl ?? request.body.photo_url),
     });
+    const duplicate = await detectDuplicateComplaint({
+      category: analysis.detectedCategory,
+      description,
+      lat: getNumber(request.body.lat),
+      lng: getNumber(request.body.lng),
+      wardId: getString(request.body.wardId ?? request.body.ward_id),
+    });
+    const analysisWithDuplicate = {
+      ...analysis,
+      duplicate_found: duplicate.duplicate_found,
+      duplicate_complaint_id: duplicate.duplicate_complaint_id,
+      similarity_score: duplicate.similarity_score,
+      duplicateCheck: {
+        ...analysis.duplicateCheck,
+        isDuplicate: duplicate.duplicate_found,
+        complaintId: duplicate.duplicate_complaint_id,
+        complaintNo: duplicate.duplicate_complaint_no,
+        title: duplicate.duplicate_title,
+        distanceMeters: duplicate.distance_meters,
+        probability: duplicate.similarity_score,
+      },
+    };
 
     response.status(200).json({
       success: true,
       message: "Complaint analyzed successfully.",
-      data: analysis,
-      analysis,
-      analyze: analysis,
-      ...analysis,
+      data: analysisWithDuplicate,
+      analysis: analysisWithDuplicate,
+      analyze: analysisWithDuplicate,
+      duplicate,
+      ...analysisWithDuplicate,
     });
   } catch (error) {
     next(error);

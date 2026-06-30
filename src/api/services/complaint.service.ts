@@ -36,6 +36,7 @@ import { awardPoints } from "./points.service";
 import { emitRealtimeEvent } from "../sockets/realtime";
 import { buildWardLocation, resolveWardFromPayload } from "./ward.service";
 import { calculateComplaintPriority } from "./priority-engine.service";
+import { detectDuplicateComplaint } from "./duplicate-detection.service";
 
 type UploadedComplaintPhoto = {
   buffer: Buffer;
@@ -113,6 +114,9 @@ export function toComplaintPayload(
     priorityOverriddenBy: complaint.priorityOverriddenBy?.toString(),
     priorityOverriddenAt: complaint.priorityOverriddenAt,
     priorityOverrideReason: complaint.priorityOverrideReason,
+    duplicateOfComplaintId: complaint.duplicateOfComplaintId?.toString(),
+    duplicateSimilarityScore: complaint.duplicateSimilarityScore,
+    duplicateCheckedAt: complaint.duplicateCheckedAt,
     progress: statusProgress[complaint.status],
     aiAnalysis: complaint.aiAnalysis,
     aiVerified: complaint.aiVerified,
@@ -228,6 +232,18 @@ async function normalizeCreateComplaintInput(payload: CreateComplaintDto | Recor
     photos,
     photo: photos[0],
   };
+}
+
+function getBoolean(value: unknown): boolean {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    return ["true", "1", "yes", "on"].includes(value.toLowerCase());
+  }
+
+  return false;
 }
 
 async function normalizeUpdateComplaintInput(payload: UpdateComplaintDto | Record<string, unknown>) {
@@ -431,6 +447,28 @@ export async function createComplaint(
 
   const normalizedPayload = await normalizeCreateComplaintInput(payload);
   const assignedDepartment = getDepartmentForCategory(normalizedPayload.category);
+  const continueAsNew = getBoolean(
+    (payload as Record<string, unknown>).continue_as_new ??
+      (payload as Record<string, unknown>).continueAsNew,
+  );
+  const duplicateResult = await detectDuplicateComplaint({
+    category: normalizedPayload.category,
+    description: normalizedPayload.description,
+    lat: normalizedPayload.location?.lat,
+    lng: normalizedPayload.location?.lng,
+    wardId: normalizedPayload.location?.wardId,
+  });
+
+  if (duplicateResult.duplicate_found && !continueAsNew) {
+    throw new AppError("Similar complaint already exists.", 409, {
+      duplicate: duplicateResult,
+      duplicate_found: duplicateResult.duplicate_found,
+      duplicate_complaint_id: duplicateResult.duplicate_complaint_id,
+      similarity_score: duplicateResult.similarity_score,
+      action_required: "follow_existing_or_continue",
+    });
+  }
+
   const duplicateCount = await countSimilarOpenComplaints({
     category: normalizedPayload.category,
     description: normalizedPayload.description,
@@ -448,6 +486,13 @@ export async function createComplaint(
     calculatedPriority: priorityResult.priority,
     priorityScore: priorityResult.score,
     priorityReasons: priorityResult.reasons,
+    // If the user continues anyway, keep a link to the matched complaint for review.
+    duplicateOfComplaintId:
+      duplicateResult.duplicate_found && duplicateResult.duplicate_complaint_id
+        ? duplicateResult.duplicate_complaint_id
+        : undefined,
+    duplicateSimilarityScore: duplicateResult.similarity_score,
+    duplicateCheckedAt: new Date(),
     // Automatically route a new complaint from its selected category.
     assignedDepartment,
     complaintNo: await generateComplaintNo(),

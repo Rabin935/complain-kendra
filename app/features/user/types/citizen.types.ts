@@ -122,9 +122,11 @@ export interface AiAnalysisResult {
   keywords?: string[];
   duplicateCheck: {
     isDuplicate: boolean;
+    complaintId?: string;
     complaintNo?: string;
     title?: string;
     distanceMeters?: number;
+    similarityScore?: number;
   };
 }
 
@@ -150,6 +152,7 @@ export interface CreateReportPayload {
   municipality?: string;
   province?: string;
   photos: ReportPhoto[];
+  continueAsNew?: boolean;
 }
 
 export interface CitizenServiceResult<T> {
