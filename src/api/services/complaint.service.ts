@@ -894,7 +894,7 @@ export async function getComplaintDetail(
 
 export async function getComplaintTimeline(id: string, includeInternal = false) {
   const complaintId = requireObjectId(id, "complaint id");
-  const query: Record<string, unknown> = { complaintId };
+  const query: Record<string, unknown> = { complaintId, deletedAt: undefined };
 
   if (!includeInternal) {
     query.isInternal = false;

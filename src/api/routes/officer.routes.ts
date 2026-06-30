@@ -14,16 +14,20 @@ import {
   complaintDetail,
   complaints,
   createRule,
+  deleteAssign,
   dashboard,
   escalationRules,
   note,
   officialComment,
+  officers,
   patchAssign,
   patchDepartment,
+  patchNote,
   patchPriority,
   patchRule,
   patchStatus,
   rejectComplaint,
+  removeNote,
   reopenComplaint,
   removeRule,
   resolveComplaint,
@@ -48,10 +52,12 @@ officerRouter.delete("/auth/sessions/:id", protect, requireOfficer, officerSessi
 officerRouter.use(protect, requireOfficer);
 officerRouter.get("/dashboard", dashboard);
 officerRouter.get("/dashboard/analytics", analytics);
+officerRouter.get("/officers", officers);
 officerRouter.get("/complaints", complaints);
 officerRouter.get("/complaints/:id", complaintDetail);
 officerRouter.patch("/complaints/:id/status", patchStatus);
 officerRouter.patch("/complaints/:id/assign", patchAssign);
+officerRouter.delete("/complaints/:id/assign", deleteAssign);
 officerRouter.patch("/complaints/:id/accept", acceptComplaint);
 officerRouter.patch("/complaints/:id/start", startWork);
 officerRouter.patch("/complaints/:id/resolve", resolveComplaint);
@@ -60,6 +66,8 @@ officerRouter.patch("/complaints/:id/reopen", reopenComplaint);
 officerRouter.patch("/complaints/:id/department", patchDepartment);
 officerRouter.patch("/complaints/:id/priority", patchPriority);
 officerRouter.post("/complaints/:id/notes", note);
+officerRouter.patch("/complaints/:id/notes/:noteId", patchNote);
+officerRouter.delete("/complaints/:id/notes/:noteId", removeNote);
 officerRouter.post("/complaints/:id/comments", officialComment);
 officerRouter.get("/analytics", analytics);
 officerRouter.get("/alerts", alerts);
