@@ -1,4 +1,5 @@
 import { apiClient, getApiErrorMessage } from "../../../utils/api";
+import { cachedRequest, invalidateCache } from "../../../utils/requestCache";
 import {
   sampleAiAnalysis,
   sampleBadges,
@@ -26,6 +27,8 @@ import type {
 } from "../types/citizen.types";
 
 const API_PREFIX = "/api/v1";
+const SHORT_CACHE_MS = 30_000;
+const PROFILE_CACHE_MS = 60_000;
 const defaultNotificationPreferences: NotificationPreferences = {
   inApp: true,
   email: true,
@@ -459,22 +462,28 @@ function normalizeLeaderboard(payload: unknown): CitizenLeaderboardEntry[] {
 
 export async function fetchCitizenProfile(): Promise<CitizenServiceResult<CitizenProfile>> {
   return withSampleFallback(async () => {
-    const response = await apiClient.get(`${API_PREFIX}/users/me`);
-    return normalizeProfile(response.data);
+    return cachedRequest("citizen:profile", PROFILE_CACHE_MS, async () => {
+      const response = await apiClient.get(`${API_PREFIX}/users/me`);
+      return normalizeProfile(response.data);
+    });
   }, sampleProfile);
 }
 
 export async function fetchCitizenStats(): Promise<CitizenServiceResult<CitizenStats>> {
   return withSampleFallback(async () => {
-    const response = await apiClient.get(`${API_PREFIX}/users/me/stats`);
-    return normalizeStats(response.data);
+    return cachedRequest("citizen:stats", SHORT_CACHE_MS, async () => {
+      const response = await apiClient.get(`${API_PREFIX}/users/me/stats`);
+      return normalizeStats(response.data);
+    });
   }, sampleStats);
 }
 
 export async function fetchCitizenBadges(): Promise<CitizenServiceResult<CitizenBadge[]>> {
   return withSampleFallback(async () => {
-    const response = await apiClient.get(`${API_PREFIX}/users/me/badges`);
-    return unwrapArray<CitizenBadge>(response.data, "badges", sampleBadges);
+    return cachedRequest("citizen:badges", PROFILE_CACHE_MS, async () => {
+      const response = await apiClient.get(`${API_PREFIX}/users/me/badges`);
+      return unwrapArray<CitizenBadge>(response.data, "badges", sampleBadges);
+    });
   }, sampleBadges);
 }
 
@@ -657,15 +666,19 @@ export async function rateComplaintResolution(
 
 export async function fetchLeaderboard(): Promise<CitizenServiceResult<CitizenLeaderboardEntry[]>> {
   return withSampleFallback(async () => {
-    const response = await apiClient.get(`${API_PREFIX}/leaderboard`);
-    return normalizeLeaderboard(response.data);
+    return cachedRequest("citizen:leaderboard", SHORT_CACHE_MS, async () => {
+      const response = await apiClient.get(`${API_PREFIX}/leaderboard`);
+      return normalizeLeaderboard(response.data);
+    });
   }, []);
 }
 
 export async function fetchNotificationPreferences(): Promise<CitizenServiceResult<NotificationPreferences>> {
   return withSampleFallback(async () => {
-    const response = await apiClient.get(`${API_PREFIX}/notifications/preferences`);
-    return normalizeNotificationPreferences(response.data);
+    return cachedRequest("citizen:notification-preferences", PROFILE_CACHE_MS, async () => {
+      const response = await apiClient.get(`${API_PREFIX}/notifications/preferences`);
+      return normalizeNotificationPreferences(response.data);
+    });
   }, defaultNotificationPreferences);
 }
 
@@ -674,6 +687,7 @@ export async function updateNotificationPreferences(
 ): Promise<CitizenServiceResult<NotificationPreferences>> {
   return withSampleFallback(async () => {
     const response = await apiClient.patch(`${API_PREFIX}/notifications/preferences`, preferences);
+    invalidateCache("citizen:notification-preferences");
     return normalizeNotificationPreferences(response.data);
   }, {
     ...defaultNotificationPreferences,
