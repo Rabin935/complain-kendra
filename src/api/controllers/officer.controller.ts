@@ -16,6 +16,7 @@ import {
   listUsers,
   setUserBan,
   updateEscalationRule,
+  updateDepartmentAssignment,
   updateOfficerSettings,
   updatePriority,
   updateStatus,
@@ -163,6 +164,36 @@ export async function patchPriority(
     response.status(200).json({
       success: true,
       message: "Complaint priority updated.",
+      complaint,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function patchDepartment(
+  request: Request<{ id: string }>,
+  response: Response,
+  next: NextFunction,
+) {
+  try {
+    const body = request.body as Record<string, unknown>;
+    const department = getString(body.department ?? body.assignedDepartment);
+
+    if (!department) {
+      throw new AppError("Department is required.", 400);
+    }
+
+    const complaint = await updateDepartmentAssignment({
+      complaintId: request.params.id,
+      department,
+      reason: getString(body.reason),
+      actor: requireOfficerUser(request),
+    });
+
+    response.status(200).json({
+      success: true,
+      message: "Department assignment updated.",
       complaint,
     });
   } catch (error) {

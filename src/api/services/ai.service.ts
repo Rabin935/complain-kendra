@@ -9,6 +9,7 @@ import {
 } from "../types";
 import { AppError } from "../utils/appError";
 import { normalizeCategory } from "../utils/request.utils";
+import { getDepartmentForCategory } from "./department-routing.service";
 
 export type AnalysisResult = ComplaintAiAnalysis;
 
@@ -27,15 +28,6 @@ interface AnalyzeInput {
 interface ComplaintAnalyzer {
   analyze(input: AnalyzeInput): Promise<AnalysisResult>;
 }
-
-const categoryDepartmentMap: Record<ComplaintCategory, string> = {
-  road: "Roads and Infrastructure",
-  water: "Water Supply and Drainage",
-  power: "Electricity Coordination Desk",
-  waste: "Waste Management",
-  trees: "Parks and Urban Forestry",
-  other: "Ward Office Review Desk",
-};
 
 const priorityEtaMap: Record<ComplaintPriority, number> = {
   low: 10,
@@ -238,11 +230,11 @@ async function mockAnalyzeComplaint(input: AnalyzeInput): Promise<AnalysisResult
     severityLabel,
     sizeEstimate,
     priority,
-    department: categoryDepartmentMap[category],
+    department: getDepartmentForCategory(category),
     etaDays: priorityEtaMap[priority],
     duplicateCheck,
     verified: confidence >= 70,
-    summary: `${categoryDepartmentMap[category]} should review this ${severityLabel} priority complaint. The report suggests ${sizeEstimate.toLowerCase()}.`,
+    summary: `${getDepartmentForCategory(category)} should review this ${severityLabel} priority complaint. The report suggests ${sizeEstimate.toLowerCase()}.`,
     keywords: extractKeywords(input.description, category),
   });
 }
@@ -316,14 +308,14 @@ async function geminiAnalyzeComplaint(input: AnalyzeInput): Promise<AnalysisResu
         : severityFromPriority(priority),
     sizeEstimate: parsed.sizeEstimate || estimateSize(input.description, input.photoCount),
     priority,
-    department: parsed.department || categoryDepartmentMap[detectedCategory],
+    department: parsed.department || getDepartmentForCategory(detectedCategory),
     etaDays,
     duplicateCheck: {
       ...duplicateCheck,
       probability: duplicateProbability,
     },
     verified: Boolean(parsed.verified ?? true),
-    summary: parsed.summary || `${categoryDepartmentMap[detectedCategory]} should review this complaint.`,
+    summary: parsed.summary || `${getDepartmentForCategory(detectedCategory)} should review this complaint.`,
     keywords: Array.isArray(parsed.keywords)
       ? parsed.keywords.map(String).slice(0, 5)
       : extractKeywords(input.description, detectedCategory),

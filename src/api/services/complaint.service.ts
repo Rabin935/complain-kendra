@@ -31,6 +31,7 @@ import {
 } from "../utils/request.utils";
 import { saveUploadedImage } from "../utils/upload.utils";
 import { analyzeComplaint } from "./ai.service";
+import { getDepartmentForCategory } from "./department-routing.service";
 import { createNotification } from "./notification.service";
 import { awardPoints } from "./points.service";
 import { emitRealtimeEvent } from "../sockets/realtime";
@@ -116,6 +117,10 @@ export function toComplaintPayload(
     embedding: complaint.embedding ?? [],
     assignedOfficerId,
     assignedOfficerName: complaint.assignedOfficerName,
+    assignedDepartment: complaint.assignedDepartment,
+    departmentOverriddenBy: complaint.departmentOverriddenBy?.toString(),
+    departmentOverriddenAt: complaint.departmentOverriddenAt,
+    departmentOverrideReason: complaint.departmentOverrideReason,
     rejectionReason: complaint.rejectionReason,
     resolutionNote: complaint.resolutionNote,
     upvotes: complaint.upvoteCount,
@@ -281,6 +286,7 @@ export async function addTimeline(input: {
     | "ai_verified"
     | "status_changed"
     | "assigned"
+    | "department_changed"
     | "priority_changed"
     | "comment_added"
     | "note_added"
@@ -340,6 +346,10 @@ async function runComplaintAiAnalysis(complaintId: string): Promise<void> {
           : 2;
   complaint.aiSummary = analysis.summary;
   complaint.aiKeywords = analysis.keywords;
+  // If an officer has not overridden the route, keep the department aligned with AI category detection.
+  if (!complaint.departmentOverriddenAt) {
+    complaint.assignedDepartment = getDepartmentForCategory(analysis.detectedCategory);
+  }
   await complaint.save();
 
   await addTimeline({
@@ -399,8 +409,11 @@ export async function createComplaint(
   }
 
   const normalizedPayload = await normalizeCreateComplaintInput(payload);
+  const assignedDepartment = getDepartmentForCategory(normalizedPayload.category);
   const complaint = await ComplaintModel.create({
     ...normalizedPayload,
+    // Automatically route a new complaint from its selected category.
+    assignedDepartment,
     complaintNo: await generateComplaintNo(),
     userId: normalizedUserId,
   });
@@ -409,7 +422,7 @@ export async function createComplaint(
     complaintId: complaint._id.toString(),
     type: "submitted",
     title: "Complaint submitted",
-    message: "Citizen complaint received by ComplainKendra.",
+    message: `Citizen complaint received and routed to ${assignedDepartment}.`,
     actorType: "citizen",
     actorId: normalizedUserId,
     actorName: user.name,
@@ -654,6 +667,10 @@ export async function updateComplaint(
   assertCitizenCanModify(complaint, actor);
 
   const updates = await normalizeUpdateComplaintInput(payload);
+  if (updates.category && !complaint.departmentOverriddenAt) {
+    // Keep automatic department routing synced when the complaint category changes.
+    updates.assignedDepartment = getDepartmentForCategory(updates.category as ComplaintCategory);
+  }
   const updatedComplaint = await ComplaintModel.findByIdAndUpdate(
     normalizedComplaintId,
     updates,

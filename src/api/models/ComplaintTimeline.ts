@@ -7,6 +7,7 @@ export interface ComplaintTimeline {
     | "ai_verified"
     | "status_changed"
     | "assigned"
+    | "department_changed"
     | "priority_changed"
     | "comment_added"
     | "note_added"
@@ -41,6 +42,7 @@ const complaintTimelineSchema = new Schema<ComplaintTimeline, ComplaintTimelineM
         "ai_verified",
         "status_changed",
         "assigned",
+        "department_changed",
         "priority_changed",
         "comment_added",
         "note_added",

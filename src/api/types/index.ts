@@ -147,6 +147,10 @@ export interface Complaint {
   embedding: number[];
   assignedOfficerId?: Types.ObjectId | string;
   assignedOfficerName?: string;
+  assignedDepartment?: string;
+  departmentOverriddenBy?: Types.ObjectId | string;
+  departmentOverriddenAt?: Date;
+  departmentOverrideReason?: string;
   rejectionReason?: string;
   resolutionNote?: string;
   upvoteCount: number;
@@ -294,6 +298,10 @@ export interface ComplaintPayload {
   embedding: number[];
   assignedOfficerId?: string;
   assignedOfficerName?: string;
+  assignedDepartment?: string;
+  departmentOverriddenBy?: string;
+  departmentOverriddenAt?: Date;
+  departmentOverrideReason?: string;
   rejectionReason?: string;
   resolutionNote?: string;
   upvotes: number;

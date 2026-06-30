@@ -312,6 +312,49 @@ export async function updatePriority(input: {
   return toComplaintPayload(complaint);
 }
 
+export async function updateDepartmentAssignment(input: {
+  complaintId: string;
+  department: string;
+  reason?: string;
+  actor: JwtUserPayload;
+}) {
+  const complaintId = requireObjectId(input.complaintId, "complaint id");
+  const complaint = await ComplaintModel.findById(complaintId);
+
+  if (!complaint) {
+    throw new AppError("Complaint not found.", 404);
+  }
+
+  await assertOfficerCanAccessComplaint(input.actor, complaint);
+
+  const nextDepartment = requireString(input.department, "Department");
+  const previousDepartment = complaint.assignedDepartment;
+
+  // Officer overrides are stored separately from automatic category routing for audit history.
+  complaint.assignedDepartment = nextDepartment;
+  complaint.departmentOverriddenBy = input.actor.subjectId;
+  complaint.departmentOverriddenAt = new Date();
+  complaint.departmentOverrideReason = input.reason;
+  await complaint.save();
+
+  await addTimeline({
+    complaintId,
+    type: "department_changed",
+    title: "Department assignment updated",
+    message: input.reason
+      ? `${previousDepartment ?? "Unassigned"} -> ${nextDepartment}. ${input.reason}`
+      : `${previousDepartment ?? "Unassigned"} -> ${nextDepartment}.`,
+    actorType: "officer",
+    actorId: input.actor.subjectId,
+    actorName: await getActorName(input.actor),
+    isInternal: true,
+  });
+
+  emitRealtimeEvent("officer:queue_updated", { complaintId });
+
+  return toComplaintPayload(complaint);
+}
+
 export async function addInternalNote(input: {
   complaintId: string;
   note: string;

@@ -18,6 +18,7 @@ import {
   note,
   officialComment,
   patchAssign,
+  patchDepartment,
   patchPriority,
   patchRule,
   patchStatus,
@@ -45,6 +46,7 @@ officerRouter.get("/complaints", complaints);
 officerRouter.get("/complaints/:id", complaintDetail);
 officerRouter.patch("/complaints/:id/status", patchStatus);
 officerRouter.patch("/complaints/:id/assign", patchAssign);
+officerRouter.patch("/complaints/:id/department", patchDepartment);
 officerRouter.patch("/complaints/:id/priority", patchPriority);
 officerRouter.post("/complaints/:id/notes", note);
 officerRouter.post("/complaints/:id/comments", officialComment);

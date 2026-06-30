@@ -129,6 +129,15 @@ const complaintSchema = new Schema<Complaint, ComplaintModel>(
       default: undefined,
     },
     assignedOfficerName: { type: String, trim: true, default: undefined },
+    // Department routing is stored on the complaint so officer queues can filter it directly.
+    assignedDepartment: { type: String, trim: true, default: undefined, index: true },
+    departmentOverriddenBy: {
+      type: Schema.Types.ObjectId,
+      ref: "Officer",
+      default: undefined,
+    },
+    departmentOverriddenAt: { type: Date, default: undefined },
+    departmentOverrideReason: { type: String, trim: true, default: undefined },
     rejectionReason: { type: String, trim: true, default: undefined },
     resolutionNote: { type: String, trim: true, default: undefined },
     upvoteCount: { type: Number, default: 0, min: 0, required: true },
