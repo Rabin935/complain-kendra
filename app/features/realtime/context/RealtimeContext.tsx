@@ -1,6 +1,6 @@
 import { createContext, type PropsWithChildren, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
-import { baseURL } from "../../../utils/api";
+import { baseURL } from "../../../../src/lib/api";
 import { useAuth } from "../../auth/context/AuthContext";
 
 export interface RealtimeEvent {

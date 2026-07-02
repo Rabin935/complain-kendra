@@ -1,6 +1,6 @@
 import axios from "axios";
 import { Platform } from "react-native";
-import { apiClient } from "../../../utils/api";
+import { apiClient } from "../../../../src/lib/api";
 import {
   getConfiguredGoogleSignin,
 } from "../../../../src/features/auth/config/google.config";

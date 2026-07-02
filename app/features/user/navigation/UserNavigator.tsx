@@ -1,10 +1,11 @@
+import { createBottomTabNavigator, type BottomTabBarProps } from "@react-navigation/bottom-tabs";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { NavigationProp, useNavigation } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { colors } from "../../../constants/colors";
 import ComplaintDetailScreen from "../../complaints/screens/ComplaintDetailScreen";
 import MyComplaintsScreen from "../../complaints/screens/MyComplaintsScreen";
-import DevConsoleScreen from "../../devtools/screens/DevConsoleScreen";
 import UserTabIcon from "../components/UserTabIcon";
 import BrowseScreen from "../screens/BrowseScreen";
 import HomeScreen from "../screens/HomeScreen";
@@ -20,7 +21,6 @@ const tabConfig: Record<
   {
     label: string;
     icon: string;
-    emphasized?: boolean;
   }
 > = {
   Home: {
@@ -31,63 +31,95 @@ const tabConfig: Record<
     label: "Mine",
     icon: "clipboard-text-clock-outline",
   },
-  Report: {
-    label: "",
-    icon: "plus",
-    emphasized: true,
-  },
   Browse: {
     label: "Browse",
-    icon: "map-search-outline",
-  },
-  Console: {
-    label: "Console",
-    icon: "console",
+    icon: "web",
   },
   Profile: {
     label: "Profile",
-    icon: "account-outline",
+    icon: "account",
   },
 };
 
+function UserTabBar({ state, navigation }: BottomTabBarProps) {
+  const stackNavigation = useNavigation<NavigationProp<UserStackParamList>>();
+
+  function openTab(routeName: keyof UserTabParamList, routeKey: string, focused: boolean) {
+    const event = navigation.emit({
+      type: "tabPress",
+      target: routeKey,
+      canPreventDefault: true,
+    });
+
+    if (!focused && !event.defaultPrevented) {
+      navigation.navigate(routeName);
+    }
+  }
+
+  return (
+    <View style={styles.tabBar}>
+      {state.routes.map((route, index) => {
+        const routeName = route.name as keyof UserTabParamList;
+        const currentTab = tabConfig[routeName];
+        const focused = state.index === index;
+        const item = (
+          <Pressable
+            key={route.key}
+            accessibilityRole="button"
+            accessibilityState={focused ? { selected: true } : {}}
+            style={({ pressed }) => [styles.tabButton, pressed ? styles.tabButtonPressed : null]}
+            onPress={() => openTab(routeName, route.key, focused)}
+          >
+            <UserTabIcon icon={currentTab.icon} focused={focused} />
+            <Text style={[styles.tabBarLabel, focused ? styles.tabBarLabelFocused : null]}>
+              {currentTab.label}
+            </Text>
+          </Pressable>
+        );
+
+        if (index === 2) {
+          return (
+            <View key={`${route.key}-with-create`} style={styles.tabPair}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Create report"
+                style={({ pressed }) => [styles.createSlot, pressed ? styles.createButtonPressed : null]}
+                onPress={() => stackNavigation.navigate("Report")}
+              >
+                <View style={styles.createButton}>
+                  <MaterialCommunityIcons name="plus" size={31} color={colors.surface} />
+                </View>
+              </Pressable>
+              {item}
+            </View>
+          );
+        }
+
+        return item;
+      })}
+    </View>
+  );
+}
+
 function UserTabs() {
   return (
-    <Tabs.Navigator
-      screenOptions={({ route }) => {
-        const currentTab = tabConfig[route.name];
-
-        return {
-          headerShown: false,
-          tabBarHideOnKeyboard: true,
-          sceneStyle: styles.scene,
-          tabBarStyle: styles.tabBar,
-          tabBarItemStyle: styles.tabBarItem,
-          tabBarLabel: ({ focused }) => (
-            currentTab.emphasized ? (
-              <View style={styles.centerSpacer} />
-            ) : (
-              <Text style={[styles.tabBarLabel, focused ? styles.tabBarLabelFocused : null]}>
-                {currentTab.label}
-              </Text>
-            )
-          ),
-          tabBarIcon: ({ focused }) => (
-            <UserTabIcon
-              icon={currentTab.icon}
-              focused={focused}
-              emphasized={currentTab.emphasized}
-            />
-          ),
-        };
-      }}
-    >
-      <Tabs.Screen name="Home" component={HomeScreen} />
-      <Tabs.Screen name="Mine" component={MyComplaintsScreen} />
-      <Tabs.Screen name="Report" component={ReportScreen} />
-      <Tabs.Screen name="Browse" component={BrowseScreen} />
-      <Tabs.Screen name="Console" component={DevConsoleScreen} />
-      <Tabs.Screen name="Profile" component={ProfileScreen} />
-    </Tabs.Navigator>
+    <View style={styles.tabsRoot}>
+      <Tabs.Navigator
+        tabBar={(props) => <UserTabBar {...props} />}
+        screenOptions={({ route }) => {
+          return {
+            headerShown: false,
+            tabBarHideOnKeyboard: true,
+            sceneStyle: styles.scene,
+          };
+        }}
+      >
+        <Tabs.Screen name="Home" component={HomeScreen} />
+        <Tabs.Screen name="Mine" component={MyComplaintsScreen} />
+        <Tabs.Screen name="Browse" component={BrowseScreen} />
+        <Tabs.Screen name="Profile" component={ProfileScreen} />
+      </Tabs.Navigator>
+    </View>
   );
 }
 
@@ -95,36 +127,73 @@ export default function UserNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="MainTabs" component={UserTabs} />
+      <Stack.Screen
+        name="Report"
+        component={ReportScreen}
+        options={{
+          headerShown: true,
+          headerTitle: "Create Report",
+          headerShadowVisible: false,
+          headerStyle: {
+            backgroundColor: colors.background,
+          },
+          headerTintColor: colors.primary,
+          headerTitleStyle: {
+            color: colors.text,
+            fontSize: 16,
+            fontWeight: "900",
+          },
+        }}
+      />
       <Stack.Screen name="ComplaintDetail" component={ComplaintDetailScreen} />
     </Stack.Navigator>
   );
 }
 
 const styles = StyleSheet.create({
+  tabsRoot: {
+    flex: 1,
+  },
   scene: {
     backgroundColor: colors.background,
   },
   tabBar: {
     position: "absolute",
-    left: 16,
-    right: 16,
-    bottom: 10,
-    height: 78,
-    paddingTop: 10,
-    paddingBottom: 12,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 86,
+    paddingTop: 9,
+    paddingBottom: 10,
+    paddingHorizontal: 16,
     borderTopWidth: 0,
-    borderRadius: 28,
+    borderRadius: 0,
     backgroundColor: colors.surface,
-    borderWidth: 1,
+    borderWidth: 0,
     borderColor: colors.border,
     shadowColor: colors.primaryDeep,
-    shadowOpacity: 0.16,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: -8 },
     elevation: 18,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
   },
-  tabBarItem: {
-    paddingVertical: 4,
+  tabButton: {
+    width: "18%",
+    minHeight: 62,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tabButtonPressed: {
+    opacity: 0.72,
+  },
+  tabPair: {
+    width: "36%",
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
   },
   tabBarLabel: {
     color: colors.textMuted,
@@ -135,7 +204,27 @@ const styles = StyleSheet.create({
   tabBarLabelFocused: {
     color: colors.primary,
   },
-  centerSpacer: {
-    height: 12,
+  createSlot: {
+    width: "50%",
+    minHeight: 62,
+    alignItems: "center",
+  },
+  createButton: {
+    marginTop: -33,
+    width: 70,
+    height: 70,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primary,
+    shadowColor: colors.primaryDeep,
+    shadowOpacity: 0.28,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 16,
+  },
+  createButtonPressed: {
+    opacity: 0.86,
+    transform: [{ scale: 0.98 }],
   },
 });

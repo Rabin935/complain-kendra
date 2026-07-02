@@ -2,7 +2,7 @@ import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/nativ
 import { useCallback, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { colors } from "../../../constants/colors";
-import { getApiErrorMessage } from "../../../utils/api";
+import { getApiErrorMessage } from "../../../../src/lib/api";
 import { useAuth } from "../../auth/context/AuthContext";
 import OfficerScreen from "../components/OfficerScreen";
 import { Badge, EmptyState, ErrorState, IconButton, LoadingState, Section, SelectRow, TextField, Toast } from "../components/OfficerUI";

@@ -25,11 +25,38 @@ function sanitizeValue(value: unknown): unknown {
   return sanitized;
 }
 
+function replaceObjectContents(target: unknown, source: unknown): unknown {
+  if (Array.isArray(target) && Array.isArray(source)) {
+    target.splice(0, target.length, ...source);
+    return target;
+  }
+
+  if (
+    target &&
+    source &&
+    typeof target === "object" &&
+    typeof source === "object" &&
+    !Array.isArray(target) &&
+    !Array.isArray(source)
+  ) {
+    const targetRecord = target as Record<string, unknown>;
+
+    for (const key of Object.keys(targetRecord)) {
+      delete targetRecord[key];
+    }
+
+    Object.assign(targetRecord, source);
+    return targetRecord;
+  }
+
+  return source;
+}
+
 export function sanitizeRequest(request: Request, _response: Response, next: NextFunction): void {
   // Strip Mongo operator-style keys before controllers build database queries from request input.
-  request.body = sanitizeValue(request.body) as Request["body"];
-  request.query = sanitizeValue(request.query) as Request["query"];
-  request.params = sanitizeValue(request.params) as Request["params"];
+  request.body = replaceObjectContents(request.body, sanitizeValue(request.body)) as Request["body"];
+  replaceObjectContents(request.query, sanitizeValue(request.query));
+  request.params = replaceObjectContents(request.params, sanitizeValue(request.params)) as Request["params"];
   next();
 }
 

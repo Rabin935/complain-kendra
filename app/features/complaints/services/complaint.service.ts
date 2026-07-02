@@ -1,4 +1,4 @@
-import { baseURL } from "../../../utils/api";
+import { baseURL } from "../../../../src/lib/api";
 import type { AnalyzeResponse, ComplaintResponse, ComplaintsListResponse, CreateComplaintData } from "../types/complaint.types";
 
 export interface UploadPhotoInput {

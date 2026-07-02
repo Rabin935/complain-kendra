@@ -97,6 +97,8 @@ function resolveBaseURL(): string {
 }
 
 const baseURL = resolveBaseURL();
+let unauthorizedHandler: (() => void | Promise<void>) | null = null;
+let handlingUnauthorized = false;
 
 export const apiClient = axios.create({
   baseURL,
@@ -106,6 +108,34 @@ export const apiClient = axios.create({
   timeout: 10000,
 });
 
+function isAuthRoute(url?: string): boolean {
+  return Boolean(
+    url &&
+      (
+        url.includes("/auth/login") ||
+        url.includes("/auth/register") ||
+        url.includes("/auth/google") ||
+        url.includes("/auth/forgot-password") ||
+        url.includes("/auth/reset-password") ||
+        url.includes("/auth/send-otp") ||
+        url.includes("/auth/verify-otp")
+      ),
+  );
+}
+
+function hasAuthorizationHeader(headers: unknown): boolean {
+  if (!headers || typeof headers !== "object") {
+    return false;
+  }
+
+  const record = headers as Record<string, unknown>;
+  return Boolean(record.Authorization ?? record.authorization);
+}
+
+export function setUnauthorizedHandler(handler: (() => void | Promise<void>) | null): void {
+  unauthorizedHandler = handler;
+}
+
 export function setAuthToken(token: string | null): void {
   if (token) {
     apiClient.defaults.headers.common.Authorization = `Bearer ${token}`;
@@ -114,6 +144,30 @@ export function setAuthToken(token: string | null): void {
 
   delete apiClient.defaults.headers.common.Authorization;
 }
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error: unknown) => {
+    if (
+      axios.isAxiosError(error) &&
+      error.response?.status === 401 &&
+      !isAuthRoute(error.config?.url) &&
+      (hasAuthorizationHeader(error.config?.headers) || hasAuthorizationHeader(apiClient.defaults.headers.common)) &&
+      unauthorizedHandler &&
+      !handlingUnauthorized
+    ) {
+      handlingUnauthorized = true;
+
+      try {
+        await unauthorizedHandler();
+      } finally {
+        handlingUnauthorized = false;
+      }
+    }
+
+    return Promise.reject(error);
+  },
+);
 
 export function getApiErrorMessage(error: unknown): string {
   if (axios.isAxiosError<{ message?: string }>(error)) {

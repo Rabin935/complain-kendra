@@ -1,5 +1,5 @@
-import { apiClient } from "../../../utils/api";
-import { cachedRequest, invalidateCache } from "../../../utils/requestCache";
+import { apiClient } from "../../../../src/lib/api";
+import { cachedRequest, invalidateCache } from "../../../../src/lib/requestCache";
 import type {
   ComplaintCategory,
   ComplaintPriority,

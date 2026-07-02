@@ -1,11 +1,9 @@
-import { apiClient, getApiErrorMessage } from "../../../utils/api";
-import { cachedRequest, invalidateCache } from "../../../utils/requestCache";
+import { apiClient, getApiErrorMessage } from "../../../../src/lib/api";
+import { cachedRequest, invalidateCache } from "../../../../src/lib/requestCache";
 import {
   sampleAiAnalysis,
-  sampleBadges,
   sampleNotifications,
   sampleProfile,
-  sampleStats,
 } from "../data/citizenSampleData";
 import type {
   AiAnalysisResult,
@@ -29,6 +27,40 @@ import type {
 const API_PREFIX = "/api/v1";
 const SHORT_CACHE_MS = 30_000;
 const PROFILE_CACHE_MS = 60_000;
+const emptyProfile: CitizenProfile = {
+  id: "",
+  name: "Citizen",
+  email: "",
+  phone: "",
+  initials: "CT",
+  location: {
+    address: "",
+    area: "",
+    ward: "",
+    wardId: "",
+    wardName: "",
+    wardNumber: "",
+    city: "",
+    municipality: "",
+    province: "",
+    lat: 0,
+    lng: 0,
+  },
+  level: 1,
+  levelTitle: "Community Starter",
+  points: 0,
+  language: "English",
+  isPublic: true,
+};
+const emptyStats: CitizenStats = {
+  pending: 0,
+  inProgress: 0,
+  resolved: 0,
+  wardTotal: 0,
+  reportsSubmitted: 0,
+  upvotesReceived: 0,
+  badgesEarned: 0,
+};
 const defaultNotificationPreferences: NotificationPreferences = {
   inApp: true,
   email: true,
@@ -120,7 +152,7 @@ function normalizeProfile(payload: unknown): CitizenProfile {
   const user = unwrapRecord(payload);
   const location = isRecord(user.location) ? user.location : {};
 
-  const name = stringFrom(user.name, sampleProfile.name);
+  const name = stringFrom(user.name, emptyProfile.name);
   const initials = name
     .split(" ")
     .filter(Boolean)
@@ -130,37 +162,43 @@ function normalizeProfile(payload: unknown): CitizenProfile {
     .slice(0, 2);
 
   return {
-    ...sampleProfile,
-    id: stringFrom(user.id ?? user._id, sampleProfile.id),
+    ...emptyProfile,
+    id: stringFrom(user.id ?? user._id, emptyProfile.id),
     name,
-    email: stringFrom(user.email, sampleProfile.email),
-    phone: stringFrom(user.phone, sampleProfile.phone),
-    initials: initials || sampleProfile.initials,
-    avatarUrl: stringFrom(user.avatarUrl, sampleProfile.avatarUrl ?? ""),
-    language: stringFrom(user.language, sampleProfile.language) === "Nepali" ? "Nepali" : "English",
-    isPublic: booleanFrom(user.is_public ?? user.isPublic, sampleProfile.isPublic),
-    level: numberFrom(user.level, sampleProfile.level),
-    levelTitle: stringFrom(user.level_title ?? user.levelTitle, sampleProfile.levelTitle),
-    points: numberFrom(user.points, sampleProfile.points),
+    email: stringFrom(user.email, emptyProfile.email),
+    phone: stringFrom(user.phone, emptyProfile.phone),
+    initials: initials || emptyProfile.initials,
+    avatarUrl: stringFrom(user.avatarUrl, emptyProfile.avatarUrl ?? ""),
+    language: stringFrom(user.language, emptyProfile.language) === "Nepali" ? "Nepali" : "English",
+    isPublic: booleanFrom(user.is_public ?? user.isPublic, emptyProfile.isPublic),
+    level: numberFrom(user.level, emptyProfile.level),
+    levelTitle: stringFrom(user.level_title ?? user.levelTitle, emptyProfile.levelTitle),
+    points: numberFrom(user.points, emptyProfile.points),
     location: {
-      ...sampleProfile.location,
-      address: stringFrom(location.address, sampleProfile.location.address),
-      area: stringFrom(location.area, sampleProfile.location.area),
-      ward: stringFrom(location.ward, sampleProfile.location.ward),
-      wardId: stringFrom(location.ward_id ?? location.wardId, sampleProfile.location.wardId),
-      wardName: stringFrom(location.ward_name ?? location.wardName, sampleProfile.location.wardName ?? ""),
+      ...emptyProfile.location,
+      address: stringFrom(location.address ?? user.address, emptyProfile.location.address),
+      area: stringFrom(location.area ?? user.homeArea ?? user.area, emptyProfile.location.area),
+      ward: stringFrom(location.ward ?? user.ward, emptyProfile.location.ward),
+      wardId: stringFrom(
+        location.ward_id ?? location.wardId ?? user.ward_id ?? user.wardId,
+        emptyProfile.location.wardId,
+      ),
+      wardName: stringFrom(
+        location.ward_name ?? location.wardName ?? user.ward_name ?? user.wardName,
+        emptyProfile.location.wardName ?? "",
+      ),
       wardNumber: stringFrom(
-        location.ward_number ?? location.wardNumber,
-        sampleProfile.location.wardNumber ?? "",
+        location.ward_number ?? location.wardNumber ?? user.ward_number ?? user.wardNumber,
+        emptyProfile.location.wardNumber ?? "",
       ),
-      city: stringFrom(location.city, sampleProfile.location.city),
+      city: stringFrom(location.city ?? user.city, emptyProfile.location.city),
       municipality: stringFrom(
-        location.municipality,
-        sampleProfile.location.municipality ?? "",
+        location.municipality ?? user.municipality,
+        emptyProfile.location.municipality ?? "",
       ),
-      province: stringFrom(location.province, sampleProfile.location.province ?? ""),
-      lat: numberFrom(location.lat, sampleProfile.location.lat),
-      lng: numberFrom(location.lng, sampleProfile.location.lng),
+      province: stringFrom(location.province ?? user.province, emptyProfile.location.province ?? ""),
+      lat: numberFrom(location.lat, emptyProfile.location.lat),
+      lng: numberFrom(location.lng, emptyProfile.location.lng),
     },
   };
 }
@@ -169,19 +207,19 @@ function normalizeStats(payload: unknown): CitizenStats {
   const stats = unwrapRecord(payload);
 
   return {
-    pending: numberFrom(stats.pending, sampleStats.pending),
-    inProgress: numberFrom(stats.in_progress ?? stats.inProgress, sampleStats.inProgress),
-    resolved: numberFrom(stats.resolved, sampleStats.resolved),
-    wardTotal: numberFrom(stats.ward_total ?? stats.wardTotal, sampleStats.wardTotal),
+    pending: numberFrom(stats.pending, emptyStats.pending),
+    inProgress: numberFrom(stats.in_progress ?? stats.inProgress, emptyStats.inProgress),
+    resolved: numberFrom(stats.resolved, emptyStats.resolved),
+    wardTotal: numberFrom(stats.ward_total ?? stats.wardTotal, emptyStats.wardTotal),
     reportsSubmitted: numberFrom(
       stats.reports_submitted ?? stats.reportsSubmitted,
-      sampleStats.reportsSubmitted,
+      emptyStats.reportsSubmitted,
     ),
     upvotesReceived: numberFrom(
       stats.upvotes_received ?? stats.upvotesReceived,
-      sampleStats.upvotesReceived,
+      emptyStats.upvotesReceived,
     ),
-    badgesEarned: numberFrom(stats.badges_earned ?? stats.badgesEarned, sampleStats.badgesEarned),
+    badgesEarned: numberFrom(stats.badges_earned ?? stats.badgesEarned, emptyStats.badgesEarned),
   };
 }
 
@@ -466,7 +504,7 @@ export async function fetchCitizenProfile(): Promise<CitizenServiceResult<Citize
       const response = await apiClient.get(`${API_PREFIX}/users/me`);
       return normalizeProfile(response.data);
     });
-  }, sampleProfile);
+  }, emptyProfile);
 }
 
 export async function fetchCitizenStats(): Promise<CitizenServiceResult<CitizenStats>> {
@@ -475,16 +513,16 @@ export async function fetchCitizenStats(): Promise<CitizenServiceResult<CitizenS
       const response = await apiClient.get(`${API_PREFIX}/users/me/stats`);
       return normalizeStats(response.data);
     });
-  }, sampleStats);
+  }, emptyStats);
 }
 
 export async function fetchCitizenBadges(): Promise<CitizenServiceResult<CitizenBadge[]>> {
   return withSampleFallback(async () => {
     return cachedRequest("citizen:badges", PROFILE_CACHE_MS, async () => {
       const response = await apiClient.get(`${API_PREFIX}/users/me/badges`);
-      return unwrapArray<CitizenBadge>(response.data, "badges", sampleBadges);
+      return unwrapArray<CitizenBadge>(response.data, "badges", []);
     });
-  }, sampleBadges);
+  }, []);
 }
 
 export async function fetchNotifications(): Promise<CitizenServiceResult<CitizenNotification[]>> {
@@ -522,8 +560,8 @@ export async function fetchWardComplaintCount(
       },
     });
     const payload = unwrapRecord(response.data);
-    return numberFrom(payload.total, sampleStats.wardTotal);
-  }, sampleStats.wardTotal);
+    return numberFrom(payload.total, emptyStats.wardTotal);
+  }, emptyStats.wardTotal);
 }
 
 export async function fetchMyComplaints(options: {
@@ -794,6 +832,7 @@ export async function updatePublicProfile(
     await apiClient.patch(`${API_PREFIX}/users/me`, {
       is_public: isPublic,
     });
+    invalidateCache("citizen:profile");
     return { isPublic };
   }, { isPublic });
 }

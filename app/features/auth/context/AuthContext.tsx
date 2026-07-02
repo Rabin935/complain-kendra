@@ -6,7 +6,8 @@ import {
   useEffect,
   useState,
 } from "react";
-import { getApiErrorMessage, setAuthToken } from "../../../utils/api";
+import { getApiErrorMessage, setAuthToken, setUnauthorizedHandler } from "../../../../src/lib/api";
+import { invalidateCache } from "../../../../src/lib/requestCache";
 import { getGoogleSignInAvailabilityMessage } from "../../../../src/features/auth/config/google.config";
 import type {
   AuthContextValue,
@@ -48,7 +49,56 @@ function isStoredToken(token: string | null): token is string {
   return Boolean(token && token.split(".").length === 3);
 }
 
+function decodeBase64Url(value: string): string {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), "=");
+
+  if (typeof atob === "function") {
+    return atob(padded);
+  }
+
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+  let output = "";
+  let buffer = 0;
+  let bits = 0;
+
+  for (const char of padded) {
+    if (char === "=") {
+      break;
+    }
+
+    const index = alphabet.indexOf(char);
+
+    if (index < 0) {
+      throw new Error("Invalid base64 value.");
+    }
+
+    buffer = (buffer << 6) | index;
+    bits += 6;
+
+    if (bits >= 8) {
+      bits -= 8;
+      output += String.fromCharCode((buffer >> bits) & 0xff);
+    }
+  }
+
+  return output;
+}
+
+function isTokenExpired(token: string): boolean {
+  try {
+    const [, payload] = token.split(".");
+    const decodedPayload = decodeBase64Url(payload);
+    const parsedPayload = JSON.parse(decodedPayload) as { exp?: unknown };
+
+    return typeof parsedPayload.exp === "number" && parsedPayload.exp * 1000 <= Date.now();
+  } catch {
+    return false;
+  }
+}
+
 async function persistSession(token: string, user: AuthUser): Promise<void> {
+  invalidateCache();
   await AsyncStorage.multiSet([
     [TOKEN_STORAGE_KEY, token],
     [USER_STORAGE_KEY, JSON.stringify(user)],
@@ -57,6 +107,7 @@ async function persistSession(token: string, user: AuthUser): Promise<void> {
 }
 
 async function clearPersistedSession(): Promise<void> {
+  invalidateCache();
   await AsyncStorage.multiRemove([TOKEN_STORAGE_KEY, USER_STORAGE_KEY]);
   setAuthToken(null);
 }
@@ -80,7 +131,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         const storedToken = storedEntries[TOKEN_STORAGE_KEY] ?? null;
         const storedUser = storedEntries[USER_STORAGE_KEY];
 
-        if (!isStoredToken(storedToken) || !storedUser) {
+        if (!isStoredToken(storedToken) || isTokenExpired(storedToken) || !storedUser) {
           await clearPersistedSession();
           return;
         }
@@ -103,6 +154,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
 
     void restoreSession();
+  }, []);
+
+  useEffect(() => {
+    setUnauthorizedHandler(async () => {
+      await clearPersistedSession();
+      setToken(null);
+      setUser(null);
+    });
+
+    return () => setUnauthorizedHandler(null);
   }, []);
 
   async function login(payload: LoginPayload): Promise<void> {

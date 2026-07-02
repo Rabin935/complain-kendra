@@ -6,7 +6,7 @@ import {
   normalizeStatus,
   parsePagination,
 } from "../src/api/utils/request.utils";
-import { cachedRequest, getCachedValue, invalidateCache } from "../app/utils/requestCache";
+import { cachedRequest, getCachedValue, invalidateCache } from "../src/lib/requestCache";
 
 function testRequestNormalization() {
   assert.equal(normalizeStatus("In Progress"), "in_progress");
@@ -20,6 +20,10 @@ function testRequestNormalization() {
 }
 
 function testRequestSanitization() {
+  const query = {
+    search: "road",
+    $ne: "bad",
+  };
   const request = {
     body: {
       title: "Complaint",
@@ -29,12 +33,13 @@ function testRequestSanitization() {
         safe: "kept",
       },
     },
-    query: {
-      search: "road",
-      $ne: "bad",
-    },
     params: {},
   };
+  Object.defineProperty(request, "query", {
+    configurable: true,
+    enumerable: true,
+    get: () => query,
+  });
   let nextCalled = false;
 
   sanitizeRequest(
@@ -49,7 +54,8 @@ function testRequestSanitization() {
   assert.equal("$where" in request.body, false);
   assert.equal("profile.email" in request.body.nested, false);
   assert.equal(request.body.nested.safe, "kept");
-  assert.equal("$ne" in request.query, false);
+  assert.equal("$ne" in query, false);
+  assert.equal(query.search, "road");
 }
 
 async function testRequestCache() {

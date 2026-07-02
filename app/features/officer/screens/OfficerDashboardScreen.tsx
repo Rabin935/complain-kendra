@@ -3,7 +3,7 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useCallback, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { colors } from "../../../constants/colors";
-import { getApiErrorMessage } from "../../../utils/api";
+import { getApiErrorMessage } from "../../../../src/lib/api";
 import { useRealtimeInvalidation } from "../../realtime/hooks/useRealtimeInvalidation";
 import OfficerScreen from "../components/OfficerScreen";
 import { Badge, EmptyState, ErrorState, LoadingState, Section } from "../components/OfficerUI";

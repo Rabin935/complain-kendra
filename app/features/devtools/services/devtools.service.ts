@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { apiClient, getApiErrorMessage } from "../../../utils/api";
+import { apiClient, getApiErrorMessage } from "../../../../src/lib/api";
 import type {
   DevConsoleResponse,
   DevConsoleSessionState,

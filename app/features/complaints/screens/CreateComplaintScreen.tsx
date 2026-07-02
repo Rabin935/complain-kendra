@@ -1,13 +1,13 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { NavigationProp, RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Image,
-  type DimensionValue,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -18,6 +18,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../../../constants/colors";
+import InteractiveMap from "../../map/components/InteractiveMap";
+import type { SelectedMapLocation } from "../../map/types";
 import { categoryMeta, sampleLocation } from "../../user/data/citizenSampleData";
 import {
   analyzeReportDraft,
@@ -33,11 +35,11 @@ import type {
   CreateReportPayload,
   ReportPhoto,
 } from "../../user/types/citizen.types";
-import type { UserTabParamList } from "../../user/types/user.types";
+import type { UserStackParamList, UserTabParamList } from "../../user/types/user.types";
 import { priorityColors, priorityLabels } from "../../user/utils/citizenUi";
 
-type ReportNavigation = NavigationProp<UserTabParamList>;
-type ReportRoute = RouteProp<UserTabParamList, "Report">;
+type ReportNavigation = NavigationProp<UserStackParamList & UserTabParamList>;
+type ReportRoute = RouteProp<UserStackParamList, "Report">;
 type Step = 1 | 2 | 3;
 type ReportErrors = Partial<Record<"category" | "title" | "description" | "location" | "photos", string>>;
 
@@ -189,6 +191,32 @@ function buildFallbackLocation(lat: number, lng: number, currentLocation: Citize
   };
 }
 
+function buildLocationFromMapSelection(
+  selection: SelectedMapLocation,
+  currentLocation: CitizenLocation,
+): CitizenLocation {
+  const address = selection.address;
+  const ward = selection.ward;
+
+  return {
+    ...currentLocation,
+    address: address?.formattedAddress ?? currentLocation.address,
+    area:
+      address?.city ??
+      address?.municipality ??
+      currentLocation.area,
+    ward: ward?.wardName ?? address?.ward ?? currentLocation.ward,
+    wardId: ward?.wardId ?? currentLocation.wardId,
+    wardName: ward?.wardName ?? address?.ward ?? currentLocation.wardName,
+    wardNumber: ward?.wardNumber ?? currentLocation.wardNumber,
+    city: address?.city ?? currentLocation.city,
+    municipality: ward?.municipality ?? address?.municipality ?? currentLocation.municipality,
+    province: ward?.province ?? address?.province ?? currentLocation.province,
+    lat: selection.coordinates.lat,
+    lng: selection.coordinates.lng,
+  };
+}
+
 function getMapTileUrl(lat: number, lng: number, zoom = 16): string {
   const latitudeRad = (lat * Math.PI) / 180;
   const tileCount = 2 ** zoom;
@@ -220,9 +248,9 @@ export default function CreateComplaintScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [slowNetwork, setSlowNetwork] = useState<string | null>(null);
   const [successComplaint, setSuccessComplaint] = useState<CitizenComplaint | null>(null);
+  const [locationPickerOpen, setLocationPickerOpen] = useState(false);
+  const [pendingMapLocation, setPendingMapLocation] = useState<SelectedMapLocation | null>(null);
   const selectedMeta = category ? categoryMeta[category] : null;
-
-  const progressWidth = useMemo<DimensionValue>(() => `${(step / 3) * 100}%` as DimensionValue, [step]);
 
   useEffect(() => {
     if (route.params?.category) {
@@ -321,6 +349,14 @@ export default function CreateComplaintScreen() {
     if (validateStepOne()) {
       setStep(2);
     }
+  }
+
+  async function analyzeFromDraft() {
+    if (!validateStepOne()) {
+      return;
+    }
+
+    await continueFromStepTwo();
   }
 
   async function continueFromStepTwo() {
@@ -470,6 +506,41 @@ export default function CreateComplaintScreen() {
     void applyCoordinates(nextLat, nextLng, "manual");
   }
 
+  function openLocationPicker() {
+    setPendingMapLocation({
+      coordinates: {
+        lat: location.lat,
+        lng: location.lng,
+      },
+      source: "reset",
+    });
+    setLocationPickerOpen(true);
+  }
+
+  function closeLocationPicker() {
+    setPendingMapLocation(null);
+    setLocationPickerOpen(false);
+  }
+
+  function confirmLocationSelection() {
+    const selectedLocation =
+      pendingMapLocation ??
+      {
+        coordinates: {
+          lat: location.lat,
+          lng: location.lng,
+        },
+        source: "reset" as const,
+      };
+
+    setLocation((current) => buildLocationFromMapSelection(selectedLocation, current));
+    setGpsLocked(true);
+    setLocationHint("Location selected from map.");
+    setErrors((current) => ({ ...current, location: undefined }));
+    setLocationPickerOpen(false);
+    setPendingMapLocation(null);
+  }
+
   async function followDuplicate() {
     const duplicateId = aiResult?.duplicateCheck.complaintId;
 
@@ -592,26 +663,34 @@ export default function CreateComplaintScreen() {
         >
           <View style={styles.header}>
             <Pressable style={styles.backButton} onPress={goBack}>
-              <MaterialCommunityIcons name="arrow-left" size={22} color={colors.primary} />
+              <MaterialCommunityIcons name="arrow-left" size={20} color={colors.text} />
             </Pressable>
-            <View style={styles.headerCopy}>
-              <Text style={styles.stepText}>Step {step}/3</Text>
-              <Text style={styles.title}>
-                {step === 1 ? "Report an Issue" : step === 2 ? "Location & Photos" : "AI Analysis"}
-              </Text>
-            </View>
+            <Text style={styles.title}>
+              {step === 1 ? "Report an Issue" : step === 2 ? "Location & Photos" : "AI Analysis"}
+            </Text>
+            <Text style={styles.stepText}>{step}/3</Text>
           </View>
 
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: progressWidth }]} />
+          <View style={styles.progressSegments}>
+            {[1, 2, 3].map((item) => (
+              <View
+                key={item}
+                style={[styles.progressSegment, item <= step ? styles.progressSegmentActive : null]}
+              />
+            ))}
           </View>
 
           {step === 1 ? (
-            <StepOne
+            <CreateDraftStep
               category={category}
               title={title}
               description={description}
+              location={location}
+              gpsLocked={gpsLocked}
+              photos={photos}
               errors={errors}
+              analyzing={analyzing}
+              slowNetwork={slowNetwork}
               onCategoryChange={(nextCategory) => {
                 setCategory(nextCategory);
                 setErrors((current) => ({ ...current, category: undefined }));
@@ -621,7 +700,11 @@ export default function CreateComplaintScreen() {
                 setErrors((current) => ({ ...current, title: undefined }));
               }}
               onDescriptionChange={updateDescription}
-              onContinue={continueFromStepOne}
+              onPickGallery={() => void pickFromGallery()}
+              onTakePhoto={() => void takePhoto()}
+              onRemovePhoto={removePhoto}
+              onOpenLocationPicker={openLocationPicker}
+              onAnalyze={() => void analyzeFromDraft()}
             />
           ) : null}
 
@@ -637,6 +720,7 @@ export default function CreateComplaintScreen() {
               onTakePhoto={() => void takePhoto()}
               onRemovePhoto={removePhoto}
               onRedetect={redetectLocation}
+              onOpenLocationPicker={openLocationPicker}
               onAdjustPin={adjustPin}
               onAnalyze={() => void continueFromStepTwo()}
               analyzing={analyzing}
@@ -667,8 +751,282 @@ export default function CreateComplaintScreen() {
             />
           ) : null}
         </ScrollView>
+
+        <LocationPickerPopup
+          visible={locationPickerOpen}
+          location={location}
+          pendingLocation={pendingMapLocation}
+          onChange={setPendingMapLocation}
+          onCancel={closeLocationPicker}
+          onConfirm={confirmLocationSelection}
+        />
       </KeyboardAvoidingView>
     </SafeAreaView>
+  );
+}
+
+function CreateDraftStep({
+  category,
+  title,
+  description,
+  location,
+  gpsLocked,
+  photos,
+  errors,
+  analyzing,
+  slowNetwork,
+  onCategoryChange,
+  onTitleChange,
+  onDescriptionChange,
+  onPickGallery,
+  onTakePhoto,
+  onRemovePhoto,
+  onOpenLocationPicker,
+  onAnalyze,
+}: {
+  category: CitizenComplaintCategory | null;
+  title: string;
+  description: string;
+  location: CitizenLocation;
+  gpsLocked: boolean;
+  photos: ReportPhoto[];
+  errors: ReportErrors;
+  analyzing: boolean;
+  slowNetwork: string | null;
+  onCategoryChange: (category: CitizenComplaintCategory) => void;
+  onTitleChange: (value: string) => void;
+  onDescriptionChange: (value: string) => void;
+  onPickGallery: () => void;
+  onTakePhoto: () => void;
+  onRemovePhoto: (uri: string) => void;
+  onOpenLocationPicker: () => void;
+  onAnalyze: () => void;
+}) {
+  const photoSlots = Array.from({ length: maxPhotos });
+
+  return (
+    <View style={styles.draftPanel}>
+      <Text style={styles.formSectionLabel}>Choose category</Text>
+      <View style={styles.categoryGrid}>
+        {categoryOrder.map((item) => {
+          const meta = categoryMeta[item];
+          const active = category === item;
+
+          return (
+            <Pressable
+              key={item}
+              style={[styles.categoryCard, active ? styles.categoryCardActive : null]}
+              onPress={() => onCategoryChange(item)}
+            >
+              <View style={[styles.categoryIcon, { backgroundColor: active ? colors.surface : "#EEE8FA20" }]}>
+                <MaterialCommunityIcons
+                  name={meta.icon as keyof typeof MaterialCommunityIcons.glyphMap}
+                  size={21}
+                  color={active ? colors.primary : meta.color}
+                />
+              </View>
+              <Text style={[styles.categoryLabel, active ? styles.categoryLabelActive : null]}>
+                {meta.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      {errors.category ? <Text style={styles.errorText}>{errors.category}</Text> : null}
+
+      <View style={styles.fieldGroup}>
+        <Text style={styles.label}>Title</Text>
+        <View style={[styles.iconInput, errors.title ? styles.inputError : null]}>
+          <MaterialCommunityIcons name="note-edit-outline" size={18} color={colors.textMuted} />
+          <TextInput
+            value={title}
+            onChangeText={onTitleChange}
+            placeholder="Large pothole on Ring Road"
+            placeholderTextColor={colors.textMuted}
+            style={styles.inlineInput}
+            maxLength={90}
+          />
+        </View>
+        {errors.title ? <Text style={styles.errorText}>{errors.title}</Text> : null}
+      </View>
+
+      <View style={styles.fieldGroup}>
+        <View style={styles.labelRow}>
+          <Text style={styles.label}>Description</Text>
+          <Text style={styles.charCount}>{description.length}/{maxDescriptionLength}</Text>
+        </View>
+        <TextInput
+          value={description}
+          onChangeText={onDescriptionChange}
+          placeholder="Deep pothole causing traffic disruption. Has been there for a week."
+          placeholderTextColor={colors.textMuted}
+          style={[styles.input, styles.textArea, errors.description ? styles.inputError : null]}
+          multiline
+          textAlignVertical="top"
+          maxLength={maxDescriptionLength}
+        />
+        <View style={styles.fieldHintRow}>
+          <Text style={styles.fieldHint}>Be specific - helps faster resolution</Text>
+          <Text style={styles.fieldHint}>{description.length}/{maxDescriptionLength}</Text>
+        </View>
+        {errors.description ? <Text style={styles.errorText}>{errors.description}</Text> : null}
+      </View>
+
+      <View style={styles.fieldGroup}>
+        <Text style={styles.label}>Location</Text>
+        <Pressable style={styles.locationCardCompact} onPress={onOpenLocationPicker}>
+          <View style={styles.locationIconCompact}>
+            <MaterialCommunityIcons name="map-marker-outline" size={24} color={colors.primary} />
+          </View>
+          <View style={styles.locationBody}>
+            <Text style={styles.locationTitle} numberOfLines={1}>
+              {location.area ? `${location.area}, ${location.city}` : location.address}
+            </Text>
+            <Text style={styles.locationSubtitle} numberOfLines={1}>
+              {location.ward} - {location.city} - GPS {gpsLocked ? "locked" : "detecting"}
+            </Text>
+          </View>
+          <MaterialCommunityIcons name="crosshairs-gps" size={24} color={colors.primary} />
+        </Pressable>
+        {errors.location ? <Text style={styles.errorText}>{errors.location}</Text> : null}
+      </View>
+
+      <View style={styles.photoHeaderCompact}>
+        <Text style={styles.label}>Add Photos <Text style={styles.labelMuted}>(up to 4)</Text></Text>
+      </View>
+      <View style={styles.photoStrip}>
+        {photoSlots.map((_, index) => {
+          const photo = photos[index];
+
+          if (photo) {
+            return (
+              <View key={photo.uri} style={styles.photoTile}>
+                <Image source={{ uri: photo.uri }} style={styles.photoTileImage} resizeMode="cover" />
+                <Pressable style={styles.removePhotoCompact} onPress={() => onRemovePhoto(photo.uri)}>
+                  <MaterialCommunityIcons name="close" size={12} color={colors.surface} />
+                </Pressable>
+              </View>
+            );
+          }
+
+          if (index === photos.length) {
+            return (
+              <Pressable key={`camera-${index}`} style={styles.photoActionTilePrimary} onPress={onTakePhoto}>
+                <MaterialCommunityIcons name="camera-outline" size={22} color={colors.primary} />
+                <Text style={styles.photoActionTileTextPrimary}>Camera</Text>
+              </Pressable>
+            );
+          }
+
+          if (index === photos.length + 1) {
+            return (
+              <Pressable key={`gallery-${index}`} style={styles.photoActionTile} onPress={onPickGallery}>
+                <MaterialCommunityIcons name="image-outline" size={22} color={colors.textMuted} />
+                <Text style={styles.photoActionTileText}>Gallery</Text>
+              </Pressable>
+            );
+          }
+
+          return <View key={`empty-${index}`} style={styles.photoPlaceholder} />;
+        })}
+      </View>
+      {errors.photos ? <Text style={styles.errorText}>{errors.photos}</Text> : null}
+      {slowNetwork ? <Text style={styles.warningText}>{slowNetwork}</Text> : null}
+
+      <Pressable
+        style={[styles.aiSubmitButton, analyzing ? styles.buttonDisabled : null]}
+        onPress={onAnalyze}
+        disabled={analyzing}
+      >
+        {analyzing ? <ActivityIndicator color={colors.surface} /> : null}
+        <Text style={styles.submitButtonText}>{analyzing ? "Analyzing..." : "Analyze with AI"}</Text>
+        {!analyzing ? <MaterialCommunityIcons name="lightning-bolt" size={18} color={colors.surface} /> : null}
+        {!analyzing ? <MaterialCommunityIcons name="arrow-right" size={18} color={colors.surface} /> : null}
+      </Pressable>
+    </View>
+  );
+}
+
+function LocationPickerPopup({
+  visible,
+  location,
+  pendingLocation,
+  onChange,
+  onCancel,
+  onConfirm,
+}: {
+  visible: boolean;
+  location: CitizenLocation;
+  pendingLocation: SelectedMapLocation | null;
+  onChange: (location: SelectedMapLocation) => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  if (!visible) {
+    return null;
+  }
+
+  const selectedAddress =
+    pendingLocation?.address?.formattedAddress ??
+    location.address;
+  const selectedCoordinates = pendingLocation?.coordinates ?? {
+    lat: location.lat,
+    lng: location.lng,
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+      <View style={styles.modalBackdrop}>
+        <View style={styles.locationPickerCard}>
+          <View style={styles.locationPickerHeader}>
+            <View>
+              <Text style={styles.locationPickerTitle}>Choose location</Text>
+              <Text style={styles.locationPickerSubtitle}>Search, tap, or drag the marker.</Text>
+            </View>
+            <Pressable style={styles.locationPickerClose} onPress={onCancel}>
+              <MaterialCommunityIcons name="close" size={18} color={colors.text} />
+            </Pressable>
+          </View>
+
+          <View style={styles.locationPickerMap}>
+            <InteractiveMap
+              height={330}
+              selectedLocation={{
+                lat: location.lat,
+                lng: location.lng,
+              }}
+              searchPlaceholder="Search area, ward, landmark..."
+              showInfoPanel
+              onLocationChange={onChange}
+            />
+          </View>
+
+          <View style={styles.locationPickerSummary}>
+            <MaterialCommunityIcons name="map-marker-check-outline" size={21} color={colors.primary} />
+            <View style={styles.locationBody}>
+              <Text style={styles.locationPickerAddress} numberOfLines={2}>
+                {selectedAddress}
+              </Text>
+              <Text style={styles.locationPickerCoords}>
+                {selectedCoordinates.lat.toFixed(6)}, {selectedCoordinates.lng.toFixed(6)}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.locationPickerActions}>
+            <Pressable style={styles.locationCancelButton} onPress={onCancel}>
+              <Text style={styles.locationCancelText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              style={styles.locationUseButton}
+              onPress={onConfirm}
+            >
+              <Text style={styles.locationUseText}>Use Location</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -773,6 +1131,7 @@ function StepTwo({
   onTakePhoto,
   onRemovePhoto,
   onRedetect,
+  onOpenLocationPicker,
   onAdjustPin,
   onAnalyze,
 }: {
@@ -788,6 +1147,7 @@ function StepTwo({
   onTakePhoto: () => void;
   onRemovePhoto: (uri: string) => void;
   onRedetect: () => void;
+  onOpenLocationPicker: () => void;
   onAdjustPin: (deltaLat: number, deltaLng: number) => void;
   onAnalyze: () => void;
 }) {
@@ -796,7 +1156,7 @@ function StepTwo({
 
   return (
     <View style={styles.stepPanel}>
-      <View style={styles.locationCard}>
+      <Pressable style={styles.locationCard} onPress={onOpenLocationPicker}>
         <View style={styles.locationIcon}>
           <MaterialCommunityIcons
             name={gpsLocked ? "map-marker-check-outline" : "crosshairs-gps"}
@@ -814,7 +1174,7 @@ function StepTwo({
         <Pressable style={styles.smallButton} onPress={onRedetect}>
           <Text style={styles.smallButtonText}>Re-detect</Text>
         </Pressable>
-      </View>
+      </Pressable>
       {errors.location ? <Text style={styles.errorText}>{errors.location}</Text> : null}
 
       <View style={styles.mapPreviewCard}>
@@ -1106,46 +1466,57 @@ function normalizeAsset(asset: ImagePicker.ImagePickerAsset): ReportPhoto {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
   },
   keyboard: {
     flex: 1,
   },
   content: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 22,
     paddingBottom: 118,
+    backgroundColor: colors.surface,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingTop: 10,
-    paddingBottom: 12,
+    gap: 14,
+    paddingTop: 8,
+    paddingBottom: 18,
   },
   backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceMuted,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  headerCopy: {
-    flex: 1,
-  },
   stepText: {
-    color: colors.primary,
+    color: colors.textMuted,
     fontSize: 12,
-    fontWeight: "900",
-    textTransform: "uppercase",
+    fontWeight: "800",
   },
   title: {
+    flex: 1,
     color: colors.text,
-    fontSize: 26,
+    fontSize: 19,
     fontWeight: "900",
-    marginTop: 3,
+  },
+  progressSegments: {
+    flexDirection: "row",
+    gap: 6,
+    marginBottom: 20,
+  },
+  progressSegment: {
+    flex: 1,
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: colors.border,
+  },
+  progressSegmentActive: {
+    backgroundColor: colors.primary,
   },
   progressTrack: {
     height: 8,
@@ -1164,6 +1535,9 @@ const styles = StyleSheet.create({
     paddingTop: 18,
     gap: 16,
   },
+  draftPanel: {
+    gap: 12,
+  },
   sectionTitle: {
     color: colors.text,
     fontSize: 17,
@@ -1175,44 +1549,55 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginTop: 3,
   },
+  formSectionLabel: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: "800",
+  },
   categoryGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
   },
   categoryCard: {
-    width: "31.4%",
-    minHeight: 98,
-    borderRadius: 20,
-    padding: 12,
+    width: "31.35%",
+    minHeight: 88,
+    borderRadius: 16,
+    paddingHorizontal: 6,
+    paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.surface,
-    borderWidth: 1,
+    gap: 8,
+    backgroundColor: colors.surfaceMuted,
+    borderWidth: 2,
     borderColor: colors.border,
   },
   categoryCardActive: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primaryLight,
     borderColor: colors.primary,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.16,
+    shadowRadius: 0,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 2,
   },
   categoryIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 16,
+    width: 38,
+    height: 38,
+    borderRadius: 11,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 8,
   },
   categoryLabel: {
-    color: colors.text,
-    fontSize: 13,
+    color: colors.textSecondary,
+    fontSize: 12,
     fontWeight: "900",
   },
   categoryLabelActive: {
-    color: colors.surface,
+    color: colors.primaryDeep,
   },
   fieldGroup: {
-    gap: 7,
+    gap: 6,
   },
   labelRow: {
     flexDirection: "row",
@@ -1223,7 +1608,10 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 12,
     fontWeight: "900",
-    textTransform: "uppercase",
+  },
+  labelMuted: {
+    color: colors.textMuted,
+    fontWeight: "600",
   },
   charCount: {
     color: colors.textMuted,
@@ -1232,19 +1620,46 @@ const styles = StyleSheet.create({
   },
   input: {
     minHeight: 52,
-    borderRadius: 17,
+    borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
+    backgroundColor: colors.surfaceMuted,
+    borderWidth: 1.5,
     borderColor: colors.border,
     color: colors.text,
     fontSize: 14,
     fontWeight: "600",
   },
   textArea: {
-    minHeight: 136,
-    lineHeight: 20,
+    minHeight: 88,
+    lineHeight: 21,
+  },
+  iconInput: {
+    minHeight: 50,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: colors.surfaceMuted,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
+  inlineInput: {
+    flex: 1,
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  fieldHintRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  fieldHint: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: "700",
   },
   inputError: {
     borderColor: colors.error,
@@ -1297,6 +1712,21 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.68,
   },
+  aiSubmitButton: {
+    minHeight: 54,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+    backgroundColor: colors.primary,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.32,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 8,
+    marginTop: 2,
+  },
   locationCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -1307,6 +1737,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  locationCardCompact: {
+    minHeight: 74,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: colors.surfaceMuted,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
   locationIcon: {
     width: 48,
     height: 48,
@@ -1314,6 +1755,120 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#EEE7FA",
+  },
+  locationIconCompact: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#EEE8FA",
+  },
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: "center",
+    paddingHorizontal: 18,
+    backgroundColor: "rgba(21,18,31,0.42)",
+  },
+  locationPickerCard: {
+    maxHeight: "90%",
+    borderRadius: 24,
+    overflow: "hidden",
+    backgroundColor: colors.surface,
+    shadowColor: colors.primaryDeep,
+    shadowOpacity: 0.24,
+    shadowRadius: 28,
+    shadowOffset: { width: 0, height: 16 },
+    elevation: 14,
+  },
+  locationPickerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  locationPickerTitle: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: "900",
+  },
+  locationPickerSubtitle: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: 3,
+  },
+  locationPickerClose: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  locationPickerMap: {
+    height: 330,
+    backgroundColor: "#DCD3F0",
+  },
+  locationPickerSummary: {
+    flexDirection: "row",
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  locationPickerAddress: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: "900",
+    lineHeight: 18,
+  },
+  locationPickerCoords: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: "800",
+    marginTop: 3,
+  },
+  locationPickerActions: {
+    flexDirection: "row",
+    gap: 10,
+    padding: 16,
+    paddingTop: 4,
+  },
+  locationCancelButton: {
+    flex: 1,
+    minHeight: 46,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  locationCancelText: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  locationUseButton: {
+    flex: 1,
+    minHeight: 46,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primary,
+  },
+  locationUseText: {
+    color: colors.surface,
+    fontSize: 13,
+    fontWeight: "900",
   },
   locationBody: {
     flex: 1,
@@ -1443,6 +1998,76 @@ const styles = StyleSheet.create({
   photoCount: {
     color: colors.primary,
     fontSize: 13,
+    fontWeight: "900",
+  },
+  photoHeaderCompact: {
+    marginTop: 2,
+  },
+  photoStrip: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 8,
+  },
+  photoTile: {
+    flex: 1,
+    aspectRatio: 1,
+    borderRadius: 14,
+    overflow: "hidden",
+    backgroundColor: "#FEF3C7",
+  },
+  photoTileImage: {
+    width: "100%",
+    height: "100%",
+  },
+  removePhotoCompact: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.6)",
+  },
+  photoActionTilePrimary: {
+    flex: 1,
+    aspectRatio: 1,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderStyle: "dashed",
+    borderColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
+    backgroundColor: colors.primaryLight,
+  },
+  photoActionTile: {
+    flex: 1,
+    aspectRatio: 1,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderStyle: "dashed",
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
+    backgroundColor: colors.surfaceMuted,
+  },
+  photoPlaceholder: {
+    flex: 1,
+    aspectRatio: 1,
+    borderRadius: 14,
+    backgroundColor: colors.surfaceMuted,
+  },
+  photoActionTileTextPrimary: {
+    color: colors.primary,
+    fontSize: 9,
+    fontWeight: "900",
+  },
+  photoActionTileText: {
+    color: colors.textMuted,
+    fontSize: 9,
     fontWeight: "900",
   },
   photoActions: {

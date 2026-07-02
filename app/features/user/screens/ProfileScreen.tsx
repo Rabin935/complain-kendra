@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -16,33 +16,79 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../../../constants/colors";
 import { useAuth } from "../../auth/context/AuthContext";
-import { sampleBadges, sampleProfile, sampleStats } from "../data/citizenSampleData";
 import {
   fetchCitizenBadges,
   fetchCitizenProfile,
   fetchCitizenStats,
-  fetchLeaderboard,
   fetchNotificationPreferences,
   updateNotificationPreferences,
   updatePublicProfile,
 } from "../services/citizen.service";
 import type {
   CitizenBadge,
-  CitizenLeaderboardEntry,
   CitizenProfile,
   CitizenStats,
   NotificationPreferences,
 } from "../types/citizen.types";
 
+const emptyStats: CitizenStats = {
+  pending: 0,
+  inProgress: 0,
+  resolved: 0,
+  wardTotal: 0,
+  reportsSubmitted: 0,
+  upvotesReceived: 0,
+  badgesEarned: 0,
+};
+
+function getAchievementCards(
+  badges: CitizenBadge[],
+  stats: CitizenStats,
+): Array<{ id: string; title: string; icon: keyof typeof MaterialCommunityIcons.glyphMap; earned: boolean }> {
+  const fallback = [
+    {
+      id: "reports",
+      title: "Civic Hero",
+      icon: "trophy-outline" as const,
+      earned: stats.reportsSubmitted > 0,
+    },
+    {
+      id: "resolved",
+      title: "7-day streak",
+      icon: "fire" as const,
+      earned: stats.resolved > 0,
+    },
+    {
+      id: "upvotes",
+      title: "Top voted",
+      icon: "star-outline" as const,
+      earned: stats.upvotesReceived > 0,
+    },
+    {
+      id: "public",
+      title: "Watchful",
+      icon: "eye-outline" as const,
+      earned: true,
+    },
+  ];
+
+  if (!badges.length) {
+    return fallback;
+  }
+
+  return badges.slice(0, 4).map((badge, index) => ({
+    id: badge.id,
+    title: badge.title,
+    icon: (badge.icon || fallback[index]?.icon || "medal-outline") as keyof typeof MaterialCommunityIcons.glyphMap,
+    earned: badge.earned,
+  }));
+}
+
 export default function ProfileScreen() {
-  const { user, logout, loading: authLoading } = useAuth();
-  const [profile, setProfile] = useState<CitizenProfile>({
-    ...sampleProfile,
-    name: user?.name ?? sampleProfile.name,
-  });
-  const [stats, setStats] = useState<CitizenStats>(sampleStats);
-  const [badges, setBadges] = useState<CitizenBadge[]>(sampleBadges);
-  const [leaderboard, setLeaderboard] = useState<CitizenLeaderboardEntry[]>([]);
+  const { logout, loading: authLoading } = useAuth();
+  const [profile, setProfile] = useState<CitizenProfile | null>(null);
+  const [stats, setStats] = useState<CitizenStats>(emptyStats);
+  const [badges, setBadges] = useState<CitizenBadge[]>([]);
   const [preferences, setPreferences] = useState<NotificationPreferences | null>(null);
   const [loading, setLoading] = useState(true);
   const [avatarUploading, setAvatarUploading] = useState(false);
@@ -54,30 +100,42 @@ export default function ProfileScreen() {
   const [deleteVisible, setDeleteVisible] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
 
-  useEffect(() => {
-    async function loadProfile() {
-      const [profileResult, statsResult, badgesResult, leaderboardResult, preferencesResult] = await Promise.all([
-        fetchCitizenProfile(),
-        fetchCitizenStats(),
-        fetchCitizenBadges(),
-        fetchLeaderboard(),
-        fetchNotificationPreferences(),
-      ]);
+  const loadProfile = useCallback(async () => {
+    setLoading(true);
+    setError(null);
 
-      setProfile({
-        ...profileResult.data,
-        name: user?.name ?? profileResult.data.name,
-      });
-      setStats(statsResult.data);
-      setBadges(badgesResult.data);
-      setLeaderboard(leaderboardResult.data.slice(0, 5));
-      setPreferences(preferencesResult.data);
-      setError(profileResult.error || statsResult.error || badgesResult.error ? "Profile is using saved civic data." : null);
+    const [profileResult, statsResult, badgesResult, preferencesResult] = await Promise.all([
+      fetchCitizenProfile(),
+      fetchCitizenStats(),
+      fetchCitizenBadges(),
+      fetchNotificationPreferences(),
+    ]);
+
+    if (profileResult.source !== "api" || !profileResult.data.id) {
+      setProfile(null);
+      setStats(emptyStats);
+      setBadges([]);
+      setPreferences(null);
+      setError(profileResult.error ?? "Unable to load your profile from the database.");
       setLoading(false);
+      return;
     }
 
+    setProfile(profileResult.data);
+    setStats(statsResult.data);
+    setBadges(badgesResult.data);
+    setPreferences(preferencesResult.data);
+    setError(
+      statsResult.error || badgesResult.error || preferencesResult.error
+        ? "Some profile sections could not be loaded from the database."
+        : null,
+    );
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
     void loadProfile();
-  }, [user?.name]);
+  }, [loadProfile]);
 
   function showToast(message: string) {
     setToast(message);
@@ -86,7 +144,7 @@ export default function ProfileScreen() {
 
   async function togglePublicProfile(nextValue: boolean) {
     setPublicUpdating(true);
-    setProfile((current) => ({ ...current, isPublic: nextValue }));
+    setProfile((current) => (current ? { ...current, isPublic: nextValue } : current));
     const result = await updatePublicProfile(nextValue);
     setPublicUpdating(false);
     showToast(result.error ? "Public profile saved locally." : "Public profile updated.");
@@ -112,10 +170,14 @@ export default function ProfileScreen() {
         setPreferencesVisible(true);
         break;
       case "language":
-        setProfile((current) => ({
-          ...current,
-          language: current.language === "English" ? "Nepali" : "English",
-        }));
+        setProfile((current) =>
+          current
+            ? {
+                ...current,
+                language: current.language === "English" ? "Nepali" : "English",
+              }
+            : current,
+        );
         showToast("Language update success.");
         break;
       case "password":
@@ -169,149 +231,155 @@ export default function ProfileScreen() {
     );
   }
 
+  if (!profile) {
+    return (
+      <SafeAreaView edges={["top"]} style={styles.safeArea}>
+        <View style={styles.loadingState}>
+          <MaterialCommunityIcons name="database-alert-outline" size={32} color={colors.error} />
+          <Text style={styles.emptyTitle}>Profile unavailable</Text>
+          <Text style={styles.emptyText}>{error ?? "Unable to load your profile from the database."}</Text>
+          <Pressable style={styles.retryButton} onPress={() => void loadProfile()}>
+            <Text style={styles.modalPrimaryText}>Retry</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const achievementCards = getAchievementCards(badges, stats);
+
   return (
     <SafeAreaView edges={["top"]} style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.profileHeader}>
-          <View style={styles.headerBloom} />
-          <Pressable style={styles.avatarShell} onPress={uploadAvatar}>
-            {profile.avatarUrl ? (
-              <Image source={{ uri: profile.avatarUrl }} style={styles.avatarImage} />
-            ) : (
-              <Text style={styles.avatarText}>{profile.initials}</Text>
-            )}
-            {avatarUploading ? (
-              <View style={styles.avatarOverlay}>
-                <ActivityIndicator color={colors.surface} />
-              </View>
-            ) : (
-              <View style={styles.avatarCamera}>
-                <MaterialCommunityIcons name="camera-outline" size={15} color={colors.surface} />
-              </View>
-            )}
+          <View style={styles.headerShade} />
+          <View style={styles.gridVerticalA} />
+          <View style={styles.gridVerticalB} />
+          <View style={styles.gridHorizontalA} />
+          <View style={styles.gridHorizontalB} />
+          <Pressable style={styles.settingsButton} onPress={() => handleMenuAction("notifications")}>
+            <MaterialCommunityIcons name="cog-outline" size={19} color={colors.surface} />
           </Pressable>
 
-          <Text style={styles.name}>{profile.name}</Text>
-          <Text style={styles.location}>
-            {profile.location.ward} · {profile.location.area}, {profile.location.city}
-          </Text>
-          <View style={styles.levelPill}>
-            <MaterialCommunityIcons name="shield-star-outline" size={16} color="#FDE68A" />
-            <Text style={styles.levelText}>
-              Level {profile.level} · {profile.levelTitle} · {profile.points} pts
-            </Text>
-          </View>
-        </View>
+          <View style={styles.identityRow}>
+            <Pressable style={styles.avatarShell} onPress={uploadAvatar}>
+              {profile.avatarUrl ? (
+                <Image source={{ uri: profile.avatarUrl }} style={styles.avatarImage} />
+              ) : (
+                <Text style={styles.avatarText}>{profile.initials}</Text>
+              )}
+              {avatarUploading ? (
+                <View style={styles.avatarOverlay}>
+                  <ActivityIndicator color={colors.surface} />
+                </View>
+              ) : (
+                <View style={styles.verifiedBadge}>
+                  <MaterialCommunityIcons name="check" size={18} color={colors.surface} />
+                </View>
+              )}
+            </Pressable>
 
-        {error ? (
-          <View style={styles.infoBanner}>
-            <MaterialCommunityIcons name="cloud-alert-outline" size={17} color={colors.primary} />
-            <Text style={styles.infoText}>{error}</Text>
-          </View>
-        ) : null}
-
-        {toast ? (
-          <View style={styles.toast}>
-            <MaterialCommunityIcons name="check-circle-outline" size={17} color={colors.success} />
-            <Text style={styles.toastText}>{toast}</Text>
-          </View>
-        ) : null}
-
-        <View style={styles.statsGrid}>
-          <ProfileStat label="Reports submitted" value={stats.reportsSubmitted} icon="clipboard-text-outline" />
-          <ProfileStat label="Resolved complaints" value={stats.resolved} icon="check-decagram-outline" />
-          <ProfileStat label="Upvotes received" value={stats.upvotesReceived} icon="arrow-up-bold-outline" />
-          <ProfileStat label="Badges earned" value={stats.badgesEarned} icon="medal-outline" />
-        </View>
-
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Badges</Text>
-          <Text style={styles.sectionAction}>Made for Nepal · v1.0</Text>
-        </View>
-
-        <View style={styles.badgeList}>
-          {badges.map((badge) => (
-            <View key={badge.id} style={[styles.badgeCard, !badge.earned ? styles.badgeCardLocked : null]}>
-              <View style={[styles.badgeIcon, !badge.earned ? styles.badgeIconLocked : null]}>
-                <MaterialCommunityIcons
-                  name={badge.icon as keyof typeof MaterialCommunityIcons.glyphMap}
-                  size={22}
-                  color={badge.earned ? colors.primary : colors.textMuted}
-                />
-              </View>
-              <View style={styles.badgeCopy}>
-                <Text style={styles.badgeTitle}>{badge.title}</Text>
-                <Text style={styles.badgeDescription}>{badge.description}</Text>
-                {!badge.earned ? (
-                  <View style={styles.badgeProgressTrack}>
-                    <View style={[styles.badgeProgressFill, { width: `${badge.progress}%` }]} />
+            <View style={styles.identityCopy}>
+              <View style={styles.nameRow}>
+                <Text style={styles.name} numberOfLines={1}>{profile.name}</Text>
+                {profile.isPublic ? (
+                  <View style={styles.nameVerified}>
+                    <MaterialCommunityIcons name="check" size={15} color={colors.surface} />
                   </View>
                 ) : null}
               </View>
-              {badge.earned ? (
-                <MaterialCommunityIcons name="check-circle" size={20} color={colors.success} />
-              ) : (
-                <MaterialCommunityIcons name="lock-outline" size={20} color={colors.textMuted} />
-              )}
+              <Text style={styles.emailText} numberOfLines={1}>{profile.email}</Text>
+              <View style={styles.levelPill}>
+                <MaterialCommunityIcons name="trophy-outline" size={13} color="#FDE68A" />
+                <Text style={styles.levelText}>
+                  {profile.levelTitle} - Level {profile.level}
+                </Text>
+              </View>
             </View>
-          ))}
+          </View>
         </View>
 
-        {leaderboard.length ? (
-          <>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Leaderboard</Text>
-              <Text style={styles.sectionAction}>Top civic points</Text>
-            </View>
-            <View style={styles.leaderboardList}>
-              {leaderboard.map((entry) => (
-                <View key={entry.id} style={styles.leaderboardRow}>
-                  <Text style={styles.leaderboardRank}>#{entry.rank}</Text>
-                  <View style={styles.leaderboardCopy}>
-                    <Text style={styles.leaderboardName}>{entry.name}</Text>
-                    <Text style={styles.leaderboardMeta}>
-                      Level {entry.level} · {entry.levelTitle}
-                    </Text>
-                  </View>
-                  <Text style={styles.leaderboardPoints}>{entry.points} pts</Text>
-                </View>
-              ))}
-            </View>
-          </>
-        ) : null}
-
-        <View style={styles.menu}>
-          <MenuRow icon="account-edit-outline" title="Edit Profile" onPress={() => handleMenuAction("edit")} />
-          <MenuRow icon="medal-outline" title="My Badges" onPress={() => handleMenuAction("badges")} />
-          <MenuRow icon="bell-outline" title="Notification Preferences" onPress={() => handleMenuAction("notifications")} />
-          <MenuRow icon="translate" title={`Language · ${profile.language}`} onPress={() => handleMenuAction("language")} />
-          <MenuRow icon="lock-reset" title="Change Password" onPress={() => handleMenuAction("password")} />
-          <MenuRow icon="help-circle-outline" title="Help Center" onPress={() => handleMenuAction("help")} />
-          <View style={styles.toggleRow}>
-            <View style={styles.menuRowLeft}>
-              <View style={styles.menuIcon}>
-                <MaterialCommunityIcons name="account-eye-outline" size={19} color={colors.primary} />
-              </View>
-              <Text style={styles.menuTitle}>Privacy / Public Profile</Text>
-            </View>
-            {publicUpdating ? (
-              <ActivityIndicator color={colors.primary} />
-            ) : (
-              <Switch
-                value={profile.isPublic}
-                onValueChange={(value) => void togglePublicProfile(value)}
-                trackColor={{ false: colors.border, true: "#C8B6F0" }}
-                thumbColor={profile.isPublic ? colors.primary : colors.surface}
-              />
-            )}
+        <View style={styles.bodyContent}>
+          <View style={styles.statsCard}>
+            <ProfileStat label="Reports" value={stats.reportsSubmitted} />
+            <View style={styles.statDivider} />
+            <ProfileStat label="Resolved" value={stats.resolved} />
+            <View style={styles.statDivider} />
+            <ProfileStat label="Upvotes" value={stats.upvotesReceived} />
           </View>
-          <MenuRow icon="delete-outline" title="Delete Account" danger onPress={() => handleMenuAction("delete")} />
-          <MenuRow
-            icon="logout"
-            title={authLoading ? "Signing out..." : "Logout"}
-            danger
-            onPress={() => setLogoutVisible(true)}
-          />
+
+          {error ? (
+            <View style={styles.infoBanner}>
+              <MaterialCommunityIcons name="cloud-alert-outline" size={17} color={colors.primary} />
+              <Text style={styles.infoText}>{error}</Text>
+            </View>
+          ) : null}
+
+          {toast ? (
+            <View style={styles.toast}>
+              <MaterialCommunityIcons name="check-circle-outline" size={17} color={colors.success} />
+              <Text style={styles.toastText}>{toast}</Text>
+            </View>
+          ) : null}
+
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Achievements</Text>
+            <Text style={styles.sectionAction}>See all -&gt;</Text>
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.achievementList}
+          >
+            {achievementCards.map((badge) => (
+              <View key={badge.id} style={[styles.achievementCard, !badge.earned ? styles.achievementCardLocked : null]}>
+                <View style={[styles.achievementIcon, !badge.earned ? styles.achievementIconLocked : null]}>
+                  <MaterialCommunityIcons
+                    name={badge.icon}
+                    size={25}
+                    color={badge.earned ? colors.primary : colors.textMuted}
+                  />
+                </View>
+                <Text style={styles.achievementTitle} numberOfLines={2}>{badge.title}</Text>
+              </View>
+            ))}
+          </ScrollView>
+
+          <View style={styles.menu}>
+            <MenuRow icon="account" title="Edit Profile" onPress={() => handleMenuAction("edit")} />
+            <MenuRow icon="clipboard-text-outline" title="My Complaints" value={String(stats.reportsSubmitted)} onPress={() => handleMenuAction("badges")} />
+            <MenuRow icon="lock-reset" title="Change Password" onPress={() => handleMenuAction("password")} />
+            <MenuRow icon="web" title="Language" value={profile.language} onPress={() => handleMenuAction("language")} />
+            <MenuRow icon="bell" title="Notifications" onPress={() => handleMenuAction("notifications")} />
+            <MenuRow icon="help-circle-outline" title="Help & Support" onPress={() => handleMenuAction("help")} />
+            <View style={styles.toggleRow}>
+              <View style={styles.menuRowLeft}>
+                <View style={styles.menuIcon}>
+                  <MaterialCommunityIcons name="account-eye-outline" size={19} color={colors.primary} />
+                </View>
+                <Text style={styles.menuTitle}>Public Profile</Text>
+              </View>
+              {publicUpdating ? (
+                <ActivityIndicator color={colors.primary} />
+              ) : (
+                <Switch
+                  value={profile.isPublic}
+                  onValueChange={(value) => void togglePublicProfile(value)}
+                  trackColor={{ false: colors.border, true: "#C8B6F0" }}
+                  thumbColor={profile.isPublic ? colors.primary : colors.surface}
+                />
+              )}
+            </View>
+            <MenuRow
+              icon="logout"
+              title={authLoading ? "Signing out..." : "Log Out"}
+              danger
+              onPress={() => setLogoutVisible(true)}
+            />
+          </View>
+
+          <Text style={styles.footerText}>ComplainKendra v1.0 - Made for Nepal</Text>
         </View>
       </ScrollView>
 
@@ -384,15 +452,12 @@ export default function ProfileScreen() {
 function ProfileStat({
   label,
   value,
-  icon,
 }: {
   label: string;
   value: number;
-  icon: keyof typeof MaterialCommunityIcons.glyphMap;
 }) {
   return (
     <View style={styles.statCard}>
-      <MaterialCommunityIcons name={icon} size={20} color={colors.primary} />
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
     </View>
@@ -402,11 +467,13 @@ function ProfileStat({
 function MenuRow({
   icon,
   title,
+  value,
   danger,
   onPress,
 }: {
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
   title: string;
+  value?: string;
   danger?: boolean;
   onPress: () => void;
 }) {
@@ -418,7 +485,10 @@ function MenuRow({
         </View>
         <Text style={[styles.menuTitle, danger ? styles.menuTitleDanger : null]}>{title}</Text>
       </View>
-      <MaterialCommunityIcons name="chevron-right" size={20} color={danger ? colors.error : colors.textMuted} />
+      <View style={styles.menuRowRight}>
+        {value ? <Text style={styles.menuValue}>{value}</Text> : null}
+        <MaterialCommunityIcons name="chevron-right" size={18} color={danger ? colors.error : colors.textMuted} />
+      </View>
     </Pressable>
   );
 }
@@ -486,7 +556,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   content: {
-    paddingBottom: 118,
+    paddingBottom: 122,
   },
   loadingState: {
     flex: 1,
@@ -499,97 +569,194 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "800",
   },
-  profileHeader: {
-    marginHorizontal: 14,
-    marginTop: 10,
-    padding: 22,
-    alignItems: "center",
-    borderRadius: 30,
-    overflow: "hidden",
-    backgroundColor: colors.primaryDeep,
+  emptyTitle: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: "900",
+    textAlign: "center",
   },
-  headerBloom: {
+  emptyText: {
+    color: colors.textMuted,
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 19,
+    textAlign: "center",
+  },
+  retryButton: {
+    minHeight: 46,
+    minWidth: 120,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primary,
+  },
+  profileHeader: {
+    minHeight: 220,
+    paddingHorizontal: 22,
+    paddingTop: 58,
+    paddingBottom: 70,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    overflow: "hidden",
+    backgroundColor: colors.primary,
+  },
+  headerShade: {
     position: "absolute",
-    top: -70,
-    right: -60,
-    width: 210,
-    height: 210,
-    borderRadius: 105,
-    backgroundColor: colors.primaryMid,
-    opacity: 0.68,
+    inset: 0,
+    backgroundColor: colors.primaryDark,
+    opacity: 0.22,
+  },
+  gridVerticalA: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: "32%",
+    width: 1,
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  gridVerticalB: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: "64%",
+    width: 1,
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  gridHorizontalA: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 74,
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  gridHorizontalB: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 148,
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  settingsButton: {
+    position: "absolute",
+    top: 14,
+    right: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+  },
+  identityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+    zIndex: 2,
   },
   avatarShell: {
-    width: 84,
-    height: 84,
-    borderRadius: 30,
+    width: 86,
+    height: 86,
+    borderRadius: 26,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.surface,
     borderWidth: 3,
-    borderColor: "rgba(255,255,255,0.5)",
-    marginBottom: 12,
+    borderColor: "rgba(255,255,255,0.3)",
+    shadowColor: colors.primaryDeep,
+    shadowOpacity: 0.3,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 8,
   },
   avatarImage: {
     width: "100%",
     height: "100%",
-    borderRadius: 28,
+    borderRadius: 24,
   },
   avatarText: {
     color: colors.primary,
-    fontSize: 26,
+    fontSize: 31,
     fontWeight: "900",
   },
   avatarOverlay: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: 28,
+    borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(42,21,80,0.62)",
   },
-  avatarCamera: {
+  verifiedBadge: {
     position: "absolute",
-    right: -4,
-    bottom: -4,
-    width: 28,
-    height: 28,
+    right: -6,
+    bottom: -6,
+    width: 27,
+    height: 27,
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.primary,
-    borderWidth: 2,
+    backgroundColor: colors.success,
+    borderWidth: 3,
     borderColor: colors.surface,
+  },
+  identityCopy: {
+    flex: 1,
+  },
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   name: {
     color: colors.surface,
-    fontSize: 24,
+    flexShrink: 1,
+    fontSize: 21,
     fontWeight: "900",
   },
-  location: {
-    color: "#DED4FF",
-    fontSize: 13,
+  nameVerified: {
+    width: 19,
+    height: 19,
+    borderRadius: 4,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.success,
+  },
+  emailText: {
+    color: "rgba(255,255,255,0.75)",
+    fontSize: 12,
     fontWeight: "700",
-    marginTop: 5,
+    marginTop: 4,
+    textDecorationLine: "underline",
   },
   levelPill: {
+    alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
-    gap: 7,
-    marginTop: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    gap: 6,
+    marginTop: 7,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
     borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.13)",
+    backgroundColor: "rgba(255,255,255,0.18)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
   },
   levelText: {
     color: colors.surface,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "900",
+  },
+  bodyContent: {
+    paddingHorizontal: 20,
+    marginTop: -44,
   },
   infoBanner: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginHorizontal: 16,
     marginTop: 12,
     padding: 11,
     borderRadius: 16,
@@ -607,7 +774,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginHorizontal: 16,
     marginTop: 12,
     padding: 11,
     borderRadius: 16,
@@ -621,41 +787,50 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "900",
   },
-  statsGrid: {
+  statsCard: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    paddingHorizontal: 16,
-    marginTop: 16,
-  },
-  statCard: {
-    width: "48.6%",
-    minHeight: 104,
+    alignItems: "center",
+    justifyContent: "space-around",
+    minHeight: 84,
+    paddingHorizontal: 4,
+    paddingVertical: 16,
     borderRadius: 22,
-    padding: 14,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
+    shadowColor: colors.primaryDeep,
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 8,
+  },
+  statCard: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
   statValue: {
     color: colors.text,
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "900",
-    marginTop: 10,
   },
   statLabel: {
     color: colors.textMuted,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "800",
-    marginTop: 3,
+    marginTop: 4,
+  },
+  statDivider: {
+    width: 1,
+    height: 34,
+    backgroundColor: colors.border,
   },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
     marginTop: 22,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   sectionTitle: {
     color: colors.text,
@@ -663,118 +838,58 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   sectionAction: {
-    color: colors.textMuted,
-    fontSize: 11,
-    fontWeight: "800",
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: "900",
   },
-  badgeList: {
-    paddingHorizontal: 16,
+  achievementList: {
     gap: 10,
+    paddingBottom: 2,
   },
-  badgeCard: {
-    flexDirection: "row",
+  achievementCard: {
+    width: 90,
+    minHeight: 98,
+    borderRadius: 16,
+    padding: 10,
     alignItems: "center",
-    gap: 12,
-    padding: 13,
-    borderRadius: 20,
+    justifyContent: "center",
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  badgeCardLocked: {
-    opacity: 0.82,
+  achievementCardLocked: {
+    opacity: 0.72,
   },
-  badgeIcon: {
-    width: 46,
-    height: 46,
-    borderRadius: 16,
+  achievementIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 13,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#EEE7FA",
+    marginBottom: 9,
   },
-  badgeIconLocked: {
+  achievementIconLocked: {
     backgroundColor: colors.surfaceMuted,
   },
-  badgeCopy: {
-    flex: 1,
-  },
-  badgeTitle: {
-    color: colors.text,
-    fontSize: 14,
-    fontWeight: "900",
-  },
-  badgeDescription: {
-    color: colors.textMuted,
-    fontSize: 12,
-    fontWeight: "700",
-    lineHeight: 18,
-    marginTop: 2,
-  },
-  badgeProgressTrack: {
-    height: 6,
-    borderRadius: 999,
-    backgroundColor: colors.surfaceMuted,
-    overflow: "hidden",
-    marginTop: 8,
-  },
-  badgeProgressFill: {
-    height: "100%",
-    borderRadius: 999,
-    backgroundColor: colors.primary,
-  },
-  leaderboardList: {
-    marginHorizontal: 16,
-    gap: 8,
-  },
-  leaderboardRow: {
-    minHeight: 58,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 18,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  leaderboardRank: {
-    width: 42,
-    color: colors.primary,
-    fontSize: 14,
-    fontWeight: "900",
-  },
-  leaderboardCopy: {
-    flex: 1,
-  },
-  leaderboardName: {
-    color: colors.text,
-    fontSize: 14,
-    fontWeight: "900",
-  },
-  leaderboardMeta: {
-    color: colors.textMuted,
-    fontSize: 11,
-    fontWeight: "700",
-    marginTop: 2,
-  },
-  leaderboardPoints: {
+  achievementTitle: {
     color: colors.text,
     fontSize: 12,
     fontWeight: "900",
+    lineHeight: 16,
+    textAlign: "center",
   },
   menu: {
-    marginHorizontal: 16,
-    marginTop: 18,
-    borderRadius: 24,
+    marginTop: 22,
+    borderRadius: 22,
     overflow: "hidden",
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
   },
   menuRow: {
-    minHeight: 58,
-    paddingHorizontal: 14,
+    minHeight: 64,
+    paddingHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -782,8 +897,8 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   toggleRow: {
-    minHeight: 58,
-    paddingHorizontal: 14,
+    minHeight: 64,
+    paddingHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -793,13 +908,13 @@ const styles = StyleSheet.create({
   menuRowLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 11,
+    gap: 14,
     flex: 1,
   },
   menuIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 13,
+    width: 36,
+    height: 36,
+    borderRadius: 11,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#EEE7FA",
@@ -814,6 +929,25 @@ const styles = StyleSheet.create({
   },
   menuTitleDanger: {
     color: colors.error,
+  },
+  menuRowRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  menuValue: {
+    color: colors.textMuted,
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  footerText: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1.5,
+    textAlign: "center",
+    textTransform: "uppercase",
+    marginTop: 20,
   },
   modalBackdrop: {
     flex: 1,

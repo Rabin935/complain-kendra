@@ -14,9 +14,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../../../constants/colors";
-import { useAuth } from "../../auth/context/AuthContext";
 import { useRealtimeInvalidation } from "../../realtime/hooks/useRealtimeInvalidation";
-import { categoryMeta, sampleProfile, sampleStats } from "../data/citizenSampleData";
+import { categoryMeta } from "../data/citizenSampleData";
 import {
   fetchCitizenProfile,
   fetchCitizenStats,
@@ -45,14 +44,37 @@ const categoryOrder: CitizenComplaintCategory[] = [
   "other",
 ];
 
+const emptyStats: CitizenStats = {
+  pending: 0,
+  inProgress: 0,
+  resolved: 0,
+  wardTotal: 0,
+  reportsSubmitted: 0,
+  upvotesReceived: 0,
+  badgesEarned: 0,
+};
+
+function hasUsableCoordinates(profile: CitizenProfile): boolean {
+  return (
+    Number.isFinite(profile.location.lat) &&
+    Number.isFinite(profile.location.lng) &&
+    profile.location.lat !== 0 &&
+    profile.location.lng !== 0
+  );
+}
+
+function formatProfileLocation(profile: CitizenProfile): string {
+  return (
+    [profile.location.area, profile.location.ward, profile.location.city]
+      .filter(Boolean)
+      .join(" - ") || "Location not set"
+  );
+}
+
 export default function HomeScreen() {
   const navigation = useNavigation<HomeNavigation>();
-  const { user } = useAuth();
-  const [profile, setProfile] = useState<CitizenProfile>({
-    ...sampleProfile,
-    name: user?.name ?? sampleProfile.name,
-  });
-  const [stats, setStats] = useState<CitizenStats>(sampleStats);
+  const [profile, setProfile] = useState<CitizenProfile | null>(null);
+  const [stats, setStats] = useState<CitizenStats>(emptyStats);
   const [nearbyComplaints, setNearbyComplaints] = useState<CitizenComplaint[]>([]);
   const [notifications, setNotifications] = useState<CitizenNotification[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -62,7 +84,6 @@ export default function HomeScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const unreadCount = notifications.filter((notification) => notification.unread).length;
-  const firstName = profile.name.split(" ")[0] ?? "Citizen";
 
   const filteredNearby = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -91,9 +112,19 @@ export default function HomeScreen() {
       fetchNotifications(),
     ]);
 
+    if (profileResult.source !== "api" || !profileResult.data.id) {
+      setProfile(null);
+      setStats(emptyStats);
+      setNotifications([]);
+      setNearbyComplaints([]);
+      setError(profileResult.error ?? "Unable to load your profile from the database.");
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+
     const nextProfile = {
       ...profileResult.data,
-      name: user?.name ?? profileResult.data.name,
     };
 
     setProfile(nextProfile);
@@ -108,8 +139,12 @@ export default function HomeScreen() {
     }
 
     const [nearbyResult, wardCountResult] = await Promise.all([
-      fetchNearbyComplaints(nextProfile.location.lat, nextProfile.location.lng, 2),
-      fetchWardComplaintCount(nextProfile.location.wardId),
+      hasUsableCoordinates(nextProfile)
+        ? fetchNearbyComplaints(nextProfile.location.lat, nextProfile.location.lng, 2)
+        : Promise.resolve({ data: [] as CitizenComplaint[], source: "api" as const, error: undefined }),
+      nextProfile.location.wardId
+        ? fetchWardComplaintCount(nextProfile.location.wardId)
+        : Promise.resolve({ data: statsResult.data.wardTotal, source: "api" as const, error: undefined }),
     ]);
 
     setNearbyComplaints(nearbyResult.data);
@@ -129,7 +164,7 @@ export default function HomeScreen() {
     setError(liveErrors.length ? "Couldn't load ward updates. Try again." : null);
     setLoading(false);
     setRefreshing(false);
-  }, [gpsEnabled, user?.name]);
+  }, [gpsEnabled]);
 
   useEffect(() => {
     void loadDashboard();
@@ -158,6 +193,32 @@ export default function HomeScreen() {
       notifications.length
         ? notifications.map((notification) => notification.title).join("\n")
         : "No notifications yet.",
+    );
+  }
+
+  if (loading && !profile) {
+    return (
+      <SafeAreaView edges={["top"]} style={styles.safeArea}>
+        <View style={styles.loadingState}>
+          <ActivityIndicator color={colors.primary} />
+          <Text style={styles.loadingText}>Loading your profile...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <SafeAreaView edges={["top"]} style={styles.safeArea}>
+        <View style={styles.loadingState}>
+          <MaterialCommunityIcons name="database-alert-outline" size={32} color={colors.error} />
+          <Text style={styles.emptyTitle}>Profile unavailable</Text>
+          <Text style={styles.emptyText}>{error ?? "Unable to load your profile from the database."}</Text>
+          <Pressable style={styles.primaryButton} onPress={refreshDashboard}>
+            <Text style={styles.primaryButtonText}>Retry</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -200,7 +261,7 @@ export default function HomeScreen() {
           <View style={styles.locationPill}>
             <MaterialCommunityIcons name="map-marker-radius-outline" size={16} color="#EDE7FF" />
             <Text style={styles.locationText}>
-              {profile.location.area} · {profile.location.ward} · {profile.location.city}
+              {formatProfileLocation(profile)}
             </Text>
           </View>
 
@@ -265,7 +326,7 @@ export default function HomeScreen() {
                 <View style={[styles.categoryIcon, { backgroundColor: meta.softColor }]}>
                   <MaterialCommunityIcons
                     name={meta.icon as keyof typeof MaterialCommunityIcons.glyphMap}
-                    size={22}
+                    size={20}
                     color={meta.color}
                   />
                 </View>
@@ -286,7 +347,9 @@ export default function HomeScreen() {
           <View style={styles.emptyCard}>
             <MaterialCommunityIcons name="crosshairs-gps" size={36} color={colors.primary} />
             <Text style={styles.emptyTitle}>Location is disabled</Text>
-            <Text style={styles.emptyText}>Enable GPS to show complaints within 2km of Koteshwor.</Text>
+            <Text style={styles.emptyText}>
+              Enable GPS to show complaints near {profile.location.area || "your saved location"}.
+            </Text>
             <Pressable style={styles.primaryButton} onPress={() => setGpsEnabled(true)}>
               <Text style={styles.primaryButtonText}>Enable Location</Text>
             </Pressable>
@@ -321,7 +384,7 @@ export default function HomeScreen() {
             color={colors.primary}
           />
           <Text style={styles.locationToggleText}>
-            {gpsEnabled ? "Preview GPS disabled state" : "Restore detected location"}
+            {gpsEnabled ? "Hide nearby location" : "Use saved location"}
           </Text>
         </Pressable>
       </ScrollView>
@@ -407,13 +470,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   content: {
-    paddingBottom: 118,
+    paddingBottom: 132,
   },
   header: {
-    marginHorizontal: 14,
-    marginTop: 10,
+    marginHorizontal: 16,
+    marginTop: 8,
     padding: 18,
-    borderRadius: 30,
+    borderRadius: 26,
     overflow: "hidden",
     backgroundColor: colors.primaryDeep,
     shadowColor: colors.primaryDeep,
@@ -462,7 +525,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 18,
+    gap: 12,
+    marginBottom: 16,
   },
   greeting: {
     color: "#DED4FF",
@@ -471,7 +535,7 @@ const styles = StyleSheet.create({
   },
   userName: {
     color: colors.surface,
-    fontSize: 28,
+    fontSize: 25,
     fontWeight: "900",
     marginTop: 4,
   },
@@ -522,8 +586,10 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: "rgba(255,255,255,0.13)",
     marginBottom: 16,
+    maxWidth: "100%",
   },
   locationText: {
+    flexShrink: 1,
     color: "#F4F0FF",
     fontSize: 12,
     fontWeight: "800",
@@ -575,13 +641,14 @@ const styles = StyleSheet.create({
   statsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
-    paddingHorizontal: 16,
-    marginTop: 16,
+    justifyContent: "space-between",
+    rowGap: 12,
+    paddingHorizontal: 20,
+    marginTop: 18,
   },
   statCard: {
-    width: "48.6%",
-    minHeight: 112,
+    width: "47.8%",
+    minHeight: 124,
     borderRadius: 22,
     padding: 14,
     backgroundColor: colors.surface,
@@ -653,14 +720,16 @@ const styles = StyleSheet.create({
   categoryGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
-    paddingHorizontal: 16,
+    justifyContent: "space-between",
+    rowGap: 10,
+    paddingHorizontal: 20,
   },
   categoryCard: {
-    width: "31.4%",
-    minHeight: 96,
-    borderRadius: 20,
-    padding: 12,
+    width: "30.6%",
+    minHeight: 84,
+    borderRadius: 18,
+    paddingHorizontal: 8,
+    paddingVertical: 10,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.surface,
@@ -668,17 +737,18 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   categoryIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 16,
+    width: 38,
+    height: 38,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 9,
+    marginBottom: 7,
   },
   categoryLabel: {
     color: colors.text,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "900",
+    textAlign: "center",
   },
   feedList: {
     gap: 10,
@@ -792,6 +862,13 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: 13,
     fontWeight: "700",
+  },
+  loadingState: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    padding: 24,
   },
   locationToggle: {
     alignSelf: "center",

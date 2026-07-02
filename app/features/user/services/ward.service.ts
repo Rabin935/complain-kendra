@@ -1,4 +1,4 @@
-import { apiClient, getApiErrorMessage } from "../../../utils/api";
+import { apiClient, getApiErrorMessage } from "../../../../src/lib/api";
 
 export interface WardOption {
   id: string;

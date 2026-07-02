@@ -13,7 +13,7 @@ import {
   View,
 } from "react-native";
 import { colors } from "../../../constants/colors";
-import { getApiErrorMessage } from "../../../utils/api";
+import { getApiErrorMessage } from "../../../../src/lib/api";
 import { sendOtp, verifyOtp } from "../services/auth.service";
 import type { AuthStackParamList } from "../types/auth.types";
 

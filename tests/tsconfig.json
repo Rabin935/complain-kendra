@@ -5,5 +5,5 @@
     "moduleResolution": "node16",
     "types": ["node"]
   },
-  "include": ["./**/*.ts", "../src/**/*.ts", "../app/utils/**/*.ts"]
+  "include": ["./**/*.ts", "../src/**/*.ts"]
 }

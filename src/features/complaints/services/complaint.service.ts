@@ -1,4 +1,4 @@
-import { baseURL } from "../../../../app/utils/api";
+import { baseURL } from "../../../lib/api";
 
 type ReactNativePhotoFile = {
   uri: string;
