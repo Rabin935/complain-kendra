@@ -15,6 +15,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../../../constants/colors";
@@ -202,19 +203,30 @@ function buildLocationFromMapSelection(
     ...currentLocation,
     address: address?.formattedAddress ?? currentLocation.address,
     area:
+      address?.area ??
       address?.city ??
       address?.municipality ??
       currentLocation.area,
-    ward: ward?.wardName ?? address?.ward ?? currentLocation.ward,
+    ward: address?.ward ?? ward?.wardName ?? currentLocation.ward,
     wardId: ward?.wardId ?? currentLocation.wardId,
-    wardName: ward?.wardName ?? address?.ward ?? currentLocation.wardName,
-    wardNumber: ward?.wardNumber ?? currentLocation.wardNumber,
+    wardName: address?.ward ?? ward?.wardName ?? currentLocation.wardName,
+    wardNumber: address?.ward?.match(/\d+/)?.[0] ?? ward?.wardNumber ?? currentLocation.wardNumber,
     city: address?.city ?? currentLocation.city,
     municipality: ward?.municipality ?? address?.municipality ?? currentLocation.municipality,
     province: ward?.province ?? address?.province ?? currentLocation.province,
     lat: selection.coordinates.lat,
     lng: selection.coordinates.lng,
   };
+}
+
+function formatLocationTitle(location: CitizenLocation): string {
+  return [location.area, location.city].filter(Boolean).join(", ") || location.address;
+}
+
+function formatLocationSubtitle(location: CitizenLocation, gpsLocked: boolean): string {
+  return [location.ward, location.municipality ?? location.city, `GPS ${gpsLocked ? "locked" : "detecting"}`]
+    .filter(Boolean)
+    .join(" - ");
 }
 
 function getMapTileUrl(lat: number, lng: number, zoom = 16): string {
@@ -802,7 +814,9 @@ function CreateDraftStep({
   onOpenLocationPicker: () => void;
   onAnalyze: () => void;
 }) {
+  const { width } = useWindowDimensions();
   const photoSlots = Array.from({ length: maxPhotos });
+  const categoryCardWidth = Math.floor((width - 64) / 3);
 
   return (
     <View style={styles.draftPanel}>
@@ -815,7 +829,11 @@ function CreateDraftStep({
           return (
             <Pressable
               key={item}
-              style={[styles.categoryCard, active ? styles.categoryCardActive : null]}
+              style={[
+                styles.categoryCard,
+                { width: categoryCardWidth },
+                active ? styles.categoryCardActive : null,
+              ]}
               onPress={() => onCategoryChange(item)}
             >
               <View style={[styles.categoryIcon, { backgroundColor: active ? colors.surface : "#EEE8FA20" }]}>
@@ -880,10 +898,10 @@ function CreateDraftStep({
           </View>
           <View style={styles.locationBody}>
             <Text style={styles.locationTitle} numberOfLines={1}>
-              {location.area ? `${location.area}, ${location.city}` : location.address}
+              {formatLocationTitle(location)}
             </Text>
             <Text style={styles.locationSubtitle} numberOfLines={1}>
-              {location.ward} - {location.city} - GPS {gpsLocked ? "locked" : "detecting"}
+              {formatLocationSubtitle(location, gpsLocked)}
             </Text>
           </View>
           <MaterialCommunityIcons name="crosshairs-gps" size={24} color={colors.primary} />
@@ -991,12 +1009,10 @@ function LocationPickerPopup({
           <View style={styles.locationPickerMap}>
             <InteractiveMap
               height={330}
-              selectedLocation={{
-                lat: location.lat,
-                lng: location.lng,
-              }}
+              selectedLocation={selectedCoordinates}
               searchPlaceholder="Search area, ward, landmark..."
               showInfoPanel
+              autoLocate={false}
               onLocationChange={onChange}
             />
           </View>
@@ -1165,9 +1181,9 @@ function StepTwo({
           />
         </View>
         <View style={styles.locationBody}>
-          <Text style={styles.locationTitle}>{location.address}</Text>
+          <Text style={styles.locationTitle}>{formatLocationTitle(location)}</Text>
           <Text style={styles.locationSubtitle}>
-            {location.ward} - {location.area} - GPS {gpsLocked ? "locked" : "detecting"}
+            {formatLocationSubtitle(location, gpsLocked)}
           </Text>
           <Text style={styles.locationHint}>{locationHint}</Text>
         </View>
@@ -1560,7 +1576,6 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   categoryCard: {
-    width: "31.35%",
     minHeight: 88,
     borderRadius: 16,
     paddingHorizontal: 6,
