@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -29,6 +29,7 @@ export default function InteractiveMap({
   height = 500,
   searchPlaceholder = "Search address, landmark, municipality, ward...",
   showInfoPanel = true,
+  autoLocate = true,
   onLocationChange,
   onMarkerPress,
 }: InteractiveMapProps) {
@@ -40,6 +41,7 @@ export default function InteractiveMap({
   const [loadingLocation, setLoadingLocation] = useState(true);
   const [searching, setSearching] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const currentCoordinatesRef = useRef<Coordinates>(initialLocation);
 
   const complaintMarkers = useMemo(() => markers.slice(0, 8), [markers]);
 
@@ -51,6 +53,7 @@ export default function InteractiveMap({
       }
 
       setCoordinates(nextCoordinates);
+      currentCoordinatesRef.current = nextCoordinates;
       setMessage(null);
 
       try {
@@ -86,8 +89,15 @@ export default function InteractiveMap({
   }, [publishLocation]);
 
   useEffect(() => {
-    void locateMe();
-  }, [locateMe]);
+    if (autoLocate) {
+      void locateMe();
+      return;
+    }
+
+    const nextInitialLocation = selectedLocation ?? mapConfig.defaultLocation;
+    void publishLocation(nextInitialLocation, "reset");
+    setLoadingLocation(false);
+  }, [autoLocate, locateMe, publishLocation, selectedLocation?.lat, selectedLocation?.lng]);
 
   useEffect(() => {
     const trimmed = query.trim();

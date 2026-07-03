@@ -28,6 +28,7 @@ function normalizeAddress(result: NominatimSearchResult): MapAddress {
 
   return {
     formattedAddress: result.display_name,
+    area: address.neighbourhood || address.suburb || address.road,
     city,
     municipality: address.municipality || address.county || city,
     ward: address.neighbourhood || address.suburb,

@@ -100,6 +100,7 @@ export default function InteractiveMap({
   height = 500,
   searchPlaceholder = "Search address, landmark, municipality, ward...",
   showInfoPanel = true,
+  autoLocate = true,
   onLocationChange,
   onMarkerPress,
 }: InteractiveMapProps) {
@@ -110,6 +111,9 @@ export default function InteractiveMap({
   const markerLayerRef = useRef<Leaflet.LayerGroup | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const currentCoordinatesRef = useRef<Coordinates>(
+    selectedLocation ?? mapConfig.defaultLocation,
+  );
 
   const [coordinates, setCoordinates] = useState<Coordinates>(
     selectedLocation ?? mapConfig.defaultLocation,
@@ -133,6 +137,7 @@ export default function InteractiveMap({
 
       const leaflet = leafletRef.current;
       setCoordinates(nextCoordinates);
+      currentCoordinatesRef.current = nextCoordinates;
       setError(null);
 
       if (selectedMarkerRef.current && leaflet) {
@@ -259,7 +264,12 @@ export default function InteractiveMap({
       });
 
       setLoadingMap(false);
-      void locateMe();
+      if (autoLocate) {
+        void locateMe();
+      } else {
+        publishLocation(initialCoordinates, "reset", true);
+        setLoadingLocation(false);
+      }
     }
 
     void createMap();
@@ -276,7 +286,7 @@ export default function InteractiveMap({
       selectedMarkerRef.current = null;
       markerLayerRef.current = null;
     };
-  }, [locateMe, publishLocation, selectedLocation, theme]);
+  }, [autoLocate, locateMe, publishLocation, theme]);
 
   useEffect(() => {
     const leaflet = leafletRef.current;
@@ -308,6 +318,14 @@ export default function InteractiveMap({
 
   useEffect(() => {
     if (!selectedLocation || !isValidCoordinates(selectedLocation)) {
+      return;
+    }
+
+    const currentCoordinates = currentCoordinatesRef.current;
+    if (
+      Math.abs(currentCoordinates.lat - selectedLocation.lat) < 0.000001 &&
+      Math.abs(currentCoordinates.lng - selectedLocation.lng) < 0.000001
+    ) {
       return;
     }
 

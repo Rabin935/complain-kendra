@@ -35,6 +35,7 @@ function normalizeAddress(data: NominatimReverseResponse): MapAddress {
   const address = data.address ?? {};
   const city = address.city || address.town || address.village;
   const municipality = address.municipality || address.county || city;
+  const area = address.neighbourhood || address.suburb || address.road;
   const ward =
     extractWard(address.neighbourhood) ||
     extractWard(address.suburb) ||
@@ -43,6 +44,7 @@ function normalizeAddress(data: NominatimReverseResponse): MapAddress {
 
   return {
     formattedAddress: data.display_name || "Unknown location",
+    area,
     city,
     municipality,
     ward,

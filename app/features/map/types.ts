@@ -10,6 +10,7 @@ export interface Coordinates {
 
 export interface MapAddress {
   formattedAddress: string;
+  area?: string;
   city?: string;
   municipality?: string;
   ward?: string;
@@ -63,6 +64,7 @@ export interface InteractiveMapProps {
   height?: number;
   searchPlaceholder?: string;
   showInfoPanel?: boolean;
+  autoLocate?: boolean;
   onLocationChange?: (location: SelectedMapLocation) => void;
   onMarkerPress?: (marker: MapMarker) => void;
 }
