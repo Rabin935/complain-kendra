@@ -532,6 +532,20 @@ export async function fetchNotifications(): Promise<CitizenServiceResult<Citizen
   }, sampleNotifications);
 }
 
+export async function markNotificationRead(notificationId: string): Promise<CitizenServiceResult<{ id: string }>> {
+  return withSampleFallback(async () => {
+    await apiClient.patch(`${API_PREFIX}/notifications/${notificationId}/read`);
+    return { id: notificationId };
+  }, { id: notificationId });
+}
+
+export async function markAllNotificationsRead(): Promise<CitizenServiceResult<{ success: boolean }>> {
+  return withSampleFallback(async () => {
+    await apiClient.patch(`${API_PREFIX}/notifications/read-all`);
+    return { success: true as boolean };
+  }, { success: false });
+}
+
 export async function fetchNearbyComplaints(
   lat: number,
   lng: number,

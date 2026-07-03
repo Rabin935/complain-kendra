@@ -9,8 +9,10 @@ import MyComplaintsScreen from "../../complaints/screens/MyComplaintsScreen";
 import UserTabIcon from "../components/UserTabIcon";
 import BrowseScreen from "../screens/BrowseScreen";
 import HomeScreen from "../screens/HomeScreen";
+import NotificationScreen from "../screens/NotificationScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import ReportScreen from "../screens/ReportScreen";
+import SettingsScreen from "../screens/SettingsScreen";
 import type { UserStackParamList, UserTabParamList } from "../types/user.types";
 
 const Tabs = createBottomTabNavigator<UserTabParamList>();
@@ -145,6 +147,8 @@ export default function UserNavigator() {
           },
         }}
       />
+      <Stack.Screen name="Notifications" component={NotificationScreen} />
+      <Stack.Screen name="Settings" component={SettingsScreen} />
       <Stack.Screen name="ComplaintDetail" component={ComplaintDetailScreen} />
     </Stack.Navigator>
   );

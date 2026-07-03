@@ -1,4 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { NavigationProp, useNavigation } from "@react-navigation/native";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -20,16 +21,16 @@ import {
   fetchCitizenBadges,
   fetchCitizenProfile,
   fetchCitizenStats,
-  fetchNotificationPreferences,
-  updateNotificationPreferences,
   updatePublicProfile,
 } from "../services/citizen.service";
 import type {
   CitizenBadge,
   CitizenProfile,
   CitizenStats,
-  NotificationPreferences,
 } from "../types/citizen.types";
+import type { UserStackParamList } from "../types/user.types";
+
+type ProfileNavigation = NavigationProp<UserStackParamList>;
 
 const emptyStats: CitizenStats = {
   pending: 0,
@@ -85,18 +86,17 @@ function getAchievementCards(
 }
 
 export default function ProfileScreen() {
+  const navigation = useNavigation<ProfileNavigation>();
   const { logout, loading: authLoading } = useAuth();
   const [profile, setProfile] = useState<CitizenProfile | null>(null);
   const [stats, setStats] = useState<CitizenStats>(emptyStats);
   const [badges, setBadges] = useState<CitizenBadge[]>([]);
-  const [preferences, setPreferences] = useState<NotificationPreferences | null>(null);
   const [loading, setLoading] = useState(true);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [publicUpdating, setPublicUpdating] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [logoutVisible, setLogoutVisible] = useState(false);
-  const [preferencesVisible, setPreferencesVisible] = useState(false);
   const [deleteVisible, setDeleteVisible] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
 
@@ -104,18 +104,16 @@ export default function ProfileScreen() {
     setLoading(true);
     setError(null);
 
-    const [profileResult, statsResult, badgesResult, preferencesResult] = await Promise.all([
+    const [profileResult, statsResult, badgesResult] = await Promise.all([
       fetchCitizenProfile(),
       fetchCitizenStats(),
       fetchCitizenBadges(),
-      fetchNotificationPreferences(),
     ]);
 
     if (profileResult.source !== "api" || !profileResult.data.id) {
       setProfile(null);
       setStats(emptyStats);
       setBadges([]);
-      setPreferences(null);
       setError(profileResult.error ?? "Unable to load your profile from the database.");
       setLoading(false);
       return;
@@ -124,9 +122,8 @@ export default function ProfileScreen() {
     setProfile(profileResult.data);
     setStats(statsResult.data);
     setBadges(badgesResult.data);
-    setPreferences(preferencesResult.data);
     setError(
-      statsResult.error || badgesResult.error || preferencesResult.error
+      statsResult.error || badgesResult.error
         ? "Some profile sections could not be loaded from the database."
         : null,
     );
@@ -167,7 +164,7 @@ export default function ProfileScreen() {
         Alert.alert("My Badges", badges.map((badge) => badge.title).join("\n"));
         break;
       case "notifications":
-        setPreferencesVisible(true);
+        navigation.navigate("Notifications");
         break;
       case "language":
         setProfile((current) =>
@@ -208,18 +205,6 @@ export default function ProfileScreen() {
     showToast("Account delete request submitted.");
   }
 
-  async function updatePreference(key: keyof NotificationPreferences, value: boolean) {
-    const nextPreferences = {
-      ...(preferences ?? {}),
-      [key]: value,
-    } as NotificationPreferences;
-
-    setPreferences(nextPreferences);
-    const result = await updateNotificationPreferences({ [key]: value });
-    setPreferences(result.data);
-    showToast(result.error ? "Preference saved locally." : "Notification preference updated.");
-  }
-
   if (loading) {
     return (
       <SafeAreaView edges={["top"]} style={styles.safeArea}>
@@ -257,7 +242,7 @@ export default function ProfileScreen() {
           <View style={styles.gridVerticalB} />
           <View style={styles.gridHorizontalA} />
           <View style={styles.gridHorizontalB} />
-          <Pressable style={styles.settingsButton} onPress={() => handleMenuAction("notifications")}>
+          <Pressable style={styles.settingsButton} onPress={() => navigation.navigate("Settings")}>
             <MaterialCommunityIcons name="cog-outline" size={19} color={colors.surface} />
           </Pressable>
 
@@ -392,35 +377,6 @@ export default function ProfileScreen() {
         onConfirm={() => void confirmLogout()}
       />
 
-      <Modal
-        visible={preferencesVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setPreferencesVisible(false)}
-      >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Notification preferences</Text>
-            <Text style={styles.modalBody}>Choose which civic updates should reach you.</Text>
-            {preferences ? (
-              <View style={styles.preferenceList}>
-                <PreferenceToggle label="Complaint updates" value={preferences.complaintUpdates} onValueChange={(value) => void updatePreference("complaintUpdates", value)} />
-                <PreferenceToggle label="Comments" value={preferences.comments} onValueChange={(value) => void updatePreference("comments", value)} />
-                <PreferenceToggle label="Followers" value={preferences.followers} onValueChange={(value) => void updatePreference("followers", value)} />
-                <PreferenceToggle label="Officer updates" value={preferences.officerUpdates} onValueChange={(value) => void updatePreference("officerUpdates", value)} />
-                <PreferenceToggle label="Leaderboard" value={preferences.leaderboard} onValueChange={(value) => void updatePreference("leaderboard", value)} />
-                <PreferenceToggle label="Email" value={preferences.email} onValueChange={(value) => void updatePreference("email", value)} />
-                <PreferenceToggle label="Push" value={preferences.push} onValueChange={(value) => void updatePreference("push", value)} />
-                <PreferenceToggle label="SMS" value={preferences.sms} onValueChange={(value) => void updatePreference("sms", value)} />
-              </View>
-            ) : null}
-            <Pressable style={styles.modalPrimaryWide} onPress={() => setPreferencesVisible(false)}>
-              <Text style={styles.modalPrimaryText}>Done</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
-
       <Modal visible={deleteVisible} transparent animationType="fade" onRequestClose={() => setDeleteVisible(false)}>
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
@@ -490,28 +446,6 @@ function MenuRow({
         <MaterialCommunityIcons name="chevron-right" size={18} color={danger ? colors.error : colors.textMuted} />
       </View>
     </Pressable>
-  );
-}
-
-function PreferenceToggle({
-  label,
-  value,
-  onValueChange,
-}: {
-  label: string;
-  value: boolean;
-  onValueChange: (value: boolean) => void;
-}) {
-  return (
-    <View style={styles.preferenceRow}>
-      <Text style={styles.preferenceLabel}>{label}</Text>
-      <Switch
-        value={value}
-        onValueChange={onValueChange}
-        trackColor={{ false: colors.border, true: "#C8B6F0" }}
-        thumbColor={value ? colors.primary : colors.surface}
-      />
-    </View>
   );
 }
 
@@ -1016,32 +950,6 @@ const styles = StyleSheet.create({
     color: colors.surface,
     fontSize: 13,
     fontWeight: "900",
-  },
-  modalPrimaryWide: {
-    minHeight: 46,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.primary,
-    marginTop: 16,
-  },
-  preferenceList: {
-    marginTop: 14,
-    gap: 8,
-  },
-  preferenceRow: {
-    minHeight: 46,
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: colors.surfaceMuted,
-  },
-  preferenceLabel: {
-    color: colors.text,
-    fontSize: 13,
-    fontWeight: "800",
   },
   modalDanger: {
     flex: 1,

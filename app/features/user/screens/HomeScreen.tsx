@@ -3,7 +3,6 @@ import { NavigationProp, useNavigation } from "@react-navigation/native";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -40,8 +39,6 @@ const categoryOrder: CitizenComplaintCategory[] = [
   "water",
   "power",
   "waste",
-  "trees",
-  "other",
 ];
 
 const emptyStats: CitizenStats = {
@@ -188,12 +185,7 @@ export default function HomeScreen() {
   }
 
   function openNotifications() {
-    Alert.alert(
-      "Notifications",
-      notifications.length
-        ? notifications.map((notification) => notification.title).join("\n")
-        : "No notifications yet.",
-    );
+    navigation.navigate("Notifications");
   }
 
   if (loading && !profile) {
@@ -236,26 +228,23 @@ export default function HomeScreen() {
         }
       >
         <View style={styles.header}>
-          <View style={styles.headerWash} />
-          <View style={styles.headerBloom} />
-          <View style={styles.gridLineA} />
-          <View style={styles.gridLineB} />
+          <View style={styles.headerGrid} />
 
           <View style={styles.headerTop}>
-            <View>
-              <Text style={styles.greeting}>Good morning,</Text>
-              <Text style={styles.userName}>{profile.name}</Text>
-            </View>
-
-            <View style={styles.headerActions}>
-              <Pressable style={styles.bellButton} onPress={openNotifications}>
-                <MaterialCommunityIcons name="bell-outline" size={21} color={colors.surface} />
-                {unreadCount ? <View style={styles.unreadDot} /> : null}
-              </Pressable>
+            <View style={styles.headerIdentity}>
               <View style={styles.avatar}>
                 <Text style={styles.avatarText}>{profile.initials}</Text>
               </View>
+              <View style={styles.headerCopy}>
+                <Text style={styles.greeting}>Good morning,</Text>
+                <Text style={styles.userName} numberOfLines={1}>{profile.name}</Text>
+              </View>
             </View>
+
+            <Pressable style={styles.bellButton} onPress={openNotifications}>
+              <MaterialCommunityIcons name="bell-outline" size={21} color={colors.surface} />
+              {unreadCount ? <View style={styles.unreadDot} /> : null}
+            </Pressable>
           </View>
 
           <View style={styles.locationPill}>
@@ -274,7 +263,9 @@ export default function HomeScreen() {
               placeholderTextColor={colors.textMuted}
               style={styles.searchInput}
             />
-            <MaterialCommunityIcons name="tune-variant" size={20} color={colors.primary} />
+            <View style={styles.searchTune}>
+              <MaterialCommunityIcons name="tune-variant" size={18} color={colors.primary} />
+            </View>
           </View>
         </View>
 
@@ -299,16 +290,18 @@ export default function HomeScreen() {
           ) : (
             <>
               <StatCard label="Pending" value={stats.pending} icon="clock-outline" accent={colors.warning} />
-              <StatCard label="In Progress" value={stats.inProgress} icon="progress-clock" accent={colors.info} />
+              <StatCard label="In Progress" value={stats.inProgress} icon="sync" accent={colors.info} />
               <StatCard label="Resolved" value={stats.resolved} icon="check-circle-outline" accent={colors.success} />
-              <StatCard label="Ward Total" value={stats.wardTotal} icon="city-variant-outline" accent={colors.primary} />
+              <StatCard label="In your ward" value={stats.wardTotal} icon="map-outline" accent={colors.primary} />
             </>
           )}
         </View>
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Quick Report</Text>
-          <Text style={styles.sectionAction}>AI-Powered Civic Reporting</Text>
+          <Pressable onPress={() => openReport("other")}>
+            <Text style={styles.viewAll}>See all -&gt;</Text>
+          </Pressable>
         </View>
 
         <View style={styles.categoryGrid}>
@@ -339,7 +332,7 @@ export default function HomeScreen() {
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Recent Near You</Text>
           <Pressable onPress={() => navigation.navigate("Browse")}>
-            <Text style={styles.viewAll}>Browse</Text>
+            <Text style={styles.viewAll}>Browse all -&gt;</Text>
           </Pressable>
         </View>
 
@@ -405,8 +398,11 @@ function StatCard({
 }) {
   return (
     <View style={styles.statCard}>
-      <View style={[styles.statIcon, { backgroundColor: `${accent}18` }]}>
-        <MaterialCommunityIcons name={icon} size={18} color={accent} />
+      <View style={styles.statTopRow}>
+        <View style={[styles.statIcon, { backgroundColor: `${accent}18` }]}>
+          <MaterialCommunityIcons name={icon} size={18} color={accent} />
+        </View>
+        <MaterialCommunityIcons name="chevron-right" size={18} color={colors.textMuted} />
       </View>
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
@@ -443,23 +439,23 @@ function ComplaintPreview({
         />
       </View>
       <View style={styles.complaintBody}>
-        <View style={styles.complaintTitleRow}>
-          <Text style={styles.complaintTitle} numberOfLines={1}>
-            {complaint.title}
-          </Text>
-          <View style={[styles.statusBadge, { backgroundColor: `${statusColors[complaint.status]}18` }]}>
-            <Text style={[styles.statusText, { color: statusColors[complaint.status] }]}>
-              {statusLabels[complaint.status]}
-            </Text>
-          </View>
-        </View>
+        <Text style={styles.complaintTitle} numberOfLines={1}>
+          {complaint.title}
+        </Text>
         <View style={styles.complaintMeta}>
+          <MaterialCommunityIcons name="map-marker-outline" size={13} color={colors.textMuted} />
           <Text style={styles.metaText}>{formatDistance(complaint.distanceKm)} away</Text>
           <View style={styles.dot} />
           <MaterialCommunityIcons name="arrow-up-bold-outline" size={14} color={colors.textMuted} />
           <Text style={styles.metaText}>{complaint.upvotes}</Text>
         </View>
+        <View style={[styles.statusBadge, { backgroundColor: `${statusColors[complaint.status]}18` }]}>
+          <Text style={[styles.statusText, { color: statusColors[complaint.status] }]}>
+            {statusLabels[complaint.status]}
+          </Text>
+        </View>
       </View>
+      <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
     </Pressable>
   );
 }
@@ -473,81 +469,56 @@ const styles = StyleSheet.create({
     paddingBottom: 132,
   },
   header: {
-    marginHorizontal: 16,
-    marginTop: 8,
-    padding: 18,
-    borderRadius: 26,
+    paddingHorizontal: 22,
+    paddingTop: 12,
+    paddingBottom: 52,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
     overflow: "hidden",
-    backgroundColor: colors.primaryDeep,
-    shadowColor: colors.primaryDeep,
-    shadowOpacity: 0.24,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 16 },
-    elevation: 10,
-  },
-  headerWash: {
-    position: "absolute",
-    top: -50,
-    right: -50,
-    width: 190,
-    height: 190,
-    borderRadius: 95,
-    backgroundColor: colors.primaryMid,
-    opacity: 0.65,
-  },
-  headerBloom: {
-    position: "absolute",
-    bottom: -70,
-    left: -40,
-    width: 210,
-    height: 160,
-    borderRadius: 80,
     backgroundColor: colors.primary,
-    opacity: 0.32,
   },
-  gridLineA: {
+  headerGrid: {
     position: "absolute",
-    top: 36,
     left: 0,
     right: 0,
-    height: 1,
-    backgroundColor: "rgba(255,255,255,0.08)",
-  },
-  gridLineB: {
-    position: "absolute",
-    top: 86,
-    left: 0,
-    right: 0,
-    height: 1,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    top: 0,
+    bottom: 0,
+    opacity: 0.38,
+    backgroundColor: colors.primaryDark,
   },
   headerTop: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    alignItems: "center",
     gap: 12,
     marginBottom: 16,
   },
+  headerIdentity: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  headerCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
   greeting: {
-    color: "#DED4FF",
-    fontSize: 15,
+    color: "rgba(255,255,255,0.72)",
+    fontSize: 12,
     fontWeight: "700",
   },
   userName: {
     color: colors.surface,
-    fontSize: 25,
+    fontSize: 17,
     fontWeight: "900",
-    marginTop: 4,
-  },
-  headerActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
+    marginTop: 2,
   },
   bellButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.13)",
@@ -561,19 +532,23 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: colors.error,
+    backgroundColor: colors.accent,
+    borderWidth: 2,
+    borderColor: colors.primary,
   },
   avatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.surface,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.25)",
   },
   avatarText: {
-    color: colors.primary,
-    fontSize: 14,
+    color: colors.surface,
+    fontSize: 16,
     fontWeight: "900",
   },
   locationPill: {
@@ -596,12 +571,25 @@ const styles = StyleSheet.create({
   },
   searchBar: {
     minHeight: 52,
-    borderRadius: 18,
+    borderRadius: 16,
     backgroundColor: colors.surface,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     paddingHorizontal: 14,
+    shadowColor: colors.primaryDeep,
+    shadowOpacity: 0.16,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 5,
+  },
+  searchTune: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primaryLight,
   },
   searchInput: {
     flex: 1,
@@ -644,24 +632,30 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     rowGap: 12,
     paddingHorizontal: 20,
-    marginTop: 18,
+    marginTop: -36,
+    marginBottom: 2,
   },
   statCard: {
     width: "47.8%",
-    minHeight: 124,
-    borderRadius: 22,
+    minHeight: 118,
+    borderRadius: 18,
     padding: 14,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
   },
+  statTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
   statIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 13,
+    width: 32,
+    height: 32,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 10,
   },
   statValue: {
     color: colors.text,
@@ -699,37 +693,31 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 16,
-    marginTop: 22,
+    marginTop: 20,
     marginBottom: 12,
   },
   sectionTitle: {
     color: colors.text,
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: "900",
-  },
-  sectionAction: {
-    color: colors.textMuted,
-    fontSize: 11,
-    fontWeight: "800",
   },
   viewAll: {
     color: colors.primary,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "900",
   },
   categoryGrid: {
     flexDirection: "row",
-    flexWrap: "wrap",
     justifyContent: "space-between",
-    rowGap: 10,
+    gap: 10,
     paddingHorizontal: 20,
   },
   categoryCard: {
-    width: "30.6%",
+    flex: 1,
     minHeight: 84,
-    borderRadius: 18,
-    paddingHorizontal: 8,
-    paddingVertical: 10,
+    borderRadius: 16,
+    paddingHorizontal: 6,
+    paddingVertical: 12,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.surface,
@@ -739,14 +727,14 @@ const styles = StyleSheet.create({
   categoryIcon: {
     width: 38,
     height: 38,
-    borderRadius: 14,
+    borderRadius: 11,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 7,
   },
   categoryLabel: {
     color: colors.text,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "900",
     textAlign: "center",
   },
@@ -758,38 +746,34 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    padding: 13,
-    borderRadius: 20,
+    padding: 14,
+    borderRadius: 18,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
   },
   complaintIcon: {
-    width: 46,
-    height: 46,
-    borderRadius: 16,
+    width: 56,
+    height: 56,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
   },
   complaintBody: {
     flex: 1,
-    gap: 8,
-  },
-  complaintTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+    minWidth: 0,
   },
   complaintTitle: {
-    flex: 1,
     color: colors.text,
     fontSize: 14,
     fontWeight: "900",
+    marginBottom: 5,
   },
   complaintMeta: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+    marginBottom: 7,
   },
   metaText: {
     color: colors.textMuted,
@@ -803,6 +787,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
   },
   statusBadge: {
+    alignSelf: "flex-start",
     paddingHorizontal: 8,
     paddingVertical: 5,
     borderRadius: 999,

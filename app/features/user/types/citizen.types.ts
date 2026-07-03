@@ -98,7 +98,10 @@ export interface CitizenNotification {
   id: string;
   title: string;
   body: string;
+  type?: string;
+  data?: Record<string, unknown>;
   unread: boolean;
+  readAt?: string | null;
   createdAt: string;
 }
 

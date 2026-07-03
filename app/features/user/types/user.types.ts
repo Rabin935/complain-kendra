@@ -1,3 +1,4 @@
+import type { NavigatorScreenParams } from "@react-navigation/native";
 import type { CitizenComplaintCategory } from "./citizen.types";
 
 export interface DashboardMetric {
@@ -21,8 +22,10 @@ export type UserTabParamList = {
 };
 
 export type UserStackParamList = {
-  MainTabs: undefined;
+  MainTabs: NavigatorScreenParams<UserTabParamList> | undefined;
   Report: { category?: CitizenComplaintCategory } | undefined;
+  Notifications: undefined;
+  Settings: undefined;
   ComplaintDetail: {
     complaintId: string;
   };
