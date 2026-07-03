@@ -24,6 +24,7 @@
     "qa": "npm run typecheck && npm test"
   },
   "dependencies": {
+    "@expo-google-fonts/inter": "^0.4.2",
     "@expo/vector-icons": "^15.0.3",
     "@google/generative-ai": "^0.24.1",
     "@react-native-async-storage/async-storage": "2.2.0",

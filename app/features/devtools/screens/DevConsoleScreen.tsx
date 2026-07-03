@@ -679,7 +679,7 @@ const styles = StyleSheet.create({
     color: "#F8F5FF",
     fontSize: 12,
     lineHeight: 18,
-    fontFamily: "monospace",
+    fontFamily: "Inter_400Regular",
   },
   safeArea: {
     flex: 1,
