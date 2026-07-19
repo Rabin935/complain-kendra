@@ -57,8 +57,12 @@ async function seed() {
     city: "Kathmandu",
     wardNumber: "10",
   });
+  const ward32Kathmandu = await WardModel.findOne({
+    city: "Kathmandu",
+    wardNumber: "32",
+  });
 
-  if (!ward12Kathmandu || !ward10Kathmandu) {
+  if (!ward12Kathmandu || !ward10Kathmandu || !ward32Kathmandu) {
     throw new Error("Required ward seed data was not created.");
   }
 
@@ -71,8 +75,8 @@ async function seed() {
         phone: "+9779800000001",
         ward: ward12Kathmandu.name,
         wardId: ward12Kathmandu._id.toString(),
-        homeArea: "Koteshwor",
-        address: "Koteshwor, Kathmandu",
+        homeArea: ward12Kathmandu.area,
+        address: `${ward12Kathmandu.area}, Kathmandu`,
         city: ward12Kathmandu.city,
         municipality: ward12Kathmandu.municipality,
         location: {
@@ -80,13 +84,13 @@ async function seed() {
           wardId: ward12Kathmandu._id.toString(),
           wardName: ward12Kathmandu.name,
           wardNumber: ward12Kathmandu.wardNumber,
-          area: "Koteshwor",
+          area: ward12Kathmandu.area,
           city: ward12Kathmandu.city,
           municipality: ward12Kathmandu.municipality,
           province: ward12Kathmandu.province,
-          address: "Koteshwor, Kathmandu",
-          lat: 27.678,
-          lng: 85.349,
+          address: `${ward12Kathmandu.area}, Kathmandu`,
+          lat: ward12Kathmandu.lat,
+          lng: ward12Kathmandu.lng,
         },
         language: "English",
         isPublic: true,
@@ -125,10 +129,37 @@ async function seed() {
     { upsert: true, new: true, setDefaultsOnInsert: true },
   );
 
+  const admin = await OfficerModel.findOneAndUpdate(
+    { email: "admin@complainthub.com" },
+    {
+      $set: {
+        name: "ComplaintHub Administrator",
+        email: "admin@complainthub.com",
+        phone: "+9779800000000",
+        role: "admin",
+        department: "Central Administration",
+        isActive: true,
+      },
+      $unset: {
+        ward: "",
+        wardId: "",
+        wardNumber: "",
+        city: "",
+        municipality: "",
+      },
+      $setOnInsert: {
+        password: "officer123",
+      },
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true },
+  );
+
   rahul.password = await bcrypt.hash("password123", 10);
   await rahul.save();
   officer.password = await bcrypt.hash("officer123", 10);
   await officer.save();
+  admin.password = await bcrypt.hash("officer123", 10);
+  await admin.save();
 
   const badges = await BadgeModel.bulkWrite([
     {
@@ -191,14 +222,14 @@ async function seed() {
         status: "in_progress",
         priority: "high",
         location: {
-          ward: ward12Kathmandu.name,
-          wardId: ward12Kathmandu._id.toString(),
-          wardName: ward12Kathmandu.name,
-          wardNumber: ward12Kathmandu.wardNumber,
+          ward: ward32Kathmandu.name,
+          wardId: ward32Kathmandu._id.toString(),
+          wardName: ward32Kathmandu.name,
+          wardNumber: ward32Kathmandu.wardNumber,
           area: "Koteshwor",
-          city: ward12Kathmandu.city,
-          municipality: ward12Kathmandu.municipality,
-          province: ward12Kathmandu.province,
+          city: ward32Kathmandu.city,
+          municipality: ward32Kathmandu.municipality,
+          province: ward32Kathmandu.province,
           address: "Koteshwor chowk, Kathmandu",
           lat: 27.6788,
           lng: 85.3497,
@@ -246,14 +277,14 @@ async function seed() {
         status: "pending",
         priority: "medium",
         location: {
-          ward: ward12Kathmandu.name,
-          wardId: ward12Kathmandu._id.toString(),
-          wardName: ward12Kathmandu.name,
-          wardNumber: ward12Kathmandu.wardNumber,
+          ward: ward32Kathmandu.name,
+          wardId: ward32Kathmandu._id.toString(),
+          wardName: ward32Kathmandu.name,
+          wardNumber: ward32Kathmandu.wardNumber,
           area: "Koteshwor",
-          city: ward12Kathmandu.city,
-          municipality: ward12Kathmandu.municipality,
-          province: ward12Kathmandu.province,
+          city: ward32Kathmandu.city,
+          municipality: ward32Kathmandu.municipality,
+          province: ward32Kathmandu.province,
           address: "Koteshwor school road",
           lat: 27.6768,
           lng: 85.3511,
@@ -419,6 +450,7 @@ async function seed() {
   console.log("ComplainKendra seed complete.");
   console.log("Citizen: rahul.sharma@example.com / password123");
   console.log("Officer: ward12.officer@example.com / officer123");
+  console.log("Admin: admin@complainthub.com / officer123");
   console.log(`Badge bulk result: ${badges.modifiedCount + badges.upsertedCount} changed`);
 }
 

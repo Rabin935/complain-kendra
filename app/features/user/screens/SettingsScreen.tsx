@@ -1,6 +1,11 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { NavigationProp, useNavigation } from "@react-navigation/native";
-import { useCallback, useEffect, useState } from "react";
+import { Text } from "@/src/theme/typography";
+import {
+  MaterialCommunityIcons } from "@expo/vector-icons";
+import { NavigationProp,
+  useNavigation } from "@react-navigation/native";
+import { useCallback,
+  useEffect,
+  useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -9,7 +14,6 @@ import {
   ScrollView,
   StyleSheet,
   Switch,
-  Text,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -98,7 +102,7 @@ export default function SettingsScreen() {
   }
 
   function openComingSoon(title: string) {
-    Alert.alert(title, "This setting is ready for the next backend endpoint.");
+    Alert.alert(title, "This setting is not available yet.");
   }
 
   if (loading) {
@@ -190,8 +194,8 @@ export default function SettingsScreen() {
             icon="lock-reset"
             iconColor={colors.primary}
             title="Change Password"
-            subtitle="Last changed 3mo ago"
-            onPress={() => openComingSoon("Change Password")}
+            subtitle="Update your account password"
+            onPress={() => navigation.navigate("ChangePassword")}
           />
           <SettingsActionRow
             icon="shield-lock-outline"
@@ -223,7 +227,7 @@ export default function SettingsScreen() {
             iconColor={colors.primary}
             title="Language"
             subtitle={profile?.language ?? "English"}
-            onPress={() => openComingSoon("Language")}
+            onPress={() => navigation.navigate("LanguageSettings")}
           />
           <SettingsActionRow
             icon="palette-outline"
@@ -247,13 +251,13 @@ export default function SettingsScreen() {
             icon="help-circle-outline"
             iconColor={colors.primary}
             title="Help Center"
-            onPress={() => openComingSoon("Help Center")}
+            onPress={() => navigation.navigate("HelpSupport")}
           />
           <SettingsActionRow
             icon="message-text-outline"
             iconColor={colors.error}
             title="Send Feedback"
-            onPress={() => openComingSoon("Send Feedback")}
+            onPress={() => navigation.navigate("HelpSupport")}
           />
           <SettingsActionRow
             icon="file-document-outline"

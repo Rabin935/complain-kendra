@@ -1,6 +1,15 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Text, TextInput } from "@/src/theme/typography";
+import {
+  MaterialCommunityIcons
+} from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { LinearGradient } from "expo-linear-gradient";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode
+} from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -10,18 +19,16 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from "react-native";
-import { useAuth } from "../context/AuthContext";
-import { sendOtp } from "../services/auth.service";
-import type { AuthStackParamList } from "../types/auth.types";
 import {
   fetchWardCities,
   fetchWardsByCity,
   type WardOption,
 } from "../../user/services/ward.service";
+import { useAuth } from "../context/AuthContext";
+import { sendOtp } from "../services/auth.service";
+import type { AuthStackParamList } from "../types/auth.types";
 
 type RegisterScreenProps = NativeStackScreenProps<AuthStackParamList, "Register">;
 type FocusedField =
@@ -88,6 +95,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
     if (!selectedCity) {
       setWards([]);
       setSelectedWard(null);
+      setHomeArea("");
       return;
     }
 
@@ -110,6 +118,12 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
 
     void loadWards();
   }, [selectedCity]);
+
+  useEffect(() => {
+    if (selectedWard?.area && !homeArea.trim()) {
+      setHomeArea(selectedWard.area);
+    }
+  }, [homeArea, selectedWard]);
 
   function clearError() {
     setValidationError(null);
@@ -150,6 +164,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
 
       navigation.replace("OtpVerification", {
         email: cleanEmail,
+        phone: cleanPhone,
         message,
         devOtp: otpResponse.devOtp,
       });
@@ -174,7 +189,17 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.container}>
-          <View style={styles.header}>
+          <LinearGradient
+            colors={["#7B4FC8", "#6038B0", "#3E2075"]}
+            start={{ x: 0.1, y: 0 }}
+            end={{ x: 0.9, y: 1 }}
+            style={styles.header}
+          >
+            <View style={styles.gridVerticalA} />
+            <View style={styles.gridVerticalB} />
+            <View style={styles.gridVerticalC} />
+            <View style={styles.gridHorizontalA} />
+            <View style={styles.gridHorizontalB} />
             <View style={styles.headerTopRow}>
               <Pressable
                 onPress={() => navigation.replace("Login")}
@@ -203,9 +228,11 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
             <Text style={styles.subtitle}>
               Join 24,000+ residents reporting civic issues across Nepal.
             </Text>
-          </View>
+          </LinearGradient>
 
           <View style={styles.formSection}>
+            <Text style={styles.formTitle}>Create your account</Text>
+            <Text style={styles.formSubtitle}>Enter your details to start reporting civic issues.</Text>
             {validationError ? <Text style={styles.errorText}>{validationError}</Text> : null}
 
             <View style={styles.nameGrid}>
@@ -213,7 +240,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
                 label="First Name"
                 icon="account"
                 value={firstName}
-                placeholder="Rahul"
+                placeholder="First name"
                 focused={focusedField === "firstName"}
                 onFocus={() => setFocusedField("firstName")}
                 onBlur={() => setFocusedField(null)}
@@ -226,7 +253,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
                 label="Last Name"
                 icon="account"
                 value={lastName}
-                placeholder="Sharma"
+                placeholder="Last Name"
                 focused={focusedField === "lastName"}
                 onFocus={() => setFocusedField("lastName")}
                 onBlur={() => setFocusedField(null)}
@@ -272,7 +299,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
               label="Email Address"
               icon="email-outline"
               value={email}
-              placeholder="rahul@example.com"
+              placeholder="citizen@example.com"
               focused={focusedField === "email"}
               keyboardType="email-address"
               autoCapitalize="none"
@@ -303,16 +330,20 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
                     ? `${selectedWard.wardName} - ${selectedWard.city}`
                     : "Select ward"
               }
-              subtitle={selectedWard?.municipality || "Assigned ward office"}
+              subtitle={
+                selectedWard
+                  ? [selectedWard.area, selectedWard.municipality].filter(Boolean).join(" - ")
+                  : "Assigned ward office"
+              }
               onPress={() => setSelectorMode("ward")}
               disabled={!selectedCity || locationLoading}
             />
 
             <FormField
-              label="Home Area"
+              label="Address"
               icon="home-city-outline"
               value={homeArea}
-              placeholder={selectedWard?.area || "Koteshwor"}
+              placeholder={selectedWard?.area || "Ward address"}
               focused={focusedField === "homeArea"}
               onFocus={() => setFocusedField("homeArea")}
               onBlur={() => setFocusedField(null)}
@@ -388,19 +419,33 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
               onPress={() => void handleRegister()}
               disabled={loading}
               style={({ pressed }) => [
-                styles.submitButton,
+                styles.submitButtonShell,
                 pressed && !loading ? styles.pressed : null,
                 loading ? styles.disabled : null,
               ]}
             >
-              {loading ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <>
-                  <Text style={styles.submitText}>Continue</Text>
-                  <MaterialCommunityIcons name="arrow-right" size={20} color="#FFFFFF" />
-                </>
-              )}
+              <LinearGradient
+                colors={["#7B4FC8", "#6038B0"]}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+                style={styles.submitButton}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Text style={styles.submitText}>Continue</Text>
+                    <MaterialCommunityIcons name="arrow-right" size={18} color="#FFFFFF" />
+                  </>
+                )}
+              </LinearGradient>
+            </Pressable>
+          </View>
+
+          <View style={styles.loginFooter}>
+            <Text style={styles.loginFooterText}>Already have an account?</Text>
+            <Pressable onPress={() => navigation.replace("Login")} hitSlop={8}>
+              <Text style={styles.loginFooterLink}>Sign in</Text>
             </Pressable>
           </View>
         </View>
@@ -423,7 +468,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
           const isCity = typeof item === "string";
           const id = isCity ? item : item.id;
           const title = isCity ? item : `${item.wardName} - ${item.city}`;
-          const subtitle = isCity ? "Load wards in this city" : item.municipality;
+          const subtitle = isCity ? "Load wards in this city" : [item.area, item.municipality].filter(Boolean).join(" - ");
           const selected = isCity ? selectedCity === item : selectedWard?.id === item.id;
 
           return (
@@ -435,8 +480,10 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
 
                 if (isCity) {
                   setSelectedCity(item);
+                  setHomeArea("");
                 } else {
                   setSelectedWard(item);
+                  setHomeArea(item.area ?? "");
                 }
 
                 setSelectorMode(null);
@@ -582,13 +629,52 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   header: {
-    paddingTop: 44,
+    paddingTop: 18,
     paddingHorizontal: 22,
-    paddingBottom: 30,
-    backgroundColor: "#6038B0",
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
+    paddingBottom: 58,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
     overflow: "hidden",
+  },
+  gridVerticalA: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: "24%",
+    width: 1,
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  gridVerticalB: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: "48%",
+    width: 1,
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  gridVerticalC: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: "72%",
+    width: 1,
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  gridHorizontalA: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 64,
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  gridHorizontalB: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 128,
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.06)",
   },
   headerTopRow: {
     flexDirection: "row",
@@ -669,10 +755,26 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
   formSection: {
-    paddingHorizontal: 22,
-    paddingTop: 18,
-    paddingBottom: 20,
+    marginHorizontal: 9,
+    marginTop: -28,
+    padding: 14,
+    paddingBottom: 18,
     gap: 12,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#E8E4F0",
+    backgroundColor: "#FFFFFF",
+  },
+  formTitle: {
+    color: "#15121F",
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  formSubtitle: {
+    color: "#8B8597",
+    fontSize: 13,
+    marginTop: -8,
+    marginBottom: 6,
   },
   errorText: {
     color: "#DC2626",
@@ -848,20 +950,23 @@ const styles = StyleSheet.create({
   strengthLabelStrong: {
     color: "#22C55E",
   },
-  submitButton: {
-    minHeight: 56,
+  submitButtonShell: {
     borderRadius: 16,
-    backgroundColor: "#6038B0",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
     marginTop: 2,
+    overflow: "hidden",
     shadowColor: "#6038B0",
     shadowOpacity: 0.34,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 10 },
     elevation: 8,
+  },
+  submitButton: {
+    minHeight: 56,
+    borderRadius: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
   },
   submitText: {
     color: "#FFFFFF",
@@ -874,6 +979,23 @@ const styles = StyleSheet.create({
   },
   disabled: {
     opacity: 0.68,
+  },
+  loginFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 16,
+    marginBottom: 24,
+  },
+  loginFooterText: {
+    color: "#4A4458",
+    fontSize: 13,
+  },
+  loginFooterLink: {
+    color: "#6038B0",
+    fontSize: 13,
+    fontWeight: "700",
   },
   modalBackdrop: {
     flex: 1,

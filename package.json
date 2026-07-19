@@ -3,7 +3,7 @@
   "main": "node_modules/expo/AppEntry.js",
   "version": "1.0.0",
   "scripts": {
-    "start": "expo start",
+    "start": "expo start --port 3000",
     "start:phone": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-expo-lan.ps1",
     "start:dev-client": "expo start --dev-client",
     "dev": "concurrently \"npm run web\" \"npm run server\"",
@@ -46,6 +46,7 @@
     "expo-crypto": "~15.0.9",
     "expo-font": "^14.0.12",
     "expo-image-picker": "~17.0.11",
+    "expo-linear-gradient": "~15.0.8",
     "expo-linking": "~8.0.12",
     "expo-router": "^6.0.24",
     "expo-splash-screen": "~31.0.13",

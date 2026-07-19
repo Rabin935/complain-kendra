@@ -1,5 +1,10 @@
-import { GoogleLogin } from "@react-oauth/google";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { Text } from "@/src/theme/typography";
+import {
+  GoogleLogin } from "@react-oauth/google";
+import { ActivityIndicator,
+  StyleSheet,
+  View,
+} from "react-native";
 import { colors } from "../../../constants/colors";
 import { getGoogleWebOrigin } from "../../../../src/features/auth/config/google.config";
 import type { GoogleWebSignInButtonProps } from "./GoogleWebSignInButton";

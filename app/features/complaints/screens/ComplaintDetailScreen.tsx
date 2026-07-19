@@ -1,28 +1,35 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Text, TextInput } from "@/src/theme/typography";
+import {
+  MaterialCommunityIcons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useEffect, useMemo, useState } from "react";
+import { LinearGradient } from "expo-linear-gradient";
+import { useEffect,
+  useMemo,
+  useRef,
+  useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
   Share,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../../../constants/colors";
+import { radii, shadows } from "../../../constants/theme";
 import { useRealtime } from "../../realtime/context/RealtimeContext";
 import { useRealtimeInvalidation } from "../../realtime/hooks/useRealtimeInvalidation";
+import { useAuth } from "../../auth/context/AuthContext";
 import {
-  categoryMeta,
   sampleProfile,
 } from "../../user/data/citizenSampleData";
 import {
   addComplaintComment,
+  deleteCitizenComplaint,
   fetchComplaintById,
   followComplaintApi,
   rateComplaintResolution,
@@ -48,7 +55,15 @@ type ComplaintDetailProps = NativeStackScreenProps<UserStackParamList, "Complain
 
 export default function ComplaintDetailScreen({ navigation, route }: ComplaintDetailProps) {
   const { complaintId } = route.params;
+  const { user } = useAuth();
   const { joinComplaint } = useRealtime();
+  const insets = useSafeAreaInsets();
+  const scrollRef = useRef<ScrollView>(null);
+  const commentsY = useRef(0);
+
+  function scrollToComments() {
+    scrollRef.current?.scrollTo({ y: Math.max(commentsY.current - 12, 0), animated: true });
+  }
   const [detail, setDetail] = useState<ComplaintDetailPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -60,6 +75,9 @@ export default function ComplaintDetailScreen({ navigation, route }: ComplaintDe
   const [rating, setRating] = useState(5);
   const [ratingComment, setRatingComment] = useState("");
   const [ratingSaving, setRatingSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const complaint = detail?.complaint ?? null;
   const timeline = detail?.timeline ?? [];
@@ -205,6 +223,38 @@ export default function ComplaintDetailScreen({ navigation, route }: ComplaintDe
     });
   }
 
+  function confirmDelete() {
+    if (!complaint || deleting) {
+      return;
+    }
+
+    setDeleteError(null);
+    setDeleteConfirmVisible(true);
+  }
+
+  async function handleDeleteComplaint() {
+    if (!complaint || deleting) {
+      return;
+    }
+
+    setDeleting(true);
+    setDeleteError(null);
+
+    try {
+      await deleteCitizenComplaint(complaint.id);
+      setDeleteConfirmVisible(false);
+      navigation.goBack();
+    } catch (deleteComplaintError) {
+      setDeleteError(
+        deleteComplaintError instanceof Error
+          ? deleteComplaintError.message
+          : "Unable to delete complaint. Please try again.",
+      );
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   async function handleAddComment() {
     if (!complaint || !commentDraft.trim() || commenting) {
       return;
@@ -272,63 +322,79 @@ export default function ComplaintDetailScreen({ navigation, route }: ComplaintDe
         <View style={styles.errorState}>
           <MaterialCommunityIcons name="alert-circle-outline" size={42} color={colors.error} />
           <Text style={styles.errorTitle}>{error ?? "Complaint not found."}</Text>
-          <Pressable style={styles.primaryButton} onPress={() => void loadDetail()}>
-            <Text style={styles.primaryButtonText}>Retry</Text>
+          <Pressable style={styles.retryButton} onPress={() => void loadDetail()}>
+            <Text style={styles.retryButtonText}>Retry</Text>
           </Pressable>
         </View>
       </SafeAreaView>
     );
   }
 
-  const meta = categoryMeta[complaint.category];
   const reporterName = complaint.reporterPrivate ? "Private citizen" : complaint.reporterName ?? sampleProfile.name;
+  const isOwnComplaint = Boolean(user?.id && complaint.reporterId && user.id === complaint.reporterId);
 
   return (
     <SafeAreaView edges={["top"]} style={styles.safeArea}>
       <ScrollView
+        ref={scrollRef}
+        style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} tintColor={colors.primary} onRefresh={() => void loadDetail(true)} />
         }
       >
-        <View style={styles.header}>
-          <Pressable style={styles.iconButton} onPress={() => navigation.goBack()}>
-            <MaterialCommunityIcons name="arrow-left" size={22} color={colors.text} />
-          </Pressable>
-          <View style={styles.headerActions}>
-            <Pressable
-              style={[styles.followButton, complaint.followed ? styles.followButtonActive : null]}
-              onPress={() => void handleFollow()}
-              disabled={following}
-            >
-              <MaterialCommunityIcons
-                name={complaint.followed ? "bookmark-check" : "bookmark-plus-outline"}
-                size={18}
-                color={complaint.followed ? colors.surface : colors.primary}
-              />
+        <View style={styles.mapHero}>
+          {mapTileUrl ? (
+            <>
+            <Image source={{ uri: mapTileUrl }} style={styles.mapImage} resizeMode="cover" />
+            <View style={styles.mapOverlay} />
+            <View style={styles.pinMarker}>
+              <MaterialCommunityIcons name="map-marker" size={42} color={colors.primary} />
+            </View>
+            </>
+          ) : (
+            <View style={styles.mapFallback} />
+          )}
+
+          <View style={styles.header}>
+            <Pressable style={styles.iconButton} onPress={() => navigation.goBack()}>
+              <MaterialCommunityIcons name="arrow-left" size={20} color={colors.text} />
             </Pressable>
-            <Pressable style={styles.iconButton} onPress={() => void handleUpvote()} disabled={upvoting}>
-              <MaterialCommunityIcons name="arrow-up-bold-outline" size={20} color={colors.text} />
-            </Pressable>
-            <Pressable style={styles.iconButton} onPress={() => void handleShare()}>
-              <MaterialCommunityIcons name="share-variant-outline" size={20} color={colors.text} />
-            </Pressable>
+            <View style={styles.headerActions}>
+              <Pressable style={styles.iconButton} onPress={() => void handleShare()}>
+                <MaterialCommunityIcons name="share-variant-outline" size={19} color={colors.text} />
+              </Pressable>
+              {isOwnComplaint ? (
+                <Pressable
+                  accessibilityLabel="Delete complaint"
+                  style={styles.deleteButton}
+                  onPress={confirmDelete}
+                  disabled={deleting}
+                >
+                  {deleting ? (
+                    <ActivityIndicator size="small" color={colors.error} />
+                  ) : (
+                    <MaterialCommunityIcons name="trash-can-outline" size={19} color={colors.error} />
+                  )}
+                </Pressable>
+              ) : null}
+              <Pressable
+                style={[styles.followButton, complaint.followed ? styles.followButtonActive : null]}
+                onPress={() => void handleFollow()}
+                disabled={following}
+              >
+                <MaterialCommunityIcons
+                  name={complaint.followed ? "bookmark-check" : "bookmark-outline"}
+                  size={18}
+                  color={complaint.followed ? colors.surface : colors.text}
+                />
+              </Pressable>
+            </View>
           </View>
         </View>
 
-        <View style={styles.hero}>
-          <View style={[styles.categoryMark, { backgroundColor: meta.softColor }]}>
-            <MaterialCommunityIcons
-              name={meta.icon as keyof typeof MaterialCommunityIcons.glyphMap}
-              size={24}
-              color={meta.color}
-            />
-          </View>
-          <Text style={styles.complaintNo}>{complaint.complaintNo}</Text>
-          <Text style={styles.title}>{complaint.title}</Text>
-          <Text style={styles.subtitle}>{complaint.location.address}</Text>
-
+        <View style={styles.detailSheet}>
           <View style={styles.badgeRow}>
             <View style={[styles.statusBadge, { backgroundColor: `${statusColors[complaint.status]}18` }]}>
               <Text style={[styles.statusText, { color: statusColors[complaint.status] }]}>
@@ -340,31 +406,54 @@ export default function ComplaintDetailScreen({ navigation, route }: ComplaintDe
                 {priorityLabels[complaint.priority]}
               </Text>
             </View>
+            <Text style={styles.complaintNo}>{complaint.complaintNo}</Text>
           </View>
-        </View>
 
-        {mapTileUrl ? (
-          <View style={styles.mapCard}>
-            <Image source={{ uri: mapTileUrl }} style={styles.mapImage} resizeMode="cover" />
-            <View style={styles.mapOverlay} />
-            <View style={styles.pinMarker}>
-              <MaterialCommunityIcons name="map-marker" size={34} color={colors.error} />
+          <Text style={styles.title}>{complaint.title}</Text>
+          <View style={styles.detailMetaRow}>
+            <Text style={styles.detailMeta}>📍 {complaint.location.ward}, {complaint.location.city}</Text>
+            <Text style={styles.detailMeta}>⏱ {formatCompactDate(complaint.createdAt)}</Text>
+            <Text style={styles.detailMeta}>👁 {complaint.followers} followers</Text>
+          </View>
+
+          <View style={styles.reporterCard}>
+            <View style={styles.reporterAvatar}>
+              <Text style={styles.reporterInitials}>
+                {reporterName.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase()}
+              </Text>
             </View>
+            <View style={styles.reporterCopy}>
+              <Text style={styles.reporterName}>{reporterName} ✅</Text>
+              <Text style={styles.reporterMeta}>Resident · {complaint.location.ward}</Text>
+            </View>
+            <Pressable onPress={scrollToComments}>
+              <Text style={styles.reporterMessage}>💬</Text>
+            </Pressable>
           </View>
-        ) : null}
 
-        {complaint.photos.length ? (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Images</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoRow}>
-              {complaint.photos.map((photo, index) => (
-                <View key={`${photo}-${index}`} style={styles.photoCard}>
-                  <Image source={{ uri: photo }} style={styles.photoImage} />
+          <Text style={styles.description}>{complaint.description}</Text>
+
+          {complaint.photos.length ? (
+            <View style={styles.photoGallery}>
+              <Image source={{ uri: complaint.photos[0] }} style={styles.photoMain} />
+              {complaint.photos.length > 1 ? (
+                <View style={styles.photoSide}>
+                  <Image source={{ uri: complaint.photos[1] }} style={styles.photoSmall} />
+                  {complaint.photos[2] ? (
+                    <View style={styles.photoSmall}>
+                      <Image source={{ uri: complaint.photos[2] }} style={styles.photoMoreImage} />
+                      {complaint.photos.length > 3 ? (
+                        <>
+                          <View style={styles.photoMoreOverlay} />
+                          <Text style={styles.photoMoreText}>+{complaint.photos.length - 3}</Text>
+                        </>
+                      ) : null}
+                    </View>
+                  ) : null}
                 </View>
-              ))}
-            </ScrollView>
-          </View>
-        ) : null}
+              ) : null}
+            </View>
+          ) : null}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>AI Analysis</Text>
@@ -394,7 +483,7 @@ export default function ComplaintDetailScreen({ navigation, route }: ComplaintDe
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Timeline</Text>
+          <Text style={styles.sectionTitle}>Status Timeline</Text>
           <View style={styles.timelineCard}>
             {timeline.map((item, index) => (
               <TimelineRow
@@ -407,7 +496,12 @@ export default function ComplaintDetailScreen({ navigation, route }: ComplaintDe
           </View>
         </View>
 
-        <View style={styles.section}>
+        <View
+          style={styles.section}
+          onLayout={(event) => {
+            commentsY.current = event.nativeEvent.layout.y;
+          }}
+        >
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Comments</Text>
             <Text style={styles.sectionCount}>{comments.length}</Text>
@@ -469,35 +563,98 @@ export default function ComplaintDetailScreen({ navigation, route }: ComplaintDe
             </View>
           </View>
         ) : null}
-
-        <View style={styles.footerActions}>
-          <Pressable
-            style={[styles.secondaryButton, complaint.followed ? styles.secondaryButtonActive : null]}
-            onPress={() => void handleFollow()}
-            disabled={following}
-          >
-            <MaterialCommunityIcons
-              name={complaint.followed ? "bookmark-check" : "bookmark-outline"}
-              size={18}
-              color={complaint.followed ? colors.surface : colors.primary}
-            />
-            <Text
-              style={[
-                styles.secondaryButtonText,
-                complaint.followed ? styles.secondaryButtonTextActive : null,
-              ]}
-            >
-              {complaint.followed ? "Following" : "Follow"}
-            </Text>
-          </Pressable>
-
-          <Pressable style={styles.primaryButton} onPress={() => void handleUpvote()} disabled={upvoting}>
-            {upvoting ? <ActivityIndicator color={colors.surface} /> : null}
-            <MaterialCommunityIcons name="arrow-up-bold-outline" size={18} color={colors.surface} />
-            <Text style={styles.primaryButtonText}>{upvoting ? "Voting..." : "Upvote"}</Text>
-          </Pressable>
         </View>
       </ScrollView>
+
+      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 14 }]}>
+        <Pressable
+          style={styles.miniPill}
+          onPress={() => void handleUpvote()}
+          disabled={upvoting}
+        >
+          {upvoting ? (
+            <ActivityIndicator color={colors.primary} size="small" />
+          ) : (
+            <MaterialCommunityIcons name="arrow-up-bold" size={18} color={colors.primary} />
+          )}
+          <Text style={styles.miniPillValue}>{complaint.upvotes}</Text>
+        </Pressable>
+
+        <Pressable style={styles.miniPillNeutral} onPress={scrollToComments}>
+          <MaterialCommunityIcons name="comment-outline" size={18} color={colors.textSecondary} />
+          <Text style={styles.miniPillValueNeutral}>{complaint.comments}</Text>
+        </Pressable>
+
+        <Pressable
+          style={styles.followUpdatesShell}
+          onPress={() => void handleFollow()}
+          disabled={following}
+        >
+          <LinearGradient
+            colors={[colors.primaryMid, colors.primary]}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            style={styles.followUpdates}
+          >
+            {following ? (
+              <ActivityIndicator color={colors.surface} />
+            ) : (
+              <>
+                <MaterialCommunityIcons
+                  name={complaint.followed ? "bell-check" : "bell-ring-outline"}
+                  size={18}
+                  color={colors.surface}
+                />
+                <Text style={styles.followUpdatesText}>
+                  {complaint.followed ? "Following" : "Follow Updates"}
+                </Text>
+              </>
+            )}
+          </LinearGradient>
+        </Pressable>
+      </View>
+
+      <Modal
+        visible={deleteConfirmVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!deleting) setDeleteConfirmVisible(false);
+        }}
+      >
+        <View style={styles.deleteModalBackdrop}>
+          <View style={styles.deleteModalCard}>
+            <View style={styles.deleteModalIcon}>
+              <MaterialCommunityIcons name="trash-can-outline" size={26} color={colors.error} />
+            </View>
+            <Text style={styles.deleteModalTitle}>Delete complaint?</Text>
+            <Text style={styles.deleteModalText}>
+              This permanently removes your complaint and cannot be undone.
+            </Text>
+            {deleteError ? <Text style={styles.deleteModalError}>{deleteError}</Text> : null}
+            <View style={styles.deleteModalActions}>
+              <Pressable
+                style={styles.deleteCancelButton}
+                onPress={() => setDeleteConfirmVisible(false)}
+                disabled={deleting}
+              >
+                <Text style={styles.deleteCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.deleteConfirmButton, deleting ? styles.deleteDisabled : null]}
+                onPress={() => void handleDeleteComplaint()}
+                disabled={deleting}
+              >
+                {deleting ? (
+                  <ActivityIndicator size="small" color={colors.surface} />
+                ) : (
+                  <Text style={styles.deleteConfirmText}>Delete</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -585,18 +742,30 @@ function CommentCard({ comment, depth = 0 }: { comment: ComplaintComment; depth?
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
-    paddingHorizontal: 16,
-    paddingBottom: 118,
+    paddingBottom: 0,
+    backgroundColor: colors.surface,
+  },
+  mapHero: {
+    height: 260,
+    position: "relative",
+    overflow: "hidden",
+    backgroundColor: "#DCD3F0",
   },
   header: {
+    position: "absolute",
+    top: 8,
+    left: 16,
+    right: 16,
+    zIndex: 3,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingTop: 10,
-    paddingBottom: 14,
   },
   headerActions: {
     flexDirection: "row",
@@ -604,35 +773,56 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   iconButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
+    backgroundColor: "rgba(255,255,255,0.92)",
+    shadowColor: colors.primaryDeep,
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
   },
   followButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
+    backgroundColor: "rgba(255,255,255,0.92)",
+    shadowColor: colors.primaryDeep,
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
+  },
+  deleteButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.92)",
+    shadowColor: colors.primaryDeep,
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
   },
   followButtonActive: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
-  hero: {
-    padding: 18,
-    borderRadius: 24,
+  detailSheet: {
+    marginTop: -28,
+    paddingHorizontal: 22,
+    paddingTop: 20,
+    paddingBottom: 28,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   categoryMark: {
     width: 52,
@@ -643,17 +833,18 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   complaintNo: {
+    marginLeft: "auto",
     color: colors.primary,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "900",
     textTransform: "uppercase",
   },
   title: {
     color: colors.text,
-    fontSize: 24,
-    lineHeight: 30,
+    fontSize: 22,
+    lineHeight: 27,
     fontWeight: "900",
-    marginTop: 6,
+    marginTop: 8,
   },
   subtitle: {
     color: colors.textMuted,
@@ -665,7 +856,6 @@ const styles = StyleSheet.create({
   badgeRow: {
     flexDirection: "row",
     gap: 8,
-    marginTop: 14,
     flexWrap: "wrap",
   },
   statusBadge: {
@@ -709,6 +899,111 @@ const styles = StyleSheet.create({
     top: "50%",
     marginLeft: -17,
     marginTop: -34,
+  },
+  mapFallback: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#DCD3F0",
+  },
+  detailMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 12,
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  detailMeta: {
+    color: colors.textMuted,
+    fontSize: 11,
+  },
+  reporterCard: {
+    minHeight: 58,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceMuted,
+    marginBottom: 18,
+  },
+  reporterAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primary,
+  },
+  reporterInitials: {
+    color: colors.surface,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  reporterCopy: {
+    flex: 1,
+  },
+  reporterName: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  reporterMeta: {
+    color: colors.textMuted,
+    fontSize: 11,
+    marginTop: 2,
+  },
+  reporterMessage: {
+    fontSize: 21,
+  },
+  description: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    lineHeight: 23,
+    marginBottom: 18,
+  },
+  photoGallery: {
+    height: 140,
+    flexDirection: "row",
+    gap: 6,
+    marginBottom: 22,
+  },
+  photoMain: {
+    flex: 2,
+    height: "100%",
+    borderRadius: 16,
+    backgroundColor: "#FEF3C7",
+  },
+  photoSide: {
+    flex: 1,
+    gap: 6,
+  },
+  photoSmall: {
+    flex: 1,
+    width: "100%",
+    borderRadius: 14,
+    overflow: "hidden",
+  },
+  photoMoreImage: {
+    width: "100%",
+    height: "100%",
+  },
+  photoMoreOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.58)",
+  },
+  photoMoreText: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    textAlign: "center",
+    textAlignVertical: "center",
+    color: colors.surface,
+    fontSize: 16,
+    fontWeight: "800",
   },
   section: {
     marginTop: 18,
@@ -975,49 +1270,162 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 6,
   },
-  footerActions: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 18,
-  },
-  secondaryButton: {
-    flex: 1,
-    minHeight: 52,
-    borderRadius: 18,
+  retryButton: {
+    marginTop: 4,
+    minHeight: 46,
+    paddingHorizontal: 22,
+    borderRadius: radii.button,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: colors.primary,
+  },
+  retryButtonText: {
+    color: colors.surface,
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  bottomBar: {
     flexDirection: "row",
-    gap: 8,
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 20,
+    paddingTop: 14,
     backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    ...shadows.card,
+    shadowOffset: { width: 0, height: -10 },
+  },
+  miniPill: {
+    width: 56,
+    minHeight: 50,
+    borderRadius: radii.field,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 1,
+    backgroundColor: colors.primaryLight,
+    borderWidth: 1.5,
+    borderColor: colors.primarySoft,
+  },
+  miniPillValue: {
+    color: colors.primary,
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  miniPillNeutral: {
+    width: 56,
+    minHeight: 50,
+    borderRadius: radii.field,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 1,
+    backgroundColor: colors.surfaceMuted,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
+  miniPillValueNeutral: {
+    color: colors.textSecondary,
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  followUpdatesShell: {
+    flex: 1,
+    borderRadius: radii.field,
+    overflow: "hidden",
+    ...shadows.button,
+  },
+  followUpdates: {
+    minHeight: 50,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  followUpdatesText: {
+    color: colors.surface,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  deleteModalBackdrop: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 22,
+    backgroundColor: "rgba(21,18,31,0.48)",
+  },
+  deleteModalCard: {
+    width: "100%",
+    maxWidth: 360,
+    padding: 20,
+    borderRadius: 24,
+    alignItems: "center",
+    backgroundColor: colors.surface,
+  },
+  deleteModalIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FEE2E2",
+  },
+  deleteModalTitle: {
+    color: colors.text,
+    fontSize: 20,
+    fontWeight: "800",
+    marginTop: 14,
+  },
+  deleteModalText: {
+    color: colors.textMuted,
+    fontSize: 13,
+    lineHeight: 20,
+    textAlign: "center",
+    marginTop: 7,
+  },
+  deleteModalError: {
+    width: "100%",
+    color: colors.error,
+    fontSize: 12,
+    fontWeight: "700",
+    textAlign: "center",
+    marginTop: 12,
+  },
+  deleteModalActions: {
+    width: "100%",
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 20,
+  },
+  deleteCancelButton: {
+    flex: 1,
+    minHeight: 46,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surfaceMuted,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  secondaryButtonActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+  deleteCancelText: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: "800",
   },
-  secondaryButtonText: {
-    color: colors.primary,
-    fontSize: 14,
-    fontWeight: "900",
-  },
-  secondaryButtonTextActive: {
-    color: colors.surface,
-  },
-  primaryButton: {
+  deleteConfirmButton: {
     flex: 1,
-    minHeight: 52,
-    borderRadius: 18,
+    minHeight: 46,
+    borderRadius: 15,
     alignItems: "center",
     justifyContent: "center",
-    flexDirection: "row",
-    gap: 8,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.error,
   },
-  primaryButtonText: {
+  deleteConfirmText: {
     color: colors.surface,
-    fontSize: 14,
-    fontWeight: "900",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  deleteDisabled: {
+    opacity: 0.68,
   },
   emptyInline: {
     padding: 14,

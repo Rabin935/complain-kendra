@@ -1,8 +1,12 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Text } from "@/src/theme/typography";
+import {
+  MaterialCommunityIcons } from "@expo/vector-icons";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { StyleSheet, Text, View } from "react-native";
-import { colors } from "../../../constants/colors";
+import { StyleSheet,
+  View,
+} from "react-native";
+import { officerColors } from "../../../constants/theme";
 import OfficerAnalyticsScreen from "../screens/OfficerAnalyticsScreen";
 import OfficerComplaintDetailScreen from "../screens/OfficerComplaintDetailScreen";
 import OfficerDashboardScreen from "../screens/OfficerDashboardScreen";
@@ -45,7 +49,7 @@ function OfficerTabs() {
               <MaterialCommunityIcons
                 name={config.icon}
                 size={21}
-                color={focused ? colors.surface : colors.textMuted}
+                color={focused ? officerColors.background : officerColors.textMuted}
               />
             </View>
           ),
@@ -73,11 +77,11 @@ export default function OfficerNavigator() {
 
 const styles = StyleSheet.create({
   scene: {
-    backgroundColor: colors.background,
+    backgroundColor: officerColors.background,
   },
   tabBar: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
+    backgroundColor: officerColors.surface,
+    borderColor: officerColors.borderStrong,
     borderRadius: 24,
     borderTopWidth: 0,
     borderWidth: 1,
@@ -89,15 +93,15 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     position: "absolute",
     right: 16,
-    shadowColor: colors.primaryDeep,
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 14 },
-    shadowOpacity: 0.14,
+    shadowOpacity: 0.4,
     shadowRadius: 22,
   },
   iconShell: {
     alignItems: "center",
-    backgroundColor: colors.surfaceMuted,
-    borderColor: colors.border,
+    backgroundColor: officerColors.surfaceRaised,
+    borderColor: officerColors.borderStrong,
     borderRadius: 20,
     borderWidth: 1,
     height: 38,
@@ -105,15 +109,15 @@ const styles = StyleSheet.create({
     width: 38,
   },
   iconShellFocused: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    backgroundColor: officerColors.accent,
+    borderColor: officerColors.accent,
   },
   tabLabel: {
-    color: colors.textMuted,
+    color: officerColors.textMuted,
     fontSize: 11,
     fontWeight: "800",
   },
   tabLabelFocused: {
-    color: colors.primary,
+    color: officerColors.accent,
   },
 });

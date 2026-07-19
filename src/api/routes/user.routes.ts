@@ -2,11 +2,13 @@ import { Router } from "express";
 import multer from "multer";
 import {
   badges,
+  deleteMe,
   language,
   me,
   password,
   publicProfile,
   stats,
+  support,
   updateMe,
   uploadAvatar,
 } from "../controllers/user.controller";
@@ -34,6 +36,8 @@ userRouter.patch("/me", protect, requireCitizen, updateMe);
 userRouter.post("/me/avatar", protect, requireCitizen, avatarUpload.single("avatar"), uploadAvatar);
 userRouter.patch("/me/password", protect, requireCitizen, password);
 userRouter.patch("/me/language", protect, requireCitizen, language);
+userRouter.delete("/me", protect, requireCitizen, deleteMe);
+userRouter.post("/support", protect, requireCitizen, avatarUpload.single("screenshot"), support);
 userRouter.get("/me/stats", protect, requireCitizen, stats);
 userRouter.get("/me/badges", protect, requireCitizen, badges);
 userRouter.get("/:id", publicProfile);

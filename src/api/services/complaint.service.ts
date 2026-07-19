@@ -801,6 +801,36 @@ export async function getMyComplaints(
   };
 }
 
+export async function getFollowedComplaints(
+  userId: string,
+  filter: ComplaintFilterDto = {},
+): Promise<{ complaints: ComplaintPayload[]; total: number; page: number; limit: number }> {
+  const normalizedUserId = requireObjectId(userId, "user id");
+  const pagination = parsePagination(filter as Record<string, unknown>);
+  const [follows, total] = await Promise.all([
+    FollowModel.find({ userId: normalizedUserId })
+      .sort({ createdAt: -1 })
+      .skip(pagination.skip)
+      .limit(pagination.limit),
+    FollowModel.countDocuments({ userId: normalizedUserId }),
+  ]);
+  const complaintIds = follows.map((follow) => follow.complaintId);
+  const complaints = await ComplaintModel.find({ _id: { $in: complaintIds } });
+  const complaintsById = new Map(
+    complaints.map((complaint) => [complaint._id.toString(), complaint]),
+  );
+
+  return {
+    complaints: complaintIds
+      .map((id) => complaintsById.get(id.toString()))
+      .filter((complaint): complaint is ComplaintDocument => Boolean(complaint))
+      .map((complaint) => toComplaintPayload(complaint, { followed: true })),
+    total,
+    page: pagination.page,
+    limit: pagination.limit,
+  };
+}
+
 function getDistanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
   const earthRadiusKm = 6371;
   const dLat = ((b.lat - a.lat) * Math.PI) / 180;
@@ -824,6 +854,7 @@ export async function getNearbyComplaints(input: {
   const complaints = await ComplaintModel.find({
     "location.lat": { $exists: true },
     "location.lng": { $exists: true },
+    status: { $ne: "resolved" },
   }).sort({ createdAt: -1 });
 
   const nearby = complaints

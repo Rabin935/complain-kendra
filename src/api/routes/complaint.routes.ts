@@ -7,6 +7,7 @@ import {
   follow,
   getAll,
   getById,
+  getFollowed,
   getMy,
   getNearby,
   getRate,
@@ -31,7 +32,7 @@ const photoUpload = multer({
     files: 4,
   },
   fileFilter(_request, file, callback) {
-    const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+    const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]);
 
     if (!allowedTypes.has(file.mimetype)) {
       callback(new AppError("Only JPEG, PNG, and WebP images are allowed.", 400));
@@ -50,8 +51,9 @@ const complaintPhotoFields = photoUpload.fields([
 
 complaintRouter.get("/", getAll);
 complaintRouter.get("/nearby", getNearby);
-complaintRouter.post("/analyze", protect, analyze);
+complaintRouter.post("/analyze", protect, complaintPhotoFields, analyze);
 complaintRouter.get("/mine", protect, requireCitizen, getMy);
+complaintRouter.get("/followed", protect, requireCitizen, getFollowed);
 complaintRouter.post("/", protect, requireCitizen, complaintPhotoFields, create);
 complaintRouter.post("/upload-photo", protect, requireCitizen, photoUpload.single("photo"), uploadPhoto);
 complaintRouter.post("/photos", protect, requireCitizen, complaintPhotoFields, uploadPhotos);

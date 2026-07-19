@@ -1,14 +1,19 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { NavigationProp, useNavigation } from "@react-navigation/native";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Text, TextInput } from "@/src/theme/typography";
+import {
+  MaterialCommunityIcons } from "@expo/vector-icons";
+import { NavigationProp,
+  useNavigation } from "@react-navigation/native";
+import { LinearGradient } from "expo-linear-gradient";
+import { useCallback,
+  useEffect,
+  useMemo,
+  useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -40,6 +45,14 @@ const categoryOrder: CitizenComplaintCategory[] = [
   "power",
   "waste",
 ];
+const categoryEmojis: Record<CitizenComplaintCategory, string> = {
+  road: "🚧",
+  water: "💧",
+  power: "⚡",
+  waste: "🗑",
+  trees: "🌿",
+  other: "•••",
+};
 
 const emptyStats: CitizenStats = {
   pending: 0,
@@ -227,8 +240,17 @@ export default function HomeScreen() {
           />
         }
       >
-        <View style={styles.header}>
-          <View style={styles.headerGrid} />
+        <LinearGradient
+          colors={[colors.primaryMid, colors.primary, colors.primaryDark]}
+          start={{ x: 0.1, y: 0 }}
+          end={{ x: 0.9, y: 1 }}
+          style={styles.header}
+        >
+          <View style={styles.headerGlow} />
+          <View style={[styles.contour, styles.contourA]} />
+          <View style={[styles.contour, styles.contourB]} />
+          <View style={[styles.contour, styles.contourC]} />
+          <View style={[styles.contour, styles.contourD]} />
 
           <View style={styles.headerTop}>
             <View style={styles.headerIdentity}>
@@ -242,20 +264,20 @@ export default function HomeScreen() {
             </View>
 
             <Pressable style={styles.bellButton} onPress={openNotifications}>
-              <MaterialCommunityIcons name="bell-outline" size={21} color={colors.surface} />
+              <MaterialCommunityIcons name="bell-outline" size={20} color="#FFFFFF" />
               {unreadCount ? <View style={styles.unreadDot} /> : null}
             </Pressable>
           </View>
 
           <View style={styles.locationPill}>
-            <MaterialCommunityIcons name="map-marker-radius-outline" size={16} color="#EDE7FF" />
+            <MaterialCommunityIcons name="map-marker" size={12} color={colors.accentLavender} />
             <Text style={styles.locationText}>
               {formatProfileLocation(profile)}
             </Text>
           </View>
 
           <View style={styles.searchBar}>
-            <MaterialCommunityIcons name="magnify" size={20} color={colors.textMuted} />
+            <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -264,10 +286,10 @@ export default function HomeScreen() {
               style={styles.searchInput}
             />
             <View style={styles.searchTune}>
-              <MaterialCommunityIcons name="tune-variant" size={18} color={colors.primary} />
+              <MaterialCommunityIcons name="tune-variant" size={16} color={colors.primary} />
             </View>
           </View>
-        </View>
+        </LinearGradient>
 
         {error ? (
           <View style={styles.errorCard}>
@@ -290,8 +312,8 @@ export default function HomeScreen() {
           ) : (
             <>
               <StatCard label="Pending" value={stats.pending} icon="clock-outline" accent={colors.warning} />
-              <StatCard label="In Progress" value={stats.inProgress} icon="sync" accent={colors.info} />
-              <StatCard label="Resolved" value={stats.resolved} icon="check-circle-outline" accent={colors.success} />
+              <StatCard label="In Progress" value={stats.inProgress} icon="loading" accent={colors.info} />
+              <StatCard label="Resolved" value={stats.resolved} icon="check-circle" accent={colors.success} />
               <StatCard label="In your ward" value={stats.wardTotal} icon="map-outline" accent={colors.primary} />
             </>
           )}
@@ -299,8 +321,9 @@ export default function HomeScreen() {
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Quick Report</Text>
-          <Pressable onPress={() => openReport("other")}>
-            <Text style={styles.viewAll}>See all -&gt;</Text>
+          <Pressable style={styles.viewAllRow} onPress={() => openReport("other")}>
+            <Text style={styles.viewAll}>See all</Text>
+            <MaterialCommunityIcons name="arrow-right" size={13} color={colors.primary} />
           </Pressable>
         </View>
 
@@ -317,11 +340,7 @@ export default function HomeScreen() {
                 onPress={() => openReport(category)}
               >
                 <View style={[styles.categoryIcon, { backgroundColor: meta.softColor }]}>
-                  <MaterialCommunityIcons
-                    name={meta.icon as keyof typeof MaterialCommunityIcons.glyphMap}
-                    size={20}
-                    color={meta.color}
-                  />
+                  <Text style={styles.categoryEmoji}>{categoryEmojis[category]}</Text>
                 </View>
                 <Text style={styles.categoryLabel}>{meta.label}</Text>
               </Pressable>
@@ -331,8 +350,9 @@ export default function HomeScreen() {
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Recent Near You</Text>
-          <Pressable onPress={() => navigation.navigate("Browse")}>
-            <Text style={styles.viewAll}>Browse all -&gt;</Text>
+          <Pressable style={styles.viewAllRow} onPress={() => navigation.navigate("Browse")}>
+            <Text style={styles.viewAll}>Browse all</Text>
+            <MaterialCommunityIcons name="arrow-right" size={13} color={colors.primary} />
           </Pressable>
         </View>
 
@@ -393,14 +413,14 @@ function StatCard({
 }: {
   label: string;
   value: number;
-  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+  icon: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
   accent: string;
 }) {
   return (
     <View style={styles.statCard}>
       <View style={styles.statTopRow}>
-        <View style={[styles.statIcon, { backgroundColor: `${accent}18` }]}>
-          <MaterialCommunityIcons name={icon} size={18} color={accent} />
+        <View style={[styles.statIcon, { backgroundColor: `${accent}22` }]}>
+          <MaterialCommunityIcons name={icon} size={17} color={accent} />
         </View>
         <MaterialCommunityIcons name="chevron-right" size={18} color={colors.textMuted} />
       </View>
@@ -432,21 +452,17 @@ function ComplaintPreview({
   return (
     <Pressable style={({ pressed }) => [styles.complaintCard, pressed ? styles.pressed : null]} onPress={onPress}>
       <View style={[styles.complaintIcon, { backgroundColor: meta.softColor }]}>
-        <MaterialCommunityIcons
-          name={meta.icon as keyof typeof MaterialCommunityIcons.glyphMap}
-          size={22}
-          color={meta.color}
-        />
+        <Text style={styles.complaintEmoji}>{categoryEmojis[complaint.category]}</Text>
       </View>
       <View style={styles.complaintBody}>
         <Text style={styles.complaintTitle} numberOfLines={1}>
           {complaint.title}
         </Text>
         <View style={styles.complaintMeta}>
-          <MaterialCommunityIcons name="map-marker-outline" size={13} color={colors.textMuted} />
-          <Text style={styles.metaText}>{formatDistance(complaint.distanceKm)} away</Text>
+          <MaterialCommunityIcons name="map-marker-outline" size={12} color={colors.textMuted} />
+          <Text style={styles.metaText}>{formatDistance(complaint.distanceKm)}</Text>
           <View style={styles.dot} />
-          <MaterialCommunityIcons name="arrow-up-bold-outline" size={14} color={colors.textMuted} />
+          <MaterialCommunityIcons name="arrow-up-bold" size={12} color={colors.primary} />
           <Text style={styles.metaText}>{complaint.upvotes}</Text>
         </View>
         <View style={[styles.statusBadge, { backgroundColor: `${statusColors[complaint.status]}18` }]}>
@@ -477,14 +493,36 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     backgroundColor: colors.primary,
   },
-  headerGrid: {
+  /** Approximates the prototype's `<TopoLines/>` SVG — see LoginScreen. */
+  contour: {
     position: "absolute",
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    opacity: 0.38,
-    backgroundColor: colors.primaryDark,
+    left: -180,
+    right: -180,
+    height: 280,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  contourA: {
+    top: -170,
+  },
+  contourB: {
+    top: -116,
+  },
+  contourC: {
+    top: -58,
+  },
+  contourD: {
+    top: 6,
+  },
+  headerGlow: {
+    position: "absolute",
+    top: -80,
+    right: -60,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: "rgba(196,181,253,0.16)",
   },
   headerTop: {
     flexDirection: "row",
@@ -643,6 +681,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
+    shadowColor: colors.primaryDeep,
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
   },
   statTopRow: {
     flexDirection: "row",
@@ -701,6 +744,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "900",
   },
+  viewAllRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
   viewAll: {
     color: colors.primary,
     fontSize: 12,
@@ -732,6 +780,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 7,
   },
+  categoryEmoji: {
+    fontSize: 20,
+  },
   categoryLabel: {
     color: colors.text,
     fontSize: 11,
@@ -758,6 +809,9 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
+  },
+  complaintEmoji: {
+    fontSize: 26,
   },
   complaintBody: {
     flex: 1,

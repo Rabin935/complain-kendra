@@ -1,5 +1,6 @@
-import { apiClient, getApiErrorMessage } from "../../../../src/lib/api";
+import { apiClient, baseURL, getApiErrorMessage } from "../../../../src/lib/api";
 import { cachedRequest, invalidateCache } from "../../../../src/lib/requestCache";
+import { Platform } from "react-native";
 import {
   sampleAiAnalysis,
   sampleNotifications,
@@ -51,6 +52,8 @@ const emptyProfile: CitizenProfile = {
   points: 0,
   language: "English",
   isPublic: true,
+  bio: "",
+  createdAt: "",
 };
 const emptyStats: CitizenStats = {
   pending: 0,
@@ -169,6 +172,8 @@ function normalizeProfile(payload: unknown): CitizenProfile {
     phone: stringFrom(user.phone, emptyProfile.phone),
     initials: initials || emptyProfile.initials,
     avatarUrl: stringFrom(user.avatarUrl, emptyProfile.avatarUrl ?? ""),
+    bio: stringFrom(user.bio, emptyProfile.bio ?? ""),
+    createdAt: stringFrom(user.createdAt ?? user.created_at, emptyProfile.createdAt ?? ""),
     language: stringFrom(user.language, emptyProfile.language) === "Nepali" ? "Nepali" : "English",
     isPublic: booleanFrom(user.is_public ?? user.isPublic, emptyProfile.isPublic),
     level: numberFrom(user.level, emptyProfile.level),
@@ -246,6 +251,50 @@ function getComplaintFallback(index: number): CitizenComplaint {
   };
 }
 
+function normalizeComplaintPhoto(value: unknown): string {
+  const rawValue = isRecord(value)
+    ? stringFrom(value.secure_url ?? value.secureUrl ?? value.url ?? value.path, "")
+    : stringFrom(value, "");
+
+  if (!rawValue || rawValue === "[object Object]") {
+    return "";
+  }
+
+  if (/^(https?:|data:|blob:|file:)/i.test(rawValue)) {
+    return rawValue;
+  }
+
+  return `${baseURL.replace(/\/$/, "")}/${rawValue.replace(/^\//, "")}`;
+}
+
+async function appendReportPhotos(
+  formData: FormData,
+  photos: CreateReportPayload["photos"],
+): Promise<void> {
+  for (const photo of photos) {
+    const name = photo.name ?? "complaint-photo.jpg";
+    const type = photo.type ?? "image/jpeg";
+
+    if (Platform.OS === "web") {
+      const photoResponse = await fetch(photo.uri);
+
+      if (!photoResponse.ok) {
+        throw new Error(`Unable to read ${name}. Please select the photo again.`);
+      }
+
+      const blob = await photoResponse.blob();
+      formData.append("photos[]", blob, name);
+      continue;
+    }
+
+    formData.append("photos[]", {
+      uri: photo.uri,
+      name,
+      type,
+    } as unknown as Blob);
+  }
+}
+
 function normalizeComplaint(raw: unknown, index: number): CitizenComplaint {
   const item = isRecord(raw) ? raw : {};
   const sample = getComplaintFallback(index);
@@ -253,6 +302,11 @@ function normalizeComplaint(raw: unknown, index: number): CitizenComplaint {
 
   const category = normalizeCategory(item.category, sample.category);
   const status = normalizeStatus(item.status, sample.status);
+  const photoList = Array.isArray(item.photos)
+    ? item.photos.map(normalizeComplaintPhoto).filter(Boolean)
+    : [];
+  const primaryPhoto = normalizeComplaintPhoto(item.photo ?? item.photo_url ?? item.photoUrl);
+  const photos = Array.from(new Set([...photoList, primaryPhoto].filter(Boolean)));
 
   return {
     ...sample,
@@ -271,7 +325,8 @@ function normalizeComplaint(raw: unknown, index: number): CitizenComplaint {
     comments: numberFrom(item.comments, sample.comments),
     followers: numberFrom(item.followers, 0),
     followed: booleanFrom(item.followed, sample.followed),
-    photos: Array.isArray(item.photos) ? (item.photos as string[]) : sample.photos,
+    photos,
+    reporterId: stringFrom(item.user_id ?? item.userId ?? item.reporter_id ?? item.reporterId, ""),
     reporterName: stringFrom(item.reporter_name ?? item.reporterName, sample.reporterName ?? ""),
     reporterPrivate: booleanFrom(item.reporter_private ?? item.reporterPrivate, Boolean(sample.reporterPrivate)),
     etaDays: numberFrom(item.eta_days ?? item.etaDays, sample.etaDays ?? 0),
@@ -429,6 +484,10 @@ function normalizeAiAnalysis(payload: unknown): AiAnalysisResult {
     department: stringFrom(analysis.department, sampleAiAnalysis.department),
     etaDays: numberFrom(analysis.eta_days ?? analysis.etaDays, sampleAiAnalysis.etaDays),
     summary: stringFrom(analysis.summary, ""),
+    improvedDescription: stringFrom(
+      analysis.improved_description ?? analysis.improvedDescription,
+      sampleAiAnalysis.improvedDescription ?? "",
+    ),
     keywords: Array.isArray(analysis.keywords) ? analysis.keywords.map(String) : [],
     duplicateCheck: {
       isDuplicate: booleanFrom(
@@ -595,6 +654,21 @@ export async function fetchMyComplaints(options: {
   }, []);
 }
 
+export async function fetchSavedIssues(options: {
+  page?: number;
+  limit?: number;
+} = {}): Promise<CitizenServiceResult<CitizenComplaint[]>> {
+  return withSampleFallback(async () => {
+    const response = await apiClient.get(`${API_PREFIX}/complaints/followed`, {
+      params: {
+        page: options.page ?? 1,
+        limit: options.limit ?? 50,
+      },
+    });
+    return normalizeComplaints(response.data);
+  }, []);
+}
+
 export async function fetchPublicComplaints(options: {
   search?: string;
   wardId?: string;
@@ -689,6 +763,11 @@ export async function deleteComplaintComment(complaintId: string, commentId: str
   await apiClient.delete(`${API_PREFIX}/complaints/${complaintId}/comments/${commentId}`);
 }
 
+export async function deleteCitizenComplaint(complaintId: string): Promise<void> {
+  await apiClient.delete(`${API_PREFIX}/complaints/${complaintId}`);
+  invalidateCache();
+}
+
 export async function upvoteComplaintComment(complaintId: string, commentId: string): Promise<void> {
   await apiClient.post(`${API_PREFIX}/complaints/${complaintId}/comments/${commentId}/upvote`);
 }
@@ -716,10 +795,14 @@ export async function rateComplaintResolution(
   await apiClient.post(`${API_PREFIX}/complaints/${id}/rate`, payload);
 }
 
-export async function fetchLeaderboard(): Promise<CitizenServiceResult<CitizenLeaderboardEntry[]>> {
+export async function fetchLeaderboard(
+  period: "weekly" | "monthly" | "all" = "all",
+): Promise<CitizenServiceResult<CitizenLeaderboardEntry[]>> {
   return withSampleFallback(async () => {
-    return cachedRequest("citizen:leaderboard", SHORT_CACHE_MS, async () => {
-      const response = await apiClient.get(`${API_PREFIX}/leaderboard`);
+    return cachedRequest(`citizen:leaderboard:${period}`, SHORT_CACHE_MS, async () => {
+      const response = await apiClient.get(`${API_PREFIX}/leaderboard`, {
+        params: { period },
+      });
       return normalizeLeaderboard(response.data);
     });
   }, []);
@@ -750,19 +833,33 @@ export async function updateNotificationPreferences(
 export async function analyzeReportDraft(
   payload: CreateReportPayload,
 ): Promise<CitizenServiceResult<AiAnalysisResult>> {
+  const fallbackImprovedDescription =
+    payload.category === "waste"
+      ? "A large amount of garbage is piled up along the roadside, creating a strong smell and making the area unpleasant and unsafe for people passing by. Please arrange cleanup as soon as possible and prevent further dumping at this location."
+      : `${payload.description.trim()} Please inspect this location and take action as soon as possible.`.slice(0, 500);
+
   return withSampleFallback(async () => {
-    const response = await apiClient.post(`${API_PREFIX}/complaints/analyze`, {
-      category: payload.category,
-      title: payload.title,
-      description: payload.description,
-      lat: payload.lat,
-      lng: payload.lng,
-      photo_count: payload.photos.length,
+    const formData = new FormData();
+    formData.append("category", payload.category);
+    formData.append("title", payload.title);
+    formData.append("description", payload.description);
+    formData.append("lat", String(payload.lat));
+    formData.append("lng", String(payload.lng));
+    formData.append("wardId", payload.wardId);
+    formData.append("photo_count", String(payload.photos.length));
+
+    await appendReportPhotos(formData, payload.photos);
+
+    const response = await apiClient.post(`${API_PREFIX}/complaints/analyze`, formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
     });
     return normalizeAiAnalysis(response.data);
   }, {
     ...sampleAiAnalysis,
     detectedCategory: payload.category,
+    improvedDescription: fallbackImprovedDescription,
     duplicateCheck: {
       ...sampleAiAnalysis.duplicateCheck,
       isDuplicate: payload.title.toLowerCase().includes("pothole"),
@@ -797,13 +894,7 @@ export async function submitCitizenComplaint(
     formData.append("continue_as_new", "true");
   }
 
-  payload.photos.forEach((photo) => {
-    formData.append("photos[]", {
-      uri: photo.uri,
-      name: photo.name ?? "complaint-photo.jpg",
-      type: photo.type ?? "image/jpeg",
-    } as unknown as Blob);
-  });
+  await appendReportPhotos(formData, payload.photos);
 
   const response = await apiClient.post(`${API_PREFIX}/complaints`, formData, {
     headers: {
@@ -849,4 +940,133 @@ export async function updatePublicProfile(
     invalidateCache("citizen:profile");
     return { isPublic };
   }, { isPublic });
+}
+
+export interface ProfileImageUpload {
+  uri: string;
+  name?: string;
+  type?: string;
+}
+
+export interface UpdateCitizenProfilePayload {
+  firstName: string;
+  lastName: string;
+  bio?: string;
+  avatar?: ProfileImageUpload;
+}
+
+export interface SupportRequestPayload {
+  category: string;
+  subject: string;
+  description: string;
+  screenshot?: ProfileImageUpload;
+}
+
+export async function uploadCitizenAvatar(photo: ProfileImageUpload): Promise<CitizenProfile> {
+  try {
+    const formData = new FormData();
+    formData.append("avatar", {
+      uri: photo.uri,
+      name: photo.name ?? "profile-photo.jpg",
+      type: photo.type ?? "image/jpeg",
+    } as unknown as Blob);
+
+    const response = await apiClient.post(`${API_PREFIX}/users/me/avatar`, formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+    invalidateCache("citizen:profile");
+    return normalizeProfile(response.data);
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error));
+  }
+}
+
+export async function updateCitizenProfile(
+  payload: UpdateCitizenProfilePayload,
+): Promise<CitizenProfile> {
+  try {
+    let avatarProfile: CitizenProfile | undefined;
+
+    if (payload.avatar) {
+      avatarProfile = await uploadCitizenAvatar(payload.avatar);
+    }
+
+    const response = await apiClient.patch(`${API_PREFIX}/users/me`, {
+      name: `${payload.firstName.trim()} ${payload.lastName.trim()}`.trim(),
+      bio: payload.bio?.trim() ?? "",
+    });
+    invalidateCache("citizen:profile");
+    return {
+      ...(avatarProfile ?? emptyProfile),
+      ...normalizeProfile(response.data),
+    };
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error));
+  }
+}
+
+export async function changeCitizenPassword(payload: {
+  currentPassword: string;
+  newPassword: string;
+}): Promise<string> {
+  try {
+    const response = await apiClient.patch(`${API_PREFIX}/users/me/password`, payload);
+    const record = unwrapRecord(response.data);
+    return stringFrom(record.message, "Password updated successfully.");
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error));
+  }
+}
+
+export async function updateCitizenLanguage(language: CitizenProfile["language"]): Promise<CitizenProfile> {
+  try {
+    const response = await apiClient.patch(`${API_PREFIX}/users/me/language`, { language });
+    invalidateCache("citizen:profile");
+    return normalizeProfile(response.data);
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error));
+  }
+}
+
+export async function deleteCitizenAccount(payload: {
+  password: string;
+  confirmation: string;
+}): Promise<string> {
+  try {
+    const response = await apiClient.delete(`${API_PREFIX}/users/me`, { data: payload });
+    invalidateCache();
+    const record = unwrapRecord(response.data);
+    return stringFrom(record.message, "Account deleted.");
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error));
+  }
+}
+
+export async function submitSupportRequest(payload: SupportRequestPayload): Promise<string> {
+  try {
+    const formData = new FormData();
+    formData.append("category", payload.category);
+    formData.append("subject", payload.subject.trim());
+    formData.append("description", payload.description.trim());
+
+    if (payload.screenshot) {
+      formData.append("screenshot", {
+        uri: payload.screenshot.uri,
+        name: payload.screenshot.name ?? "support-screenshot.jpg",
+        type: payload.screenshot.type ?? "image/jpeg",
+      } as unknown as Blob);
+    }
+
+    const response = await apiClient.post(`${API_PREFIX}/users/support`, formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+    const record = unwrapRecord(response.data);
+    return stringFrom(record.message, "Support request submitted.");
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error));
+  }
 }

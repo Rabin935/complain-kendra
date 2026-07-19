@@ -1,213 +1,191 @@
-import { useEffect, useRef } from "react";
-import {
-  Animated,
-  Easing,
-  Image,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
-import { colors } from "../constants/colors";
-
-const splashIcon = require("../../assets/images/splash-icon.png");
+import { Text } from "@/src/theme/typography";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { useEffect, useRef, useState } from "react";
+import { Animated, Easing, StyleSheet, View } from "react-native";
 
 type StartupSplashScreenProps = {
   message?: string;
 };
 
-function createDotAnimation(value: Animated.Value) {
-  return Animated.sequence([
-    Animated.timing(value, {
-      toValue: 1,
-      duration: 280,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }),
-    Animated.timing(value, {
-      toValue: 0,
-      duration: 520,
-      easing: Easing.inOut(Easing.quad),
-      useNativeDriver: true,
-    }),
-  ]);
-}
+const verticalGridLines = [32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352];
+const horizontalGridLines = [32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448, 480, 512, 544, 576, 608, 640, 672, 704, 736, 768, 800, 832];
 
 export default function StartupSplashScreen({
-  message = "Preparing your complaint dashboard...",
+  message = "Connecting to your ward",
 }: StartupSplashScreenProps) {
-  const haloProgress = useRef(new Animated.Value(0)).current;
-  const logoFloatProgress = useRef(new Animated.Value(0)).current;
-  const ringRotation = useRef(new Animated.Value(0)).current;
-  const dotOne = useRef(new Animated.Value(0)).current;
-  const dotTwo = useRef(new Animated.Value(0)).current;
-  const dotThree = useRef(new Animated.Value(0)).current;
+  const floatProgress = useRef(new Animated.Value(0)).current;
+  const pulseProgress = useRef(new Animated.Value(0)).current;
+  const loadingProgress = useRef(new Animated.Value(0)).current;
+  const [percentage, setPercentage] = useState(0);
 
   useEffect(() => {
-    const haloAnimation = Animated.loop(
+    const floatAnimation = Animated.loop(
       Animated.sequence([
-        Animated.timing(haloProgress, {
-          toValue: 1,
-          duration: 1500,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
-        }),
-        Animated.timing(haloProgress, {
-          toValue: 0,
-          duration: 1500,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
-        }),
-      ])
-    );
-
-    const logoAnimation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(logoFloatProgress, {
+        Animated.timing(floatProgress, {
           toValue: 1,
           duration: 1200,
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
-        Animated.timing(logoFloatProgress, {
+        Animated.timing(floatProgress, {
           toValue: 0,
           duration: 1200,
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
-      ])
+      ]),
+    );
+    const pulseAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseProgress, {
+          toValue: 1,
+          duration: 1500,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseProgress, {
+          toValue: 0,
+          duration: 1500,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]),
     );
 
-    const ringAnimation = Animated.loop(
-      Animated.timing(ringRotation, {
-        toValue: 1,
-        duration: 2600,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    );
-
-    const dotsAnimation = Animated.loop(
-      Animated.stagger(170, [
-        createDotAnimation(dotOne),
-        createDotAnimation(dotTwo),
-        createDotAnimation(dotThree),
-      ])
-    );
-
-    haloAnimation.start();
-    logoAnimation.start();
-    ringAnimation.start();
-    dotsAnimation.start();
+    floatAnimation.start();
+    pulseAnimation.start();
 
     return () => {
-      haloAnimation.stop();
-      logoAnimation.stop();
-      ringAnimation.stop();
-      dotsAnimation.stop();
+      floatAnimation.stop();
+      pulseAnimation.stop();
     };
-  }, [
-    dotOne,
-    dotThree,
-    dotTwo,
-    haloProgress,
-    logoFloatProgress,
-    ringRotation,
-  ]);
+  }, [floatProgress, pulseProgress]);
 
-  const haloScale = haloProgress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 1.15],
-  });
+  useEffect(() => {
+    const listenerId = loadingProgress.addListener(({ value }) => {
+      setPercentage(Math.round(value));
+    });
+    const loadingAnimation = Animated.timing(loadingProgress, {
+      toValue: 100,
+      duration: 2800,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    });
 
-  const haloOpacity = haloProgress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.14, 0.3],
-  });
+    loadingAnimation.start();
 
-  const logoTranslateY = logoFloatProgress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [6, -6],
-  });
+    return () => {
+      loadingAnimation.stop();
+      loadingProgress.removeListener(listenerId);
+    };
+  }, [loadingProgress]);
 
-  const logoScale = logoFloatProgress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.98, 1.04],
-  });
+  const logoTransform = {
+    transform: [
+      {
+        translateY: floatProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [5, -5],
+        }),
+      },
+      {
+        scale: floatProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.99, 1.03],
+        }),
+      },
+    ],
+  };
 
-  const rotatingRing = ringRotation.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0deg", "360deg"],
-  });
+  const ringTransform = {
+    opacity: pulseProgress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0.35, 0.8],
+    }),
+    transform: [
+      {
+        scale: pulseProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.96, 1.07],
+        }),
+      },
+    ],
+  };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.topGlow} />
-      <View style={styles.bottomGlow} />
+    <LinearGradient
+      colors={["#7B4FC8", "#6038B0", "#3E2075"]}
+      start={{ x: 0.05, y: 0 }}
+      end={{ x: 0.95, y: 1 }}
+      style={styles.container}
+    >
+      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+        {verticalGridLines.map((left) => (
+          <View key={`v-${left}`} style={[styles.verticalGridLine, { left }]} />
+        ))}
+        {horizontalGridLines.map((top) => (
+          <View key={`h-${top}`} style={[styles.horizontalGridLine, { top }]} />
+        ))}
+      </View>
 
-      <View style={styles.brandWrap}>
-        <Animated.View
-          style={[
-            styles.halo,
-            {
-              opacity: haloOpacity,
-              transform: [{ scale: haloScale }],
-            },
-          ]}
-        />
+      <StatusPill label="Ward 12" color="#F59E0B" style={styles.wardPill} />
+      <StatusPill label="Resolved" color="#22C55E" style={styles.resolvedPill} />
+      <StatusPill label="In Progress" color="#3B82F6" style={styles.progressPill} />
 
-        <Animated.View
-          style={[
-            styles.logoShell,
-            {
-              transform: [{ translateY: logoTranslateY }, { scale: logoScale }],
-            },
-          ]}
-        >
+      <View style={styles.brandArea}>
+        <View style={styles.logoStage}>
+          <Animated.View style={[styles.outerRing, ringTransform]} />
+          <View style={styles.innerRing} />
+          <Animated.View style={[styles.logoBadge, logoTransform]}>
+            <MaterialCommunityIcons name="map-marker" size={50} color="#6038B0" />
+          </Animated.View>
+        </View>
+
+        <Text style={styles.title}>
+          Complain<Text style={styles.titleAccent}>Kendra</Text>
+        </Text>
+        <Text style={styles.subtitle}>AI-POWERED CIVIC REPORTING</Text>
+      </View>
+
+      <View style={styles.loadingArea}>
+        <View style={styles.loadingTrack}>
           <Animated.View
             style={[
-              styles.rotatingRing,
-              { transform: [{ rotate: rotatingRing }] },
+              styles.loadingFill,
+              {
+                width: loadingProgress.interpolate({
+                  inputRange: [0, 100],
+                  outputRange: ["0%", "100%"],
+                }),
+              },
             ]}
           />
-          <View style={styles.logoBadge}>
-            <Image
-              source={splashIcon}
-              style={styles.logo}
-              resizeMode="contain"
-            />
-          </View>
-        </Animated.View>
+        </View>
+        <View style={styles.loadingCopy}>
+          <View style={styles.loadingDot} />
+          <Text numberOfLines={1} style={styles.loadingMessage}>{message}</Text>
+          <Text style={styles.percentage}>{percentage}%</Text>
+        </View>
+        <Text style={styles.footer}>MADE FOR NEPAL · V 1.0</Text>
       </View>
+    </LinearGradient>
+  );
+}
 
-      <Text style={styles.title}>ComplaintHub</Text>
-      <Text style={styles.subtitle}>{message}</Text>
-
-      <View style={styles.loaderRow}>
-        {[dotOne, dotTwo, dotThree].map((value, index) => {
-          const opacity = value.interpolate({
-            inputRange: [0, 1],
-            outputRange: [0.28, 1],
-          });
-
-          const translateY = value.interpolate({
-            inputRange: [0, 1],
-            outputRange: [0, -8],
-          });
-
-          return (
-            <Animated.View
-              key={index}
-              style={[
-                styles.loaderDot,
-                {
-                  opacity,
-                  transform: [{ translateY }],
-                },
-              ]}
-            />
-          );
-        })}
-      </View>
+function StatusPill({
+  label,
+  color,
+  style,
+}: {
+  label: string;
+  color: string;
+  style: object;
+}) {
+  return (
+    <View style={[styles.statusPill, style]}>
+      <View style={[styles.statusDot, { backgroundColor: color }]} />
+      <Text style={styles.statusLabel}>{label}</Text>
     </View>
   );
 }
@@ -217,104 +195,168 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.background,
-    paddingHorizontal: 24,
     overflow: "hidden",
   },
-  topGlow: {
+  verticalGridLine: {
     position: "absolute",
-    top: -100,
-    left: -50,
+    top: 0,
+    bottom: 0,
+    width: 1,
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  horizontalGridLine: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  statusPill: {
+    position: "absolute",
+    zIndex: 2,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    paddingHorizontal: 13,
+    paddingVertical: 7,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.20)",
+    backgroundColor: "rgba(255,255,255,0.12)",
+  },
+  wardPill: {
+    top: 92,
+    left: 10,
+    transform: [{ rotate: "-4deg" }],
+  },
+  resolvedPill: {
+    top: 140,
+    right: 20,
+    transform: [{ rotate: "3deg" }],
+  },
+  progressPill: {
+    top: "54%",
+    left: 18,
+    transform: [{ rotate: "5deg" }],
+  },
+  statusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  statusLabel: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  brandArea: {
+    zIndex: 1,
+    alignItems: "center",
+    marginTop: -20,
+  },
+  logoStage: {
+    width: 240,
+    height: 240,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 6,
+  },
+  outerRing: {
+    position: "absolute",
     width: 240,
     height: 240,
     borderRadius: 120,
-    backgroundColor: colors.primaryLight,
-    opacity: 0.75,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: "rgba(255,255,255,0.20)",
   },
-  bottomGlow: {
+  innerRing: {
     position: "absolute",
-    right: -80,
-    bottom: -70,
-    width: 280,
-    height: 280,
-    borderRadius: 140,
-    backgroundColor: "rgba(245, 158, 11, 0.12)",
-  },
-  brandWrap: {
-    alignItems: "center",
-    justifyContent: "center",
-    width: 180,
-    height: 180,
-    marginBottom: 24,
-  },
-  halo: {
-    position: "absolute",
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    backgroundColor: colors.primary,
-  },
-  logoShell: {
-    alignItems: "center",
-    justifyContent: "center",
-    width: 150,
-    height: 150,
-  },
-  rotatingRing: {
-    position: "absolute",
-    width: 132,
-    height: 132,
-    borderRadius: 66,
-    borderWidth: 2.5,
-    borderColor: "rgba(15, 118, 110, 0.16)",
-    borderTopColor: colors.primary,
-    borderRightColor: "rgba(245, 158, 11, 0.35)",
+    width: 168,
+    height: 168,
+    borderRadius: 84,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: "rgba(255,255,255,0.25)",
   },
   logoBadge: {
-    width: 108,
-    height: 108,
-    borderRadius: 34,
-    backgroundColor: colors.surface,
+    width: 104,
+    height: 104,
+    borderRadius: 30,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#0F172A",
-    shadowOpacity: 0.12,
-    shadowRadius: 18,
-    shadowOffset: {
-      width: 0,
-      height: 10,
-    },
-    elevation: 8,
+    backgroundColor: "#F4EEFD",
+    shadowColor: "#2A1550",
+    shadowOpacity: 0.35,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 18 },
+    elevation: 12,
   },
-  logo: {
-    width: 70,
-    height: 70,
+  loadingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 7,
+    backgroundColor: "#22C55E",
   },
   title: {
-    fontSize: 30,
+    color: "#FFFFFF",
+    fontSize: 36,
+    lineHeight: 40,
     fontWeight: "800",
-    color: colors.text,
-    letterSpacing: 0.3,
+    letterSpacing: -1.4,
+  },
+  titleAccent: {
+    color: "#C4B5FD",
   },
   subtitle: {
+    color: "rgba(255,255,255,0.65)",
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 2,
     marginTop: 10,
-    fontSize: 15,
-    lineHeight: 22,
-    textAlign: "center",
-    color: colors.textMuted,
-    maxWidth: 280,
   },
-  loaderRow: {
+  loadingArea: {
+    position: "absolute",
+    left: 20,
+    right: 20,
+    bottom: 44,
+  },
+  loadingTrack: {
+    height: 4,
+    borderRadius: 999,
+    overflow: "hidden",
+    backgroundColor: "rgba(255,255,255,0.20)",
+    marginBottom: 16,
+  },
+  loadingFill: {
+    height: "100%",
+    borderRadius: 999,
+    backgroundColor: "#FFFFFF",
+  },
+  loadingCopy: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    marginTop: 28,
+    justifyContent: "space-between",
+    gap: 12,
   },
-  loaderDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: colors.primary,
+  loadingMessage: {
+    flex: 1,
+    color: "rgba(255,255,255,0.65)",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  percentage: {
+    color: "rgba(255,255,255,0.65)",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  footer: {
+    color: "rgba(255,255,255,0.40)",
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 2.5,
+    textAlign: "center",
+    marginTop: 28,
   },
 });

@@ -1,8 +1,15 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import { useCallback, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { colors } from "../../../constants/colors";
+import { Text } from "@/src/theme/typography";
+import {
+  MaterialCommunityIcons } from "@expo/vector-icons";
+import { useFocusEffect,
+  useNavigation } from "@react-navigation/native";
+import { useCallback,
+  useState } from "react";
+import { Pressable,
+  StyleSheet,
+  View,
+} from "react-native";
+import { officerColors } from "../../../constants/theme";
 import { getApiErrorMessage } from "../../../../src/lib/api";
 import { useRealtimeInvalidation } from "../../realtime/hooks/useRealtimeInvalidation";
 import OfficerScreen from "../components/OfficerScreen";
@@ -74,7 +81,7 @@ export default function OfficerDashboardScreen() {
                   <MaterialCommunityIcons
                     name={item.icon as keyof typeof MaterialCommunityIcons.glyphMap}
                     size={20}
-                    color={colors.primary}
+                    color={officerColors.accent}
                   />
                 </View>
                 <Text style={styles.kpiValue}>{item.value}</Text>
@@ -155,15 +162,15 @@ export default function OfficerDashboardScreen() {
           <Section title="Quick actions">
             <View style={styles.quickActions}>
               <Pressable onPress={() => navigation.navigate("OfficerQueue")} style={styles.quickAction}>
-                <MaterialCommunityIcons name="clipboard-search-outline" size={22} color={colors.primary} />
+                <MaterialCommunityIcons name="clipboard-search-outline" size={22} color={officerColors.accent} />
                 <Text style={styles.quickActionText}>Open queue</Text>
               </Pressable>
               <Pressable onPress={() => navigation.navigate("OfficerAnalytics")} style={styles.quickAction}>
-                <MaterialCommunityIcons name="chart-line" size={22} color={colors.primary} />
+                <MaterialCommunityIcons name="chart-line" size={22} color={officerColors.accent} />
                 <Text style={styles.quickActionText}>View analytics</Text>
               </Pressable>
               <Pressable onPress={() => navigation.navigate("OfficerUsers")} style={styles.quickAction}>
-                <MaterialCommunityIcons name="account-alert-outline" size={22} color={colors.primary} />
+                <MaterialCommunityIcons name="account-alert-outline" size={22} color={officerColors.accent} />
                 <Text style={styles.quickActionText}>Manage users</Text>
               </Pressable>
             </View>
@@ -181,8 +188,8 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   kpiCard: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
+    backgroundColor: officerColors.surface,
+    borderColor: officerColors.borderStrong,
     borderRadius: 8,
     borderWidth: 1,
     minHeight: 126,
@@ -191,7 +198,7 @@ const styles = StyleSheet.create({
   },
   kpiIcon: {
     alignItems: "center",
-    backgroundColor: colors.primaryLight,
+    backgroundColor: officerColors.surfaceRaised,
     borderRadius: 8,
     height: 34,
     justifyContent: "center",
@@ -199,12 +206,12 @@ const styles = StyleSheet.create({
     width: 34,
   },
   kpiValue: {
-    color: colors.text,
+    color: officerColors.text,
     fontSize: 26,
     fontWeight: "900",
   },
   kpiLabel: {
-    color: colors.textMuted,
+    color: officerColors.textMuted,
     fontSize: 13,
     fontWeight: "800",
     marginTop: 3,
@@ -214,8 +221,8 @@ const styles = StyleSheet.create({
   },
   row: {
     alignItems: "center",
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
+    backgroundColor: officerColors.surface,
+    borderColor: officerColors.borderStrong,
     borderRadius: 8,
     borderWidth: 1,
     flexDirection: "row",
@@ -227,12 +234,12 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   rowTitle: {
-    color: colors.text,
+    color: officerColors.text,
     fontSize: 15,
     fontWeight: "800",
   },
   rowMeta: {
-    color: colors.textMuted,
+    color: officerColors.textMuted,
     fontSize: 12,
     lineHeight: 17,
   },
@@ -240,14 +247,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   activityItem: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
+    backgroundColor: officerColors.surface,
+    borderColor: officerColors.borderStrong,
     borderRadius: 8,
     borderWidth: 1,
     padding: 12,
   },
   activityTitle: {
-    color: colors.text,
+    color: officerColors.text,
     fontSize: 14,
     fontWeight: "800",
     marginBottom: 4,
@@ -259,8 +266,8 @@ const styles = StyleSheet.create({
   },
   quickAction: {
     alignItems: "center",
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
+    backgroundColor: officerColors.surface,
+    borderColor: officerColors.borderStrong,
     borderRadius: 8,
     borderWidth: 1,
     flex: 1,
@@ -269,7 +276,7 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   quickActionText: {
-    color: colors.text,
+    color: officerColors.text,
     fontSize: 12,
     fontWeight: "800",
     textAlign: "center",

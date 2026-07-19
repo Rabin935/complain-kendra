@@ -10,6 +10,7 @@ import {
   getComplaintRating as getComplaintRatingService,
   getComplaintRatingSummary as getComplaintRatingSummaryService,
   getComplaintTimeline as getComplaintTimelineService,
+  getFollowedComplaints as getFollowedComplaintsService,
   getMyComplaints as getMyComplaintsService,
   getNearbyComplaints as getNearbyComplaintsService,
   rateComplaint as rateComplaintService,
@@ -230,6 +231,26 @@ export async function getMy(
   }
 }
 
+export async function getFollowed(
+  request: Request,
+  response: Response<ComplaintsResponse>,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const result = await getFollowedComplaintsService(
+      requireAuthenticatedUser(request).subjectId,
+      getQueryFilter(request),
+    );
+
+    response.status(200).json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function getById(
   request: Request<{ id: string }>,
   response: Response,
@@ -299,6 +320,8 @@ export async function analyze(
     if (!description) {
       throw new AppError("Description is required for analysis.", 400);
     }
+    const uploadedFiles = getUploadedFiles(request);
+    const primaryPhoto = uploadedFiles[0];
 
     const analysis = await analyzeComplaintService({
       title: getString(request.body.title),
@@ -306,8 +329,14 @@ export async function analyze(
       category: normalizeCategory(request.body.category),
       lat: getNumber(request.body.lat),
       lng: getNumber(request.body.lng),
-      photoCount: getNumber(request.body.photo_count ?? request.body.photoCount),
+      photoCount: uploadedFiles.length || getNumber(request.body.photo_count ?? request.body.photoCount),
       photoUrl: getString(request.body.photoUrl ?? request.body.photo_url),
+      photo: primaryPhoto
+        ? {
+            data: primaryPhoto.buffer.toString("base64"),
+            mimeType: primaryPhoto.mimetype,
+          }
+        : undefined,
     });
     const duplicate = await detectDuplicateComplaint({
       category: analysis.detectedCategory,

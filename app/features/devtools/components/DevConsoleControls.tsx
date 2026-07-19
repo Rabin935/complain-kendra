@@ -1,6 +1,11 @@
+import { Text, TextInput } from "@/src/theme/typography";
 import type { ReactNode } from "react";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  MaterialCommunityIcons } from "@expo/vector-icons";
+import { Pressable,
+  StyleSheet,
+  View,
+} from "react-native";
 import { colors } from "../../../constants/colors";
 
 export function DevConsoleField(props: {

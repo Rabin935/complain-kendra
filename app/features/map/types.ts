@@ -12,8 +12,10 @@ export interface MapAddress {
   formattedAddress: string;
   area?: string;
   city?: string;
+  district?: string;
   municipality?: string;
   ward?: string;
+  wardNumber?: string;
   province?: string;
   postalCode?: string;
 }

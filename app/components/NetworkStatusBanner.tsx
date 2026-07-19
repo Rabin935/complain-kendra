@@ -1,5 +1,11 @@
-import { useEffect, useState } from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { Text } from "@/src/theme/typography";
+import {
+  useEffect,
+  useState } from "react";
+import { Platform,
+  StyleSheet,
+  View,
+} from "react-native";
 import { colors } from "../constants/colors";
 
 function getInitialOnlineState(): boolean {

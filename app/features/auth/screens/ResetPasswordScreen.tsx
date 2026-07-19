@@ -1,5 +1,8 @@
+import { Text, TextInput } from "@/src/theme/typography";
 import * as Linking from "expo-linking";
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useState } from "react";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import {
   ActivityIndicator,
@@ -8,8 +11,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from "react-native";
 import { colors } from "../../../constants/colors";

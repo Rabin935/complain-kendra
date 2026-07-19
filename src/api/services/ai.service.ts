@@ -21,6 +21,10 @@ interface AnalyzeInput {
   lng?: number;
   photoCount?: number;
   photoUrl?: string;
+  photo?: {
+    data: string;
+    mimeType: string;
+  };
 }
 
 // Every AI provider must implement this small contract. Controllers call analyzeComplaint()
@@ -142,6 +146,36 @@ function extractKeywords(description: string, category: ComplaintCategory): stri
   return unique.slice(0, 5);
 }
 
+function improveDescription(input: AnalyzeInput, category: ComplaintCategory, sizeEstimate?: string): string {
+  const cleanDescription = input.description.trim().replace(/\s+/g, " ");
+  const hasPhoto = Boolean(input.photoCount || input.photo || input.photoUrl);
+
+  if (category === "waste") {
+    return "A large amount of garbage is piled up along the roadside, creating a strong smell and making the area unpleasant and unsafe for people passing by. Please arrange cleanup as soon as possible and prevent further dumping at this location.";
+  }
+
+  if (category === "road") {
+    return "The road surface is damaged and is causing difficulty for vehicles and pedestrians using this route. Please inspect the location and repair the affected section as soon as possible to reduce safety risks.";
+  }
+
+  if (category === "water") {
+    return "There is a water or drainage issue at this location that is affecting nearby residents and pedestrians. Please inspect the problem, stop the leakage or blockage, and restore normal service as soon as possible.";
+  }
+
+  if (category === "power") {
+    return "There is an electrical issue at this location that may affect public safety and nearby households. Please send the responsible team to inspect and repair it as soon as possible.";
+  }
+
+  if (category === "trees") {
+    return "Tree branches or greenery at this location are creating an obstruction or safety concern for people nearby. Please inspect the area and clear or trim the affected section as soon as possible.";
+  }
+
+  const photoContext = hasPhoto ? " The attached photo provides additional evidence of the issue." : "";
+  const sizeContext = sizeEstimate && !/medium issue/i.test(sizeEstimate) ? ` The problem appears to be ${sizeEstimate.toLowerCase()}.` : "";
+
+  return `${cleanDescription}${sizeContext}${photoContext} Please inspect this location and take action as soon as possible.`.slice(0, 500);
+}
+
 function buildAnalysisResult(input: {
   detectedCategory: ComplaintCategory;
   confidence: number;
@@ -153,6 +187,7 @@ function buildAnalysisResult(input: {
   duplicateCheck: AnalysisResult["duplicateCheck"];
   verified: boolean;
   summary: string;
+  improvedDescription: string;
   keywords: string[];
 }): AnalysisResult {
   // The snake-case fields mirror the exact values used by the app-facing camel-case fields.
@@ -173,6 +208,7 @@ function buildAnalysisResult(input: {
     duplicateCheck: input.duplicateCheck,
     verified: input.verified,
     summary: input.summary,
+    improvedDescription: input.improvedDescription,
     keywords: input.keywords,
     analyzedAt: new Date(),
   };
@@ -238,6 +274,7 @@ async function mockAnalyzeComplaint(input: AnalyzeInput): Promise<AnalysisResult
     duplicateCheck,
     verified: confidence >= 70,
     summary: `${getDepartmentForCategory(category)} should review this ${severityLabel} priority complaint. The report suggests ${sizeEstimate.toLowerCase()}.`,
+    improvedDescription: improveDescription(input, category, sizeEstimate),
     keywords: extractKeywords(input.description, category),
   });
 }
@@ -259,10 +296,18 @@ async function geminiAnalyzeComplaint(input: AnalyzeInput): Promise<AnalysisResu
   }
 
   const categories = COMPLAINT_CATEGORIES.join(", ");
-  const systemPrompt = `Analyze a Nepal ward-level civic complaint. Return JSON only with keys detected_category, confidence_score, severity, priority, department, estimated_resolution_days, duplicate_probability, summary, keywords. Use categories ${categories}. Use priorities low, medium, high, critical.`;
-  const text = `Title: ${input.title ?? ""}\nCategory hint: ${input.category ?? ""}\nDescription: ${input.description}`;
+  const systemPrompt = `Analyze a Nepal ward-level civic complaint using the text and any attached image. Return JSON only with keys detected_category, confidence_score, severity, priority, department, estimated_resolution_days, duplicate_probability, summary, improved_description, sizeEstimate, keywords. The improved_description must be a polished citizen complaint under 500 characters, written in natural first-person/community-report style. It should describe the visible problem, impact on people nearby, and request action. Do not include labels or analysis phrases such as "Observed impact", "This appears to be", "photo evidence", category names, confidence, department, or metadata. Use categories ${categories}. Use priorities low, medium, high, critical.`;
+  const text = `Title: ${input.title ?? ""}\nCategory hint: ${input.category ?? ""}\nUser description: ${input.description}`;
   const parts: Content["parts"] = [{ text }];
 
+  if (input.photo) {
+    parts.push({
+      inlineData: {
+        mimeType: input.photo.mimeType,
+        data: input.photo.data,
+      },
+    });
+  } else
   if (input.photoUrl) {
     parts.push({
       inlineData: {
@@ -319,6 +364,12 @@ async function geminiAnalyzeComplaint(input: AnalyzeInput): Promise<AnalysisResu
     },
     verified: Boolean(parsed.verified ?? true),
     summary: parsed.summary || `${getDepartmentForCategory(detectedCategory)} should review this complaint.`,
+    improvedDescription:
+      typeof (parsed as { improved_description?: unknown }).improved_description === "string"
+        ? (parsed as { improved_description: string }).improved_description.slice(0, 500)
+        : typeof (parsed as { improvedDescription?: unknown }).improvedDescription === "string"
+          ? (parsed as { improvedDescription: string }).improvedDescription.slice(0, 500)
+          : improveDescription(input, detectedCategory, parsed.sizeEstimate || estimateSize(input.description, input.photoCount)),
     keywords: Array.isArray(parsed.keywords)
       ? parsed.keywords.map(String).slice(0, 5)
       : extractKeywords(input.description, detectedCategory),

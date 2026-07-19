@@ -1,5 +1,8 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Text, TextInput } from "@/src/theme/typography";
+import {
+  MaterialCommunityIcons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { LinearGradient } from "expo-linear-gradient";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -9,10 +12,9 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from "react-native";
+import { radii, shadows } from "@/app/constants/theme";
 import GoogleWebSignInButton from "../components/GoogleWebSignInButton";
 import { useAuth } from "../context/AuthContext";
 import type { AuthStackParamList } from "../types/auth.types";
@@ -28,10 +30,10 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [activeAction, setActiveAction] = useState<ActiveAction>(null);
   const [focusedField, setFocusedField] = useState<FocusedField>(null);
+  const [passwordVisible, setPasswordVisible] = useState(false);
 
   const isSubmitLoading = loading && activeAction !== "google";
   const isGoogleLoading = loading && activeAction === "google";
@@ -114,15 +116,38 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.hero}>
-          <View style={styles.logoMark}>
-            <MaterialCommunityIcons name="bank" size={32} color="#FFFFFF" />
+        <LinearGradient
+          colors={["#7B4FC8", "#6038B0", "#3E2075"]}
+          start={{ x: 0.1, y: 0 }}
+          end={{ x: 0.9, y: 1 }}
+          style={styles.hero}
+        >
+          <View style={styles.glow} />
+          <View style={[styles.contour, styles.contourA]} />
+          <View style={[styles.contour, styles.contourB]} />
+          <View style={[styles.contour, styles.contourC]} />
+          <View style={[styles.contour, styles.contourD]} />
+          <View style={styles.brandRow}>
+            <View style={styles.logoMark}>
+              <MaterialCommunityIcons name="map-marker" size={30} color="#6038B0" />
+            </View>
+            <View>
+              <Text style={styles.brand}>
+                Complain<Text style={styles.brandAccent}>Kendra</Text>
+              </Text>
+              <Text style={styles.brandTagline}>Report · Track · Resolve</Text>
+            </View>
           </View>
-          <Text style={styles.brand}>ComplainKendra</Text>
-          <Text style={styles.heroSubtitle}>Welcome back, citizen.</Text>
-        </View>
+          <Text style={styles.heroTitle}>
+            Welcome back,{"\n"}
+            <Text style={styles.heroTitleAccent}>citizen.</Text>
+          </Text>
+        </LinearGradient>
 
-        <View style={styles.card}>
+        <View style={styles.content}>
+          <View style={styles.card}>
+          <Text style={styles.cardTitle}>Sign in to your account</Text>
+          <Text style={styles.cardSubtitle}>Continue tracking complaints in your ward.</Text>
           {validationError ? <Text style={styles.errorText}>{validationError}</Text> : null}
 
           <View style={styles.form}>
@@ -134,7 +159,11 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
                   focusedField === "email" ? styles.inputShellFocused : null,
                 ]}
               >
-                <MaterialCommunityIcons name="email-outline" size={20} color="#7B7484" />
+                <MaterialCommunityIcons
+                  name="email-outline"
+                  size={18}
+                  color={focusedField === "email" ? "#6038B0" : "#8B8597"}
+                />
                 <TextInput
                   value={email}
                   onChangeText={updateEmail}
@@ -161,8 +190,8 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
               >
                 <MaterialCommunityIcons
                   name="lock-outline"
-                  size={20}
-                  color={focusedField === "password" ? "#6038B0" : "#7B7484"}
+                  size={18}
+                  color={focusedField === "password" ? "#6038B0" : "#8B8597"}
                 />
                 <TextInput
                   value={password}
@@ -172,18 +201,14 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
                   placeholder="Password"
                   placeholderTextColor="#8B8597"
                   style={styles.input}
-                  secureTextEntry={!showPassword}
+                  secureTextEntry={!passwordVisible}
                   textContentType="password"
                 />
-                <Pressable
-                  onPress={() => setShowPassword((current) => !current)}
-                  style={styles.iconButton}
-                  hitSlop={10}
-                >
+                <Pressable onPress={() => setPasswordVisible((current) => !current)} hitSlop={8}>
                   <MaterialCommunityIcons
-                    name={showPassword ? "eye-off-outline" : "eye-outline"}
-                    size={20}
-                    color="#7B7484"
+                    name={passwordVisible ? "eye-off-outline" : "eye-outline"}
+                    size={18}
+                    color="#6038B0"
                   />
                 </Pressable>
               </View>
@@ -212,25 +237,32 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
               onPress={submitLogin}
               disabled={loading}
               style={({ pressed }) => [
-                styles.submitButton,
+                styles.submitButtonShell,
                 pressed && !loading ? styles.pressed : null,
                 loading ? styles.disabled : null,
               ]}
             >
-              {isSubmitLoading ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <>
-                  <Text style={styles.submitText}>Sign In</Text>
-                  <MaterialCommunityIcons name="arrow-right" size={22} color="#FFFFFF" />
-                </>
-              )}
+              <LinearGradient
+                colors={["#7B4FC8", "#6038B0"]}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+                style={styles.submitButton}
+              >
+                {isSubmitLoading ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Text style={styles.submitText}>Sign In</Text>
+                    <MaterialCommunityIcons name="login" size={18} color="#FFFFFF" />
+                  </>
+                )}
+              </LinearGradient>
             </Pressable>
           </View>
 
           <View style={styles.dividerRow}>
             <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>Or continue with</Text>
+            <Text style={styles.dividerText}>or continue with</Text>
             <View style={styles.dividerLine} />
           </View>
 
@@ -258,21 +290,27 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
                 <ActivityIndicator color="#481A98" />
               ) : (
                 <>
-                  <MaterialCommunityIcons name="google" size={20} color="#4285F4" />
-                  <Text style={styles.googleText}>Google</Text>
+                  <MaterialCommunityIcons name="google" size={18} color="#4285F4" />
+                  <Text style={styles.googleText}>Continue with Google</Text>
                 </>
               )}
             </Pressable>
           )}
 
           {googleSignInHint ? <Text style={styles.helperText}>{googleSignInHint}</Text> : null}
-        </View>
+          </View>
 
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Don't have an account?</Text>
-          <Pressable onPress={() => navigation.navigate("Register")} hitSlop={8}>
-            <Text style={styles.footerLink}>Sign up now</Text>
-          </Pressable>
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>New to ComplainKendra?</Text>
+            <Pressable onPress={() => navigation.navigate("Register")} hitSlop={8}>
+              <Text style={styles.footerLink}>Create an account</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.trustRow}>
+            <MaterialCommunityIcons name="shield-check" size={14} color="#6038B0" />
+            <Text style={styles.trustText}>Secured by Govt. of Nepal e-Services</Text>
+          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -282,65 +320,131 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#FDF7FF",
+    backgroundColor: "#FFFFFF",
   },
   scrollContent: {
     flexGrow: 1,
-    alignItems: "center",
-    paddingBottom: 32,
+    paddingBottom: 30,
   },
   hero: {
     width: "100%",
-    minHeight: 300,
-    paddingTop: 62,
-    paddingHorizontal: 20,
-    paddingBottom: 112,
+    minHeight: 230,
+    paddingTop: 8,
+    paddingHorizontal: 24,
+    paddingBottom: 80,
+    borderBottomLeftRadius: 36,
+    borderBottomRightRadius: 36,
+    overflow: "hidden",
+  },
+  /**
+   * Stand-in for the prototype's `<TopoLines/>` SVG. Without react-native-svg
+   * the contours are approximated with wide, heavily-rounded outlines that the
+   * hero clips — same "civic territory" texture, no extra dependency.
+   */
+  contour: {
+    position: "absolute",
+    left: -180,
+    right: -180,
+    height: 260,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.13)",
+  },
+  contourA: {
+    top: -150,
+  },
+  contourB: {
+    top: -104,
+  },
+  contourC: {
+    top: -52,
+  },
+  contourD: {
+    top: 8,
+  },
+  glow: {
+    position: "absolute",
+    top: -70,
+    right: -60,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: "rgba(196,181,253,0.18)",
+  },
+  brandRow: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#6038B0",
-    borderBottomLeftRadius: 40,
-    borderBottomRightRadius: 40,
+    gap: 12,
+    marginBottom: 22,
   },
   logoMark: {
-    width: 64,
-    height: 64,
-    borderRadius: 18,
+    width: 56,
+    height: 56,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 22,
-    backgroundColor: "rgba(255,255,255,0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.22)",
+    backgroundColor: "#F4EEFD",
+    ...shadows.logo,
   },
   brand: {
     color: "#FFFFFF",
+    fontSize: 22,
+    fontWeight: "800",
+    letterSpacing: -0.6,
+    lineHeight: 24,
+  },
+  brandAccent: {
+    color: "#C4B5FD",
+  },
+  brandTagline: {
+    color: "rgba(255,255,255,0.65)",
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 1.6,
+    textTransform: "uppercase",
+    marginTop: 4,
+  },
+  heroTitle: {
+    color: "#FFFFFF",
     fontSize: 28,
     fontWeight: "800",
-    letterSpacing: 0,
-    marginBottom: 8,
+    lineHeight: 32,
+    letterSpacing: -0.8,
   },
-  heroSubtitle: {
-    color: "#CCBEFF",
-    fontSize: 16,
-    fontWeight: "500",
+  heroTitleAccent: {
+    color: "#C4B5FD",
+  },
+  content: {
+    paddingHorizontal: 24,
+    marginTop: -28,
+    zIndex: 2,
   },
   card: {
     width: "100%",
     maxWidth: 430,
-    marginTop: -76,
-    padding: 24,
-    borderRadius: 20,
+    alignSelf: "center",
+    paddingTop: 28,
+    paddingHorizontal: 22,
+    paddingBottom: 24,
+    borderRadius: radii.card,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#DED7EA",
-    shadowColor: "#6038B0",
-    shadowOpacity: 0.18,
-    shadowRadius: 28,
-    shadowOffset: { width: 0, height: 16 },
-    elevation: 9,
+    borderColor: "#E8E4F0",
+    ...shadows.card,
+  },
+  cardTitle: {
+    color: "#15121F",
+    fontSize: 18,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  cardSubtitle: {
+    color: "#8B8597",
+    fontSize: 13,
+    marginBottom: 22,
   },
   form: {
-    gap: 18,
+    gap: 12,
   },
   errorText: {
     color: "#BA1A1A",
@@ -353,48 +457,35 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   fieldGroup: {
-    gap: 8,
+    gap: 6,
   },
   label: {
-    color: "#4A4452",
-    fontSize: 11,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    marginLeft: 4,
+    color: "#4A4458",
+    fontSize: 12,
+    fontWeight: "700",
   },
   inputShell: {
-    minHeight: 54,
+    minHeight: 49,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     paddingHorizontal: 14,
     borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: "#E7DFF2",
-    backgroundColor: "#F8F1FF",
+    borderColor: "#E8E4F0",
+    backgroundColor: "#F8F6FC",
   },
   inputShellFocused: {
     borderColor: "#6038B0",
     backgroundColor: "#FFFFFF",
-    shadowColor: "#6038B0",
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 2,
+    ...shadows.focusRing,
   },
   input: {
     flex: 1,
     color: "#1D1A27",
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "500",
     paddingVertical: Platform.OS === "ios" ? 14 : 10,
-  },
-  iconButton: {
-    width: 28,
-    height: 28,
-    alignItems: "center",
-    justifyContent: "center",
   },
   optionsRow: {
     flexDirection: "row",
@@ -409,9 +500,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 6,
+    width: 18,
+    height: 18,
+    borderRadius: 5,
     borderWidth: 2,
     borderColor: "#CBC3D5",
     alignItems: "center",
@@ -423,49 +514,49 @@ const styles = StyleSheet.create({
     borderColor: "#481A98",
   },
   optionText: {
-    color: "#4A4452",
-    fontSize: 14,
-    fontWeight: "500",
+    color: "#4A4458",
+    fontSize: 12,
+    fontWeight: "600",
   },
   forgotText: {
     color: "#6038B0",
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "700",
   },
+  submitButtonShell: {
+    borderRadius: radii.button,
+    overflow: "hidden",
+    ...shadows.button,
+  },
   submitButton: {
-    minHeight: 58,
-    borderRadius: 14,
-    backgroundColor: "#6038B0",
+    minHeight: 53,
+    borderRadius: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    shadowColor: "#6038B0",
-    shadowOpacity: 0.3,
-    shadowRadius: 22,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 6,
   },
   submitText: {
     color: "#FFFFFF",
-    fontSize: 18,
-    fontWeight: "800",
+    fontSize: 16,
+    fontWeight: "700",
   },
   dividerRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
-    marginVertical: 22,
+    gap: 12,
+    marginVertical: 18,
   },
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: "#E7DFF2",
+    backgroundColor: "#E8E4F0",
   },
   dividerText: {
-    color: "#7B7484",
+    color: "#8B8597",
     fontSize: 11,
-    fontWeight: "800",
+    fontWeight: "600",
+    letterSpacing: 1,
     textTransform: "uppercase",
   },
   googleButton: {
@@ -483,8 +574,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8F1FF",
   },
   googleText: {
-    color: "#1D1A27",
-    fontSize: 16,
+    color: "#15121F",
+    fontSize: 14,
     fontWeight: "700",
   },
   helperText: {
@@ -499,18 +590,33 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    marginTop: 26,
+    marginTop: 22,
     paddingHorizontal: 20,
   },
+  trustRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 28,
+    marginBottom: 12,
+  },
+  trustText: {
+    color: "#8B8597",
+    fontSize: 10,
+    fontWeight: "600",
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+  },
   footerText: {
-    color: "#4A4452",
-    fontSize: 14,
+    color: "#4A4458",
+    fontSize: 13,
     fontWeight: "500",
   },
   footerLink: {
-    color: "#481A98",
-    fontSize: 14,
-    fontWeight: "800",
+    color: "#6038B0",
+    fontSize: 13,
+    fontWeight: "700",
   },
   pressed: {
     opacity: 0.92,

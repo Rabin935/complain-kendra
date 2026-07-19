@@ -1,5 +1,7 @@
+import { Text } from "@/src/theme/typography";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { NavigationProp, useNavigation } from "@react-navigation/native";
+import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -9,9 +11,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
-  Text,
-  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -21,7 +20,7 @@ import {
   fetchCitizenBadges,
   fetchCitizenProfile,
   fetchCitizenStats,
-  updatePublicProfile,
+  fetchSavedIssues,
 } from "../services/citizen.service";
 import type {
   CitizenBadge,
@@ -31,6 +30,7 @@ import type {
 import type { UserStackParamList } from "../types/user.types";
 
 type ProfileNavigation = NavigationProp<UserStackParamList>;
+type IconName = React.ComponentProps<typeof MaterialCommunityIcons>["name"];
 
 const emptyStats: CitizenStats = {
   pending: 0,
@@ -42,45 +42,67 @@ const emptyStats: CitizenStats = {
   badgesEarned: 0,
 };
 
-function getAchievementCards(
-  badges: CitizenBadge[],
-  stats: CitizenStats,
-): Array<{ id: string; title: string; icon: keyof typeof MaterialCommunityIcons.glyphMap; earned: boolean }> {
-  const fallback = [
-    {
-      id: "reports",
-      title: "Civic Hero",
-      icon: "trophy-outline" as const,
-      earned: stats.reportsSubmitted > 0,
-    },
-    {
-      id: "resolved",
-      title: "7-day streak",
-      icon: "fire" as const,
-      earned: stats.resolved > 0,
-    },
-    {
-      id: "upvotes",
-      title: "Top voted",
-      icon: "star-outline" as const,
-      earned: stats.upvotesReceived > 0,
-    },
-    {
-      id: "public",
-      title: "Watchful",
-      icon: "eye-outline" as const,
-      earned: true,
-    },
-  ];
+const fallbackAchievements: Array<{
+  id: string;
+  title: string;
+  icon: IconName;
+  color: string;
+  tint: string;
+  earned: boolean;
+}> = [
+  {
+    id: "civic-hero",
+    title: "Civic Hero",
+    icon: "trophy",
+    color: "#F59E0B",
+    tint: "#FEF3C7",
+    earned: true,
+  },
+  {
+    id: "streak",
+    title: "7-day streak",
+    icon: "fire",
+    color: "#EF4444",
+    tint: "#FEE2E2",
+    earned: true,
+  },
+  {
+    id: "top-voted",
+    title: "Top voted",
+    icon: "star",
+    color: "#6038B0",
+    tint: "#EEE8FA",
+    earned: true,
+  },
+  {
+    id: "watchful",
+    title: "Watchful",
+    icon: "eye",
+    color: "#3B82F6",
+    tint: "#EEE8FA",
+    earned: false,
+  },
+];
 
+function getAchievementCards(badges: CitizenBadge[], stats: CitizenStats) {
   if (!badges.length) {
-    return fallback;
+    return fallbackAchievements.map((achievement) => ({
+      ...achievement,
+      earned:
+        achievement.id === "civic-hero"
+          ? stats.reportsSubmitted > 0
+          : achievement.id === "top-voted"
+            ? stats.upvotesReceived > 0
+            : achievement.earned,
+    }));
   }
 
   return badges.slice(0, 4).map((badge, index) => ({
     id: badge.id,
     title: badge.title,
-    icon: (badge.icon || fallback[index]?.icon || "medal-outline") as keyof typeof MaterialCommunityIcons.glyphMap,
+    icon: fallbackAchievements[index]?.icon ?? "medal",
+    color: fallbackAchievements[index]?.color ?? colors.primary,
+    tint: fallbackAchievements[index]?.tint ?? "#EEE8FA",
     earned: badge.earned,
   }));
 }
@@ -91,29 +113,27 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<CitizenProfile | null>(null);
   const [stats, setStats] = useState<CitizenStats>(emptyStats);
   const [badges, setBadges] = useState<CitizenBadge[]>([]);
+  const [savedIssueCount, setSavedIssueCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [avatarUploading, setAvatarUploading] = useState(false);
-  const [publicUpdating, setPublicUpdating] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [logoutVisible, setLogoutVisible] = useState(false);
-  const [deleteVisible, setDeleteVisible] = useState(false);
-  const [deletePassword, setDeletePassword] = useState("");
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
     setError(null);
 
-    const [profileResult, statsResult, badgesResult] = await Promise.all([
+    const [profileResult, statsResult, badgesResult, savedIssuesResult] = await Promise.all([
       fetchCitizenProfile(),
       fetchCitizenStats(),
       fetchCitizenBadges(),
+      fetchSavedIssues(),
     ]);
 
     if (profileResult.source !== "api" || !profileResult.data.id) {
       setProfile(null);
       setStats(emptyStats);
       setBadges([]);
+      setSavedIssueCount(0);
       setError(profileResult.error ?? "Unable to load your profile from the database.");
       setLoading(false);
       return;
@@ -122,8 +142,9 @@ export default function ProfileScreen() {
     setProfile(profileResult.data);
     setStats(statsResult.data);
     setBadges(badgesResult.data);
+    setSavedIssueCount(savedIssuesResult.data.length);
     setError(
-      statsResult.error || badgesResult.error
+      statsResult.error || badgesResult.error || savedIssuesResult.error
         ? "Some profile sections could not be loaded from the database."
         : null,
     );
@@ -134,75 +155,14 @@ export default function ProfileScreen() {
     void loadProfile();
   }, [loadProfile]);
 
-  function showToast(message: string) {
-    setToast(message);
-    setTimeout(() => setToast(null), 2600);
-  }
-
-  async function togglePublicProfile(nextValue: boolean) {
-    setPublicUpdating(true);
-    setProfile((current) => (current ? { ...current, isPublic: nextValue } : current));
-    const result = await updatePublicProfile(nextValue);
-    setPublicUpdating(false);
-    showToast(result.error ? "Public profile saved locally." : "Public profile updated.");
-  }
-
-  function uploadAvatar() {
-    setAvatarUploading(true);
-    setTimeout(() => {
-      setAvatarUploading(false);
-      showToast("Avatar upload complete.");
-    }, 1100);
-  }
-
-  function handleMenuAction(action: string) {
-    switch (action) {
-      case "edit":
-        showToast("Profile update success.");
-        break;
-      case "badges":
-        Alert.alert("My Badges", badges.map((badge) => badge.title).join("\n"));
-        break;
-      case "notifications":
-        navigation.navigate("Notifications");
-        break;
-      case "language":
-        setProfile((current) =>
-          current
-            ? {
-                ...current,
-                language: current.language === "English" ? "Nepali" : "English",
-              }
-            : current,
-        );
-        showToast("Language update success.");
-        break;
-      case "password":
-        showToast("Password change success.");
-        break;
-      case "help":
-        Alert.alert("Help Center", "Ward support, report guidance, and privacy help are ready for backend content.");
-        break;
-      case "delete":
-        setDeleteVisible(true);
-        break;
-    }
-  }
-
   async function confirmLogout() {
     setLogoutVisible(false);
     await logout();
   }
 
-  function confirmDelete() {
-    if (!deletePassword.trim()) {
-      showToast("Password confirmation is required.");
-      return;
-    }
-
-    setDeleteVisible(false);
-    setDeletePassword("");
-    showToast("Account delete request submitted.");
+  function showAchievements() {
+    const titles = badges.length ? badges.map((badge) => badge.title).join("\n") : "No badges earned yet.";
+    Alert.alert("Achievements", titles);
   }
 
   if (loading) {
@@ -224,7 +184,7 @@ export default function ProfileScreen() {
           <Text style={styles.emptyTitle}>Profile unavailable</Text>
           <Text style={styles.emptyText}>{error ?? "Unable to load your profile from the database."}</Text>
           <Pressable style={styles.retryButton} onPress={() => void loadProfile()}>
-            <Text style={styles.modalPrimaryText}>Retry</Text>
+            <Text style={styles.retryText}>Retry</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -236,61 +196,66 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView edges={["top"]} style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.profileHeader}>
-          <View style={styles.headerShade} />
+        <LinearGradient
+          colors={[colors.primaryMid, colors.primary, colors.primaryDark]}
+          start={{ x: 0.1, y: 0 }}
+          end={{ x: 0.9, y: 1 }}
+          style={styles.header}
+        >
           <View style={styles.gridVerticalA} />
           <View style={styles.gridVerticalB} />
           <View style={styles.gridHorizontalA} />
           <View style={styles.gridHorizontalB} />
+
           <Pressable style={styles.settingsButton} onPress={() => navigation.navigate("Settings")}>
-            <MaterialCommunityIcons name="cog-outline" size={19} color={colors.surface} />
+            <MaterialCommunityIcons name="cog-outline" size={20} color="#FFFFFF" />
           </Pressable>
 
           <View style={styles.identityRow}>
-            <Pressable style={styles.avatarShell} onPress={uploadAvatar}>
+            <Pressable style={styles.avatarShell} onPress={() => navigation.navigate("EditProfile")}>
               {profile.avatarUrl ? (
                 <Image source={{ uri: profile.avatarUrl }} style={styles.avatarImage} />
               ) : (
                 <Text style={styles.avatarText}>{profile.initials}</Text>
               )}
-              {avatarUploading ? (
-                <View style={styles.avatarOverlay}>
-                  <ActivityIndicator color={colors.surface} />
-                </View>
-              ) : (
-                <View style={styles.verifiedBadge}>
-                  <MaterialCommunityIcons name="check" size={18} color={colors.surface} />
-                </View>
-              )}
+              <View style={styles.verifiedBadge}>
+                <MaterialCommunityIcons name="check" size={16} color="#FFFFFF" />
+              </View>
             </Pressable>
 
             <View style={styles.identityCopy}>
               <View style={styles.nameRow}>
-                <Text style={styles.name} numberOfLines={1}>{profile.name}</Text>
+                <Text style={styles.name} numberOfLines={1}>
+                  {profile.name}
+                </Text>
                 {profile.isPublic ? (
-                  <View style={styles.nameVerified}>
-                    <MaterialCommunityIcons name="check" size={15} color={colors.surface} />
-                  </View>
+                  <MaterialCommunityIcons
+                    name="check-decagram"
+                    size={18}
+                    color={colors.accentLavender}
+                  />
                 ) : null}
               </View>
-              <Text style={styles.emailText} numberOfLines={1}>{profile.email}</Text>
+              <Text style={styles.emailText} numberOfLines={1}>
+                {profile.email}
+              </Text>
               <View style={styles.levelPill}>
-                <MaterialCommunityIcons name="trophy-outline" size={13} color="#FDE68A" />
+                <MaterialCommunityIcons name="trophy" size={12} color={colors.accentLavender} />
                 <Text style={styles.levelText}>
-                  {profile.levelTitle} - Level {profile.level}
+                  {profile.levelTitle} · Level {profile.level}
                 </Text>
               </View>
             </View>
           </View>
-        </View>
+        </LinearGradient>
 
-        <View style={styles.bodyContent}>
+        <View style={styles.body}>
           <View style={styles.statsCard}>
-            <ProfileStat label="Reports" value={stats.reportsSubmitted} />
+            <ProfileStat icon="clipboard-list-outline" color={colors.primary} label="Reports" value={stats.reportsSubmitted} />
             <View style={styles.statDivider} />
-            <ProfileStat label="Resolved" value={stats.resolved} />
+            <ProfileStat icon="check-circle" color={colors.success} label="Resolved" value={stats.resolved} />
             <View style={styles.statDivider} />
-            <ProfileStat label="Upvotes" value={stats.upvotesReceived} />
+            <ProfileStat icon="arrow-up-bold" color={colors.accent} label="Upvotes" value={stats.upvotesReceived} />
           </View>
 
           {error ? (
@@ -300,16 +265,12 @@ export default function ProfileScreen() {
             </View>
           ) : null}
 
-          {toast ? (
-            <View style={styles.toast}>
-              <MaterialCommunityIcons name="check-circle-outline" size={17} color={colors.success} />
-              <Text style={styles.toastText}>{toast}</Text>
-            </View>
-          ) : null}
-
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Achievements</Text>
-            <Text style={styles.sectionAction}>See all -&gt;</Text>
+            <Pressable style={styles.sectionActionRow} onPress={showAchievements} hitSlop={8}>
+              <Text style={styles.sectionAction}>See all</Text>
+              <MaterialCommunityIcons name="arrow-right" size={13} color={colors.primary} />
+            </Pressable>
           </View>
 
           <ScrollView
@@ -317,54 +278,70 @@ export default function ProfileScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.achievementList}
           >
-            {achievementCards.map((badge) => (
-              <View key={badge.id} style={[styles.achievementCard, !badge.earned ? styles.achievementCardLocked : null]}>
-                <View style={[styles.achievementIcon, !badge.earned ? styles.achievementIconLocked : null]}>
+            {achievementCards.map((achievement) => (
+              <View
+                key={achievement.id}
+                style={[
+                  styles.achievementCard,
+                  !achievement.earned ? styles.achievementCardLocked : null,
+                ]}
+              >
+                <View style={[styles.achievementIcon, { backgroundColor: achievement.tint }]}>
                   <MaterialCommunityIcons
-                    name={badge.icon}
-                    size={25}
-                    color={badge.earned ? colors.primary : colors.textMuted}
+                    name={achievement.icon}
+                    size={22}
+                    color={achievement.color}
                   />
                 </View>
-                <Text style={styles.achievementTitle} numberOfLines={2}>{badge.title}</Text>
+                <Text style={styles.achievementTitle} numberOfLines={2}>
+                  {achievement.title}
+                </Text>
               </View>
             ))}
           </ScrollView>
 
           <View style={styles.menu}>
-            <MenuRow icon="account" title="Edit Profile" onPress={() => handleMenuAction("edit")} />
-            <MenuRow icon="clipboard-text-outline" title="My Complaints" value={String(stats.reportsSubmitted)} onPress={() => handleMenuAction("badges")} />
-            <MenuRow icon="lock-reset" title="Change Password" onPress={() => handleMenuAction("password")} />
-            <MenuRow icon="web" title="Language" value={profile.language} onPress={() => handleMenuAction("language")} />
-            <MenuRow icon="bell" title="Notifications" onPress={() => handleMenuAction("notifications")} />
-            <MenuRow icon="help-circle-outline" title="Help & Support" onPress={() => handleMenuAction("help")} />
-            <View style={styles.toggleRow}>
-              <View style={styles.menuRowLeft}>
-                <View style={styles.menuIcon}>
-                  <MaterialCommunityIcons name="account-eye-outline" size={19} color={colors.primary} />
-                </View>
-                <Text style={styles.menuTitle}>Public Profile</Text>
-              </View>
-              {publicUpdating ? (
-                <ActivityIndicator color={colors.primary} />
-              ) : (
-                <Switch
-                  value={profile.isPublic}
-                  onValueChange={(value) => void togglePublicProfile(value)}
-                  trackColor={{ false: colors.border, true: "#C8B6F0" }}
-                  thumbColor={profile.isPublic ? colors.primary : colors.surface}
-                />
-              )}
-            </View>
+            <MenuRow icon="account-outline" tint="#6038B018" title="Edit Profile" onPress={() => navigation.navigate("EditProfile")} />
+            <MenuRow
+              icon="clipboard-text-outline"
+              tint="#3B82F618"
+              title="My Complaints"
+              value={String(stats.reportsSubmitted)}
+              onPress={() => navigation.navigate("MainTabs", { screen: "Mine" })}
+            />
+            <MenuRow
+              icon="bookmark-outline"
+              tint="#F59E0B18"
+              title="Saved Issues"
+              value={String(savedIssueCount)}
+              onPress={() => navigation.navigate("SavedIssues")}
+            />
+            <MenuRow
+              icon="trophy-outline"
+              tint="#F59E0B18"
+              title="Civic Leaderboard"
+              onPress={() => navigation.navigate("Leaderboard")}
+            />
+            <MenuRow icon="lock-outline" tint="#4A445818" title="Change Password" onPress={() => navigation.navigate("ChangePassword")} />
+            <MenuRow icon="web" tint="#22C55E18" title="Language" value={profile.language} onPress={() => navigation.navigate("LanguageSettings")} />
+            <MenuRow
+              icon="bell-outline"
+              tint="#EF444418"
+              title="Notifications"
+              onPress={() => navigation.navigate("MainTabs", { screen: "Notifications" })}
+            />
+            <MenuRow icon="help-circle-outline" tint="#6038B018" title="Help & Support" onPress={() => navigation.navigate("HelpSupport")} />
             <MenuRow
               icon="logout"
+              tint="#EF444418"
               title={authLoading ? "Signing out..." : "Log Out"}
               danger
+              last
               onPress={() => setLogoutVisible(true)}
             />
           </View>
 
-          <Text style={styles.footerText}>ComplainKendra v1.0 - Made for Nepal</Text>
+          <Text style={styles.footerText}>ComplainKendra v1.0 · Made for Nepal</Text>
         </View>
       </ScrollView>
 
@@ -376,44 +353,24 @@ export default function ProfileScreen() {
         onCancel={() => setLogoutVisible(false)}
         onConfirm={() => void confirmLogout()}
       />
-
-      <Modal visible={deleteVisible} transparent animationType="fade" onRequestClose={() => setDeleteVisible(false)}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Delete account?</Text>
-            <Text style={styles.modalBody}>Enter your password to request account deletion.</Text>
-            <TextInput
-              value={deletePassword}
-              onChangeText={setDeletePassword}
-              placeholder="Password"
-              placeholderTextColor={colors.textMuted}
-              secureTextEntry
-              style={styles.modalInput}
-            />
-            <View style={styles.modalActions}>
-              <Pressable style={styles.modalCancel} onPress={() => setDeleteVisible(false)}>
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </Pressable>
-              <Pressable style={styles.modalDanger} onPress={confirmDelete}>
-                <Text style={styles.modalDangerText}>Confirm</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
 
 function ProfileStat({
+  icon,
+  color,
   label,
   value,
 }: {
+  icon: IconName;
+  color: string;
   label: string;
   value: number;
 }) {
   return (
-    <View style={styles.statCard}>
+    <View style={styles.statItem}>
+      <MaterialCommunityIcons name={icon} size={18} color={color} style={styles.statIcon} />
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
     </View>
@@ -422,29 +379,47 @@ function ProfileStat({
 
 function MenuRow({
   icon,
+  tint,
   title,
   value,
   danger,
+  last,
   onPress,
 }: {
-  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+  icon: IconName;
+  tint: string;
   title: string;
   value?: string;
   danger?: boolean;
+  last?: boolean;
   onPress: () => void;
 }) {
   return (
-    <Pressable style={({ pressed }) => [styles.menuRow, pressed ? styles.pressed : null]} onPress={onPress}>
+    <Pressable
+      style={({ pressed }) => [
+        styles.menuRow,
+        last ? styles.menuRowLast : null,
+        pressed ? styles.pressed : null,
+      ]}
+      onPress={onPress}
+    >
       <View style={styles.menuRowLeft}>
-        <View style={[styles.menuIcon, danger ? styles.menuIconDanger : null]}>
-          <MaterialCommunityIcons name={icon} size={19} color={danger ? colors.error : colors.primary} />
+        <View style={[styles.menuIcon, { backgroundColor: tint }]}>
+          <MaterialCommunityIcons
+            name={icon}
+            size={18}
+            color={danger ? colors.error : colors.primary}
+          />
         </View>
         <Text style={[styles.menuTitle, danger ? styles.menuTitleDanger : null]}>{title}</Text>
       </View>
-      <View style={styles.menuRowRight}>
-        {value ? <Text style={styles.menuValue}>{value}</Text> : null}
-        <MaterialCommunityIcons name="chevron-right" size={18} color={danger ? colors.error : colors.textMuted} />
-      </View>
+
+      {!danger ? (
+        <View style={styles.menuRowRight}>
+          {value ? <Text style={styles.menuValue}>{value}</Text> : null}
+          <MaterialCommunityIcons name="chevron-right" size={18} color={colors.textMuted} />
+        </View>
+      ) : null}
     </Pressable>
   );
 }
@@ -487,16 +462,17 @@ function ConfirmationModal({
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: "#F5F2FB",
   },
   content: {
-    paddingBottom: 122,
+    paddingBottom: 118,
   },
   loadingState: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     gap: 12,
+    padding: 24,
   },
   loadingText: {
     color: colors.textMuted,
@@ -524,21 +500,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: colors.primary,
   },
-  profileHeader: {
-    minHeight: 220,
+  retryText: {
+    color: colors.surface,
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  header: {
+    minHeight: 230,
     paddingHorizontal: 22,
     paddingTop: 58,
     paddingBottom: 70,
     borderBottomLeftRadius: 32,
     borderBottomRightRadius: 32,
     overflow: "hidden",
-    backgroundColor: colors.primary,
-  },
-  headerShade: {
-    position: "absolute",
-    inset: 0,
-    backgroundColor: colors.primaryDark,
-    opacity: 0.22,
+    backgroundColor: "#6038B0",
   },
   gridVerticalA: {
     position: "absolute",
@@ -560,7 +535,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 0,
     right: 0,
-    top: 74,
+    top: 76,
     height: 1,
     backgroundColor: "rgba(255,255,255,0.08)",
   },
@@ -568,7 +543,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 0,
     right: 0,
-    top: 148,
+    top: 152,
     height: 1,
     backgroundColor: "rgba(255,255,255,0.08)",
   },
@@ -576,20 +551,21 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 14,
     right: 22,
+    zIndex: 3,
     width: 40,
     height: 40,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.14)",
+    backgroundColor: "rgba(255,255,255,0.15)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
+    borderColor: "rgba(255,255,255,0.25)",
   },
   identityRow: {
+    zIndex: 2,
     flexDirection: "row",
     alignItems: "center",
     gap: 16,
-    zIndex: 2,
   },
   avatarShell: {
     width: 86,
@@ -597,10 +573,10 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.surface,
+    backgroundColor: "#F4EEFD",
     borderWidth: 3,
     borderColor: "rgba(255,255,255,0.3)",
-    shadowColor: colors.primaryDeep,
+    shadowColor: "#2A1550",
     shadowOpacity: 0.3,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 12 },
@@ -612,29 +588,22 @@ const styles = StyleSheet.create({
     borderRadius: 24,
   },
   avatarText: {
-    color: colors.primary,
-    fontSize: 31,
+    color: "#6038B0",
+    fontSize: 32,
     fontWeight: "900",
-  },
-  avatarOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 24,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(42,21,80,0.62)",
   },
   verifiedBadge: {
     position: "absolute",
     right: -6,
     bottom: -6,
-    width: 27,
-    height: 27,
+    width: 28,
+    height: 28,
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.success,
+    backgroundColor: "#22C55E",
     borderWidth: 3,
-    borderColor: colors.surface,
+    borderColor: "#FFFFFF",
   },
   identityCopy: {
     flex: 1,
@@ -642,50 +611,81 @@ const styles = StyleSheet.create({
   nameRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
   },
   name: {
-    color: colors.surface,
     flexShrink: 1,
+    color: "#FFFFFF",
     fontSize: 21,
     fontWeight: "900",
-  },
-  nameVerified: {
-    width: 19,
-    height: 19,
-    borderRadius: 4,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.success,
   },
   emailText: {
     color: "rgba(255,255,255,0.75)",
     fontSize: 12,
     fontWeight: "700",
     marginTop: 4,
-    textDecorationLine: "underline",
   },
   levelPill: {
     alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 5,
     marginTop: 7,
     paddingHorizontal: 9,
     paddingVertical: 5,
     borderRadius: 999,
     backgroundColor: "rgba(255,255,255,0.18)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.18)",
+    borderColor: "rgba(255,255,255,0.25)",
   },
   levelText: {
-    color: colors.surface,
-    fontSize: 11,
+    color: "#FFFFFF",
+    fontSize: 10,
     fontWeight: "900",
   },
-  bodyContent: {
+  body: {
     paddingHorizontal: 20,
     marginTop: -44,
+  },
+  statsCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: 92,
+    paddingHorizontal: 4,
+    paddingVertical: 16,
+    borderRadius: 22,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E8E4F0",
+    shadowColor: "#2A1550",
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 8,
+  },
+  statIcon: {
+    marginBottom: 4,
+  },
+  statItem: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statValue: {
+    color: "#15121F",
+    fontSize: 20,
+    fontWeight: "900",
+  },
+  statLabel: {
+    color: "#8B8597",
+    fontSize: 11,
+    fontWeight: "800",
+    marginTop: 4,
+  },
+  statDivider: {
+    width: 1,
+    height: 44,
+    backgroundColor: "#E8E4F0",
   },
   infoBanner: {
     flexDirection: "row",
@@ -704,61 +704,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
   },
-  toast: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginTop: 12,
-    padding: 11,
-    borderRadius: 16,
-    backgroundColor: "#DCFCE7",
-    borderWidth: 1,
-    borderColor: "#BBF7D0",
-  },
-  toastText: {
-    flex: 1,
-    color: "#166534",
-    fontSize: 12,
-    fontWeight: "900",
-  },
-  statsCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-around",
-    minHeight: 84,
-    paddingHorizontal: 4,
-    paddingVertical: 16,
-    borderRadius: 22,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: colors.primaryDeep,
-    shadowOpacity: 0.12,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 8,
-  },
-  statCard: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  statValue: {
-    color: colors.text,
-    fontSize: 20,
-    fontWeight: "900",
-  },
-  statLabel: {
-    color: colors.textMuted,
-    fontSize: 11,
-    fontWeight: "800",
-    marginTop: 4,
-  },
-  statDivider: {
-    width: 1,
-    height: 34,
-    backgroundColor: colors.border,
-  },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -767,12 +712,17 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   sectionTitle: {
-    color: colors.text,
-    fontSize: 18,
+    color: "#15121F",
+    fontSize: 15,
     fontWeight: "900",
   },
+  sectionActionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
   sectionAction: {
-    color: colors.primary,
+    color: "#6038B0",
     fontSize: 12,
     fontWeight: "900",
   },
@@ -784,15 +734,16 @@ const styles = StyleSheet.create({
     width: 90,
     minHeight: 98,
     borderRadius: 16,
-    padding: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.surface,
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: "#E8E4F0",
   },
   achievementCardLocked: {
-    opacity: 0.72,
+    opacity: 0.5,
   },
   achievementIcon: {
     width: 42,
@@ -800,26 +751,22 @@ const styles = StyleSheet.create({
     borderRadius: 13,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#EEE7FA",
-    marginBottom: 9,
-  },
-  achievementIconLocked: {
-    backgroundColor: colors.surfaceMuted,
+    marginBottom: 7,
   },
   achievementTitle: {
-    color: colors.text,
-    fontSize: 12,
+    color: "#15121F",
+    fontSize: 11,
     fontWeight: "900",
-    lineHeight: 16,
+    lineHeight: 15,
     textAlign: "center",
   },
   menu: {
     marginTop: 22,
     borderRadius: 22,
     overflow: "hidden",
-    backgroundColor: colors.surface,
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: "#E8E4F0",
   },
   menuRow: {
     minHeight: 64,
@@ -828,16 +775,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: "#E8E4F0",
   },
-  toggleRow: {
-    minHeight: 64,
-    paddingHorizontal: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+  menuRowLast: {
+    borderBottomWidth: 0,
   },
   menuRowLeft: {
     flexDirection: "row",
@@ -851,13 +792,9 @@ const styles = StyleSheet.create({
     borderRadius: 11,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#EEE7FA",
-  },
-  menuIconDanger: {
-    backgroundColor: "#FFF1F2",
   },
   menuTitle: {
-    color: colors.text,
+    color: "#15121F",
     fontSize: 14,
     fontWeight: "800",
   },
@@ -870,12 +807,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   menuValue: {
-    color: colors.textMuted,
-    fontSize: 13,
+    color: "#8B8597",
+    fontSize: 12,
     fontWeight: "900",
   },
   footerText: {
-    color: colors.textMuted,
+    color: "#8B8597",
     fontSize: 11,
     fontWeight: "800",
     letterSpacing: 1.5,
@@ -908,18 +845,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginTop: 8,
   },
-  modalInput: {
-    minHeight: 50,
-    marginTop: 16,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surfaceMuted,
-    color: colors.text,
-    fontSize: 14,
-    fontWeight: "700",
-  },
   modalActions: {
     flexDirection: "row",
     gap: 10,
@@ -947,19 +872,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   modalPrimaryText: {
-    color: colors.surface,
-    fontSize: 13,
-    fontWeight: "900",
-  },
-  modalDanger: {
-    flex: 1,
-    minHeight: 46,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.error,
-  },
-  modalDangerText: {
     color: colors.surface,
     fontSize: 13,
     fontWeight: "900",

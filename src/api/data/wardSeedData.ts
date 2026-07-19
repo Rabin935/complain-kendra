@@ -21,6 +21,41 @@ type CitySeedConfig = {
   areas?: Record<number, string>;
 };
 
+const KATHMANDU_WARD_AREAS: Record<number, string> = {
+  1: "Naxal",
+  2: "Lazimpat",
+  3: "Maharajgunj",
+  4: "Baluwatar",
+  5: "Hadigaun",
+  6: "Boudha",
+  7: "Mitra Park",
+  8: "JayaBageshowri",
+  9: "Gausala",
+  10: "Baneshowr",
+  11: "Bhag Durbar",
+  12: "Teku",
+  13: "Kalimati",
+  14: "Kalanki",
+  15: "Dallu",
+  16: "Balaju",
+  17: "Chhetrapati",
+  18: "Naradevi",
+  19: "Damaitol",
+  20: "Bhimsensthan",
+  21: "Jyawahal",
+  22: "Tewahal",
+  23: "Ombahal",
+  24: "Makhan",
+  25: "Masangalli",
+  26: "Lainchaur",
+  27: "MahaBoudha",
+  28: "Old Buspark",
+  29: "Anamnagar",
+  30: "Gyaneshwor",
+  31: "Shantinagar",
+  32: "Koteshowr",
+};
+
 const CITY_SEED_CONFIGS: CitySeedConfig[] = [
   {
     city: "Kathmandu",
@@ -28,13 +63,7 @@ const CITY_SEED_CONFIGS: CitySeedConfig[] = [
     province: "Bagmati Province",
     totalWards: 32,
     center: { lat: 27.7172, lng: 85.324 },
-    areas: {
-      10: "Baneshwor",
-      12: "Koteshwor",
-      16: "Naxal",
-      22: "New Road",
-      31: "Shantinagar",
-    },
+    areas: KATHMANDU_WARD_AREAS,
   },
   {
     city: "Lalitpur",

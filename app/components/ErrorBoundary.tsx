@@ -1,5 +1,12 @@
-import { Component, type ErrorInfo, type ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Text } from "@/src/theme/typography";
+import {
+  Component,
+  type ErrorInfo,
+  type ReactNode } from "react";
+import { Pressable,
+  StyleSheet,
+  View,
+} from "react-native";
 import { colors } from "../constants/colors";
 
 interface ErrorBoundaryProps {

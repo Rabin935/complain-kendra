@@ -1,12 +1,16 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Text, TextInput } from "@/src/theme/typography";
+import {
+  MaterialCommunityIcons } from "@expo/vector-icons";
+import { useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from "react-native";
 import { colors } from "../../../constants/colors";
@@ -14,7 +18,7 @@ import { mapConfig } from "../config/map.config";
 import { requestCurrentLocation } from "../services/geolocation.service";
 import { searchLocations } from "../services/locationSearch.service";
 import { reverseGeocode } from "../services/reverseGeocoding.service";
-import { mockWardLookupService } from "../services/wardLookup.service";
+import { wardLookupService } from "../services/wardLookup.service";
 import type {
   Coordinates,
   InteractiveMapProps,
@@ -57,10 +61,8 @@ export default function InteractiveMap({
       setMessage(null);
 
       try {
-        const [nextAddress, ward] = await Promise.all([
-          reverseGeocode(nextCoordinates),
-          mockWardLookupService.lookupWard(nextCoordinates),
-        ]);
+        const nextAddress = await reverseGeocode(nextCoordinates);
+        const ward = await wardLookupService.lookupWard(nextCoordinates, nextAddress);
         setAddress(nextAddress.formattedAddress);
         onLocationChange?.({
           coordinates: nextCoordinates,
@@ -174,7 +176,13 @@ export default function InteractiveMap({
             style={styles.searchInput}
             accessibilityLabel="Search location"
           />
-          {searching ? <ActivityIndicator size="small" color={colors.primary} /> : null}
+          {searching ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <View style={styles.searchFilterIcon}>
+              <MaterialCommunityIcons name="tune-variant" size={16} color={colors.primary} />
+            </View>
+          )}
         </View>
 
         {searchResults.length ? (
@@ -312,6 +320,14 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 13,
     fontWeight: "700",
+  },
+  searchFilterIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F6F2FC",
   },
   searchResults: {
     position: "absolute",

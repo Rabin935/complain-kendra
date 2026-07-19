@@ -31,6 +31,8 @@ export interface CitizenProfile {
   language: "English" | "Nepali";
   isPublic: boolean;
   avatarUrl?: string;
+  bio?: string;
+  createdAt?: string;
 }
 
 export interface CitizenStats {
@@ -79,6 +81,7 @@ export interface CitizenComplaint {
   followers: number;
   followed: boolean;
   photos: string[];
+  reporterId?: string;
   reporterName?: string;
   reporterPrivate?: boolean;
   timeline: ComplaintTimelineItem[];
@@ -153,6 +156,7 @@ export interface AiAnalysisResult {
   department: string;
   etaDays: number;
   summary?: string;
+  improvedDescription?: string;
   keywords?: string[];
   duplicateCheck: {
     isDuplicate: boolean;

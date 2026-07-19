@@ -1,13 +1,18 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { NavigationProp, useNavigation } from "@react-navigation/native";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Text } from "@/src/theme/typography";
+import {
+  MaterialCommunityIcons } from "@expo/vector-icons";
+import { NavigationProp,
+  useNavigation } from "@react-navigation/native";
+import { useCallback,
+  useEffect,
+  useMemo,
+  useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -41,6 +46,36 @@ const categoryFilters: Array<CitizenComplaintCategory | "all"> = [
   "trees",
   "other",
 ];
+const categoryEmojis: Record<CitizenComplaintCategory, string> = {
+  road: "🚧",
+  water: "💧",
+  power: "⚡",
+  waste: "🗑",
+  trees: "🌿",
+  other: "•••",
+};
+const categoryIcons: Record<
+  CitizenComplaintCategory | "all",
+  keyof typeof MaterialCommunityIcons.glyphMap
+> = {
+  all: "view-grid-outline",
+  road: "road-variant",
+  water: "water-outline",
+  power: "lightning-bolt-outline",
+  waste: "trash-can-outline",
+  trees: "tree-outline",
+  other: "dots-horizontal",
+};
+const statusIcons: Record<
+  CitizenComplaint["status"],
+  keyof typeof MaterialCommunityIcons.glyphMap
+> = {
+  pending: "clock-outline",
+  accepted: "check",
+  in_progress: "progress-clock",
+  resolved: "check-circle-outline",
+  rejected: "close-circle-outline",
+};
 
 function hasUsableCoordinates(profile: CitizenProfile): boolean {
   return (
@@ -55,7 +90,7 @@ export default function BrowseScreen() {
   const navigation = useNavigation<BrowseNavigation>();
   const [profile, setProfile] = useState<CitizenProfile | null>(null);
   const [complaints, setComplaints] = useState<CitizenComplaint[]>([]);
-  const [mapLocation, setMapLocation] = useState<SelectedMapLocation | null>(null);
+  const [, setMapLocation] = useState<SelectedMapLocation | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<CitizenComplaintCategory | "all">("all");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -63,7 +98,9 @@ export default function BrowseScreen() {
 
   const filteredComplaints = useMemo(() => {
     return complaints.filter((complaint) => {
-      return categoryFilter === "all" || complaint.category === categoryFilter;
+      const matchesCategory =
+        categoryFilter === "all" || complaint.category === categoryFilter;
+      return complaint.status !== "resolved" && matchesCategory;
     });
   }, [categoryFilter, complaints]);
 
@@ -177,7 +214,11 @@ export default function BrowseScreen() {
             height={500}
             markers={complaintMarkers}
             selectedLocation={initialMapLocation}
-            searchPlaceholder="Koteshwor, Ward 12"
+            searchPlaceholder={
+              profile
+                ? `${profile.location.area || profile.location.city}, ${profile.location.ward}`
+                : "Search ward or location"
+            }
             showInfoPanel={false}
             onLocationChange={setMapLocation}
             onMarkerPress={openMarker}
@@ -199,13 +240,18 @@ export default function BrowseScreen() {
                   style={[styles.categoryChip, active ? styles.categoryChipActive : null]}
                   onPress={() => setCategoryFilter(category)}
                 >
+                  <MaterialCommunityIcons
+                    name={categoryIcons[category]}
+                    size={14}
+                    color={active ? colors.surface : colors.text}
+                  />
                   <Text
                     style={[
                       styles.categoryChipText,
                       active ? styles.categoryChipTextActive : null,
                     ]}
                   >
-                    {category === "all" ? "All" : meta?.label}
+                    {category === "all" ? "All" : category === "road" ? "Roads" : meta?.label}
                   </Text>
                 </Pressable>
               );
@@ -219,10 +265,13 @@ export default function BrowseScreen() {
             <View>
               <Text style={styles.sheetTitle}>Nearby Complaints</Text>
               <Text style={styles.sheetSubtitle}>
-                {mapLocation?.ward?.wardName ?? `${filteredComplaints.length} active within 2 km`}
+                {filteredComplaints.length} active within 2 km
               </Text>
             </View>
-            <Text style={styles.distanceSort}>Distance</Text>
+            <View style={styles.distanceSortRow}>
+              <MaterialCommunityIcons name="swap-vertical" size={14} color={colors.primary} />
+              <Text style={styles.distanceSort}>Distance</Text>
+            </View>
           </View>
 
           {error ? (
@@ -278,28 +327,28 @@ function NearbyComplaintRow({
   return (
     <Pressable style={[styles.complaintRow, bordered ? styles.complaintRowBordered : null]} onPress={onOpen}>
       <View style={[styles.rowIcon, { backgroundColor: meta.softColor }]}>
-        <MaterialCommunityIcons
-          name={meta.icon as keyof typeof MaterialCommunityIcons.glyphMap}
-          size={24}
-          color={meta.color}
-        />
+        <Text style={styles.rowEmoji}>{categoryEmojis[complaint.category]}</Text>
       </View>
       <View style={styles.rowBody}>
         <Text style={styles.rowTitle} numberOfLines={1}>{complaint.title}</Text>
         <View style={styles.rowMeta}>
           <View style={[styles.statusBadge, { backgroundColor: `${statusColors[complaint.status]}18` }]}>
+            <MaterialCommunityIcons
+              name={statusIcons[complaint.status]}
+              size={12}
+              color={statusColors[complaint.status]}
+            />
             <Text style={[styles.statusText, { color: statusColors[complaint.status] }]}>
               {statusLabels[complaint.status]}
             </Text>
           </View>
-          <Text style={styles.metaText}>
-            {formatDistance(complaint.distanceKm)} - {complaint.upvotes} upvotes
-          </Text>
+          <Pressable style={styles.upvoteRow} onPress={onUpvote} hitSlop={8}>
+            <Text style={styles.metaText}>
+              {formatDistance(complaint.distanceKm)} · {complaint.upvotes} votes
+            </Text>
+          </Pressable>
         </View>
       </View>
-      <Pressable style={styles.upvoteButton} onPress={onUpvote}>
-        <MaterialCommunityIcons name="thumb-up-outline" size={17} color={colors.primary} />
-      </Pressable>
     </Pressable>
   );
 }
@@ -337,6 +386,14 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.95)",
     borderWidth: 1,
     borderColor: colors.border,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    shadowColor: colors.primaryDeep,
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
   categoryChipActive: {
     backgroundColor: colors.primary,
@@ -390,6 +447,11 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginTop: 2,
   },
+  distanceSortRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
   distanceSort: {
     color: colors.primary,
     fontSize: 12,
@@ -440,6 +502,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  rowEmoji: {
+    fontSize: 24,
+  },
   rowBody: {
     flex: 1,
     minWidth: 0,
@@ -459,12 +524,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 9,
     paddingVertical: 4,
     borderRadius: 999,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   statusText: {
     fontSize: 11,
     fontWeight: "900",
   },
   metaText: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  upvoteRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
+  upvoteText: {
     color: colors.textMuted,
     fontSize: 11,
     fontWeight: "800",

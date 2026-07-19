@@ -60,6 +60,7 @@ export interface User {
   ward?: string;
   wardId?: string;
   homeArea?: string;
+  bio?: string;
   address?: string;
   city?: string;
   municipality?: string;
@@ -132,6 +133,7 @@ export interface ComplaintAiAnalysis {
   };
   verified: boolean;
   summary: string;
+  improvedDescription?: string;
   keywords: string[];
   analyzedAt: Date;
 }

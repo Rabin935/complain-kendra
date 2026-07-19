@@ -1,5 +1,8 @@
-import { useState } from "react";
+import { Text, TextInput } from "@/src/theme/typography";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { LinearGradient } from "expo-linear-gradient";
+import { useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -7,11 +10,10 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from "react-native";
 import { colors } from "../../../constants/colors";
+import { radii, shadows } from "../../../constants/theme";
 import { useAuth } from "../context/AuthContext";
 import type { AuthStackParamList } from "../types/auth.types";
 
@@ -23,6 +25,7 @@ const successMessage = "If your email exists, a reset link has been sent";
 export default function ForgotPasswordScreen({ navigation }: ForgotPasswordScreenProps) {
   const { forgotPassword, loading } = useAuth();
   const [email, setEmail] = useState("");
+  const [focused, setFocused] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
@@ -62,13 +65,35 @@ export default function ForgotPasswordScreen({ navigation }: ForgotPasswordScree
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <View style={styles.card}>
-          <View style={styles.header}>
-            <Text style={styles.badge}>Complain-kendra</Text>
+        <View style={styles.header}>
+          <Pressable
+            accessibilityLabel="Go back"
+            style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
+            onPress={() => navigation.replace("Login")}
+          >
+            <MaterialCommunityIcons name="arrow-left" size={20} color={colors.text} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Reset Password</Text>
+        </View>
+
+        <View style={styles.content}>
+          <View style={styles.hero}>
+            <View style={styles.heroRing}>
+              <LinearGradient
+                colors={["#EEE8FA", "#F6F2FC"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.heroIcon}
+              >
+                <MaterialCommunityIcons name="lock-reset" size={44} color={colors.primary} />
+              </LinearGradient>
+            </View>
             <Text style={styles.title}>Forgot password?</Text>
             <Text style={styles.subtitle}>
-              Enter the email address tied to your account and we&apos;ll send a reset link.
+              No worries. Enter the email you registered with and we&apos;ll send a secure reset
+              link.
             </Text>
           </View>
 
@@ -76,56 +101,80 @@ export default function ForgotPasswordScreen({ navigation }: ForgotPasswordScree
           {infoMessage ? <Text style={styles.successText}>{infoMessage}</Text> : null}
 
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              value={email}
-              onChangeText={(value) => {
-                setEmail(value);
-                setErrorMessage(null);
-                setInfoMessage(null);
-              }}
-              placeholder="you@example.com"
-              placeholderTextColor={colors.textMuted}
-              style={styles.input}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="email-address"
-              textContentType="emailAddress"
-            />
+            <Text style={styles.label}>Email Address</Text>
+            <View style={[styles.inputShell, focused && styles.inputShellFocused]}>
+              <MaterialCommunityIcons
+                name="email-outline"
+                size={18}
+                color={focused ? colors.primary : colors.textMuted}
+              />
+              <TextInput
+                value={email}
+                onChangeText={(value) => {
+                  setEmail(value);
+                  setErrorMessage(null);
+                  setInfoMessage(null);
+                }}
+                onFocus={() => setFocused(true)}
+                onBlur={() => setFocused(false)}
+                placeholder="you@example.com"
+                placeholderTextColor={colors.textMuted}
+                style={styles.input}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="email-address"
+                textContentType="emailAddress"
+              />
+            </View>
           </View>
 
           <Pressable
-            onPress={() => {
-              void handleSubmit();
-            }}
+            onPress={() => void handleSubmit()}
             disabled={loading}
             style={({ pressed }) => [
-              styles.primaryButton,
-              pressed && !loading ? styles.primaryButtonPressed : null,
-              loading ? styles.buttonDisabled : null,
+              styles.primaryButtonShell,
+              pressed && !loading && styles.pressed,
+              loading && styles.buttonDisabled,
             ]}
           >
-            {loading ? (
-              <ActivityIndicator color={colors.surface} />
-            ) : (
-              <Text style={styles.primaryButtonText}>Send Reset Link</Text>
-            )}
+            <LinearGradient
+              colors={["#7B4FC8", "#6038B0"]}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+              style={styles.primaryButton}
+            >
+              {loading ? (
+                <ActivityIndicator color={colors.surface} />
+              ) : (
+                <>
+                  <Text style={styles.primaryButtonText}>Send Reset Link</Text>
+                  <MaterialCommunityIcons name="send" size={18} color="#FFFFFF" />
+                </>
+              )}
+            </LinearGradient>
           </Pressable>
+
+          <View style={styles.inboxCard}>
+            <MaterialCommunityIcons name="email-check-outline" size={22} color={colors.primary} />
+            <View style={styles.inboxCopy}>
+              <Text style={styles.inboxTitle}>Check your inbox</Text>
+              <Text style={styles.inboxText}>
+                Reset link expires in 30 minutes. Don&apos;t forget to check spam.
+              </Text>
+            </View>
+          </View>
 
           <Pressable
             onPress={() => navigation.navigate("ResetPassword")}
-            style={({ pressed }) => [
-              styles.secondaryButton,
-              pressed ? styles.secondaryButtonPressed : null,
-            ]}
+            style={({ pressed }) => [styles.tokenLink, pressed && styles.pressed]}
           >
-            <Text style={styles.secondaryButtonText}>Already have a token?</Text>
+            <Text style={styles.tokenText}>Already have a reset token? Enter it</Text>
           </Pressable>
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Remembered your password?</Text>
+            <Text style={styles.footerText}>Remember password?</Text>
             <Pressable onPress={() => navigation.replace("Login")}>
-              <Text style={styles.footerLink}>Back to Login</Text>
+              <Text style={styles.footerLink}>Sign In</Text>
             </Pressable>
           </View>
         </View>
@@ -137,135 +186,210 @@ export default function ForgotPasswordScreen({ navigation }: ForgotPasswordScree
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: "#FFFFFF",
   },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 32,
-  },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: 24,
-    padding: 24,
-    shadowColor: colors.shadow,
-    shadowOpacity: 1,
-    shadowRadius: 28,
-    shadowOffset: { width: 0, height: 16 },
-    elevation: 8,
+    width: "100%",
+    maxWidth: 430,
+    alignSelf: "center",
+    paddingBottom: 32,
   },
   header: {
-    marginBottom: 24,
+    minHeight: 66,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
   },
-  badge: {
-    alignSelf: "flex-start",
-    backgroundColor: colors.primaryLight,
-    color: colors.primaryDark,
-    borderRadius: 999,
-    overflow: "hidden",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    fontSize: 12,
-    fontWeight: "700",
-    marginBottom: 16,
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F8F6FC",
+    borderWidth: 1,
+    borderColor: "#E8E4F0",
+  },
+  headerTitle: {
+    flex: 1,
+    color: "#15121F",
+    fontSize: 19,
+    fontWeight: "800",
+  },
+  content: {
+    paddingHorizontal: 24,
+  },
+  hero: {
+    alignItems: "center",
+    paddingTop: 20,
+    paddingBottom: 32,
+  },
+  heroRing: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderColor: "#EEE8FA",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 18,
+  },
+  heroIcon: {
+    width: 96,
+    height: 96,
+    borderRadius: 30,
+    borderWidth: 1,
+    borderColor: "#EEE8FA",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  heroEmoji: {
+    fontSize: 36,
   },
   title: {
-    color: colors.text,
-    fontSize: 28,
+    color: "#15121F",
+    fontSize: 24,
     fontWeight: "800",
-    marginBottom: 10,
+    letterSpacing: -0.6,
+    marginBottom: 8,
   },
   subtitle: {
-    color: colors.textMuted,
-    fontSize: 15,
+    maxWidth: 300,
+    color: "#8B8597",
+    fontSize: 14,
     lineHeight: 22,
+    textAlign: "center",
   },
   errorText: {
     color: colors.error,
     backgroundColor: "#FEF2F2",
     borderRadius: 14,
     paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 16,
-    fontSize: 14,
+    paddingVertical: 11,
+    marginBottom: 12,
+    fontSize: 12,
+    fontWeight: "700",
   },
   successText: {
-    color: colors.success,
+    color: "#166534",
     backgroundColor: "#F0FDF4",
     borderRadius: 14,
     paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 16,
-    fontSize: 14,
+    paddingVertical: 11,
+    marginBottom: 12,
+    fontSize: 12,
+    fontWeight: "700",
   },
   fieldGroup: {
-    marginBottom: 20,
+    marginBottom: 12,
   },
   label: {
-    color: colors.text,
-    fontSize: 14,
+    color: "#4A4458",
+    fontSize: 12,
     fontWeight: "700",
-    marginBottom: 8,
+    marginBottom: 6,
+  },
+  inputShell: {
+    minHeight: 50,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "#E8E4F0",
+    backgroundColor: "#F8F6FC",
+  },
+  inputShellFocused: {
+    borderColor: "#6038B0",
+    backgroundColor: "#FFFFFF",
+    ...shadows.focusRing,
   },
   input: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 15,
-    fontSize: 16,
-    color: colors.text,
-    backgroundColor: "#FBFDFF",
+    flex: 1,
+    color: "#15121F",
+    fontSize: 14,
+    paddingVertical: Platform.OS === "ios" ? 13 : 9,
+  },
+  primaryButtonShell: {
+    marginTop: 10,
+    borderRadius: radii.button,
+    overflow: "hidden",
+    ...shadows.button,
   },
   primaryButton: {
+    minHeight: 52,
+    borderRadius: radii.button,
+    flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.primary,
-    borderRadius: 16,
-    paddingVertical: 16,
-  },
-  primaryButtonPressed: {
-    opacity: 0.92,
-  },
-  secondaryButton: {
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 16,
-    paddingVertical: 15,
-    marginTop: 12,
-    backgroundColor: "#F9FBFC",
-  },
-  secondaryButtonPressed: {
-    opacity: 0.94,
-  },
-  buttonDisabled: {
-    opacity: 0.7,
+    justifyContent: "center",
+    gap: 8,
   },
   primaryButtonText: {
-    color: colors.surface,
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: "800",
+    fontWeight: "700",
   },
-  secondaryButtonText: {
-    color: colors.primaryDark,
-    fontSize: 15,
+  inboxCard: {
+    marginTop: 20,
+    padding: 14,
+    minHeight: 86,
+    flexDirection: "row",
+    gap: 12,
+    alignItems: "flex-start",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#EEE8FA",
+    backgroundColor: "#F6F2FC",
+  },
+  inboxCopy: {
+    flex: 1,
+  },
+  inboxTitle: {
+    color: "#2A1550",
+    fontSize: 13,
+    fontWeight: "700",
+    marginBottom: 3,
+  },
+  inboxText: {
+    color: "#4A4458",
+    fontSize: 12,
+    lineHeight: 19,
+  },
+  tokenLink: {
+    alignSelf: "center",
+    marginTop: 18,
+  },
+  tokenText: {
+    color: "#6038B0",
+    fontSize: 12,
     fontWeight: "700",
   },
   footer: {
+    marginTop: 22,
     flexDirection: "row",
-    justifyContent: "center",
     alignItems: "center",
-    gap: 6,
-    marginTop: 20,
+    justifyContent: "center",
+    gap: 4,
   },
   footerText: {
-    color: colors.textMuted,
-    fontSize: 14,
+    color: "#4A4458",
+    fontSize: 13,
   },
   footerLink: {
-    color: colors.primaryDark,
-    fontSize: 14,
-    fontWeight: "800",
+    color: "#6038B0",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  pressed: {
+    opacity: 0.75,
+  },
+  buttonDisabled: {
+    opacity: 0.68,
   },
 });

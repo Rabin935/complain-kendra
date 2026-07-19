@@ -12,6 +12,41 @@ export interface WardOption {
   lng?: number;
 }
 
+const kathmanduWardAreas: Record<number, string> = {
+  1: "Naxal",
+  2: "Lazimpat",
+  3: "Maharajgunj",
+  4: "Baluwatar",
+  5: "Hadigaun",
+  6: "Boudha",
+  7: "Mitra Park",
+  8: "JayaBageshowri",
+  9: "Gausala",
+  10: "Baneshowr",
+  11: "Bhag Durbar",
+  12: "Teku",
+  13: "Kalimati",
+  14: "Kalanki",
+  15: "Dallu",
+  16: "Balaju",
+  17: "Chhetrapati",
+  18: "Naradevi",
+  19: "Damaitol",
+  20: "Bhimsensthan",
+  21: "Jyawahal",
+  22: "Tewahal",
+  23: "Ombahal",
+  24: "Makhan",
+  25: "Masangalli",
+  26: "Lainchaur",
+  27: "MahaBoudha",
+  28: "Old Buspark",
+  29: "Anamnagar",
+  30: "Gyaneshwor",
+  31: "Shantinagar",
+  32: "Koteshowr",
+};
+
 type WardCityConfig = {
   city: string;
   municipality: string;
@@ -26,13 +61,7 @@ const wardCityConfigs: WardCityConfig[] = [
     municipality: "Kathmandu Metropolitan City",
     province: "Bagmati Province",
     totalWards: 32,
-    areas: {
-      10: "Baneshwor",
-      12: "Koteshwor",
-      16: "Naxal",
-      22: "New Road",
-      31: "Shantinagar",
-    },
+    areas: kathmanduWardAreas,
   },
   {
     city: "Lalitpur",
@@ -100,17 +129,30 @@ function numberFrom(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
+function getCanonicalWardArea(city: string, wardNumber: string, fallback?: string): string | undefined {
+  const normalizedCity = city.trim().toLowerCase();
+  const parsedWardNumber = Number.parseInt(wardNumber, 10);
+
+  if (normalizedCity === "kathmandu" && Number.isFinite(parsedWardNumber)) {
+    return kathmanduWardAreas[parsedWardNumber] ?? fallback;
+  }
+
+  return fallback;
+}
+
 function normalizeWard(value: unknown): WardOption {
   const ward = isRecord(value) ? value : {};
+  const wardNumber = stringFrom(ward.wardNumber ?? ward.ward_number);
+  const city = stringFrom(ward.city);
 
   return {
     id: stringFrom(ward.id ?? ward._id),
-    wardNumber: stringFrom(ward.wardNumber ?? ward.ward_number),
+    wardNumber,
     wardName: stringFrom(ward.wardName ?? ward.name, "Ward"),
-    city: stringFrom(ward.city),
+    city,
     municipality: stringFrom(ward.municipality),
     province: stringFrom(ward.province),
-    area: stringFrom(ward.area) || undefined,
+    area: getCanonicalWardArea(city, wardNumber, stringFrom(ward.area) || undefined),
     lat: numberFrom(ward.lat),
     lng: numberFrom(ward.lng),
   };

@@ -7,14 +7,11 @@ interface UserTabIconProps {
   focused: boolean;
 }
 
-export default function UserTabIcon({
-  icon,
-  focused,
-}: UserTabIconProps) {
+export default function UserTabIcon({ icon, focused }: UserTabIconProps) {
   return (
     <MaterialCommunityIcons
-      name={icon as keyof typeof MaterialCommunityIcons.glyphMap}
-      size={26}
+      name={icon as React.ComponentProps<typeof MaterialCommunityIcons>["name"]}
+      size={22}
       color={focused ? colors.primary : colors.textMuted}
       style={styles.icon}
     />

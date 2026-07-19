@@ -102,6 +102,7 @@ export type AuthStackParamList = {
   Register: undefined;
   OtpVerification: {
     email: string;
+    phone?: string;
     message?: string;
     devOtp?: string;
   };

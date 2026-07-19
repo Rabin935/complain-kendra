@@ -1,7 +1,13 @@
-import { useFocusEffect } from "@react-navigation/native";
-import { useCallback, useState } from "react";
-import { StyleSheet, Switch, Text, View } from "react-native";
-import { colors } from "../../../constants/colors";
+import { Text } from "@/src/theme/typography";
+import {
+  useFocusEffect } from "@react-navigation/native";
+import { useCallback,
+  useState } from "react";
+import { StyleSheet,
+  Switch,
+  View,
+} from "react-native";
+import { officerColors } from "../../../constants/theme";
 import { getApiErrorMessage } from "../../../../src/lib/api";
 import { useAuth } from "../../auth/context/AuthContext";
 import OfficerScreen from "../components/OfficerScreen";
@@ -154,7 +160,7 @@ export default function OfficerSettingsScreen() {
                 onValueChange={(nextValue) =>
                   setPreference(key as keyof OfficerNotificationPreferences, nextValue)
                 }
-                thumbColor={value ? colors.primary : colors.textMuted}
+                thumbColor={value ? officerColors.accent : officerColors.textMuted}
               />
             </View>
           ))}
@@ -257,8 +263,8 @@ export default function OfficerSettingsScreen() {
 
 const styles = StyleSheet.create({
   panel: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
+    backgroundColor: officerColors.surface,
+    borderColor: officerColors.borderStrong,
     borderRadius: 8,
     borderWidth: 1,
     gap: 12,
@@ -270,7 +276,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   switchLabel: {
-    color: colors.text,
+    color: officerColors.text,
     fontSize: 14,
     fontWeight: "800",
     textTransform: "capitalize",
@@ -280,8 +286,8 @@ const styles = StyleSheet.create({
   },
   row: {
     alignItems: "center",
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
+    backgroundColor: officerColors.surface,
+    borderColor: officerColors.borderStrong,
     borderRadius: 8,
     borderWidth: 1,
     flexDirection: "row",
@@ -292,17 +298,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rowTitle: {
-    color: colors.text,
+    color: officerColors.text,
     fontSize: 14,
     fontWeight: "900",
   },
   meta: {
-    color: colors.textMuted,
+    color: officerColors.textMuted,
     fontSize: 12,
     lineHeight: 18,
   },
   ruleRow: {
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: officerColors.surfaceRaised,
     borderRadius: 8,
     gap: 4,
     padding: 12,

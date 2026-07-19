@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type * as Leaflet from "leaflet";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { colors } from "../../../constants/colors";
 import { mapConfig } from "../config/map.config";
 import { requestCurrentLocation } from "../services/geolocation.service";
 import { searchLocations } from "../services/locationSearch.service";
 import { reverseGeocode } from "../services/reverseGeocoding.service";
-import { mockWardLookupService } from "../services/wardLookup.service";
+import { wardLookupService } from "../services/wardLookup.service";
 import type {
   Coordinates,
   InteractiveMapProps,
@@ -150,10 +151,8 @@ export default function InteractiveMap({
 
       const refreshAddress = async () => {
         try {
-          const [nextAddress, ward] = await Promise.all([
-            reverseGeocode(nextCoordinates),
-            mockWardLookupService.lookupWard(nextCoordinates),
-          ]);
+          const nextAddress = await reverseGeocode(nextCoordinates);
+          const ward = await wardLookupService.lookupWard(nextCoordinates, nextAddress);
           setAddress(nextAddress.formattedAddress);
           onLocationChange?.({
             coordinates: nextCoordinates,
@@ -380,7 +379,7 @@ export default function InteractiveMap({
       <div ref={mapElementRef} aria-label="Interactive complaint map" role="application" style={styles.map} />
 
       <div style={styles.searchCard}>
-        <span aria-hidden="true" style={styles.searchIcon}>⌕</span>
+        <MaterialCommunityIcons name="magnify" size={19} color={colors.primary} />
         <input
           aria-label="Search location"
           value={query}
@@ -388,7 +387,13 @@ export default function InteractiveMap({
           placeholder={searchPlaceholder}
           style={styles.searchInput}
         />
-        {searching ? <span style={styles.searching}>...</span> : null}
+        {searching ? (
+          <span style={styles.searching}>...</span>
+        ) : (
+          <span style={styles.searchFilterIcon}>
+            <MaterialCommunityIcons name="tune-variant" size={16} color={colors.primary} />
+          </span>
+        )}
       </div>
 
       {searchResults.length ? (
@@ -407,9 +412,9 @@ export default function InteractiveMap({
       ) : null}
 
       <div style={styles.controls}>
-        <MapButton label="Zoom in" onClick={() => zoomBy(1)}>+</MapButton>
-        <MapButton label="Zoom out" onClick={() => zoomBy(-1)}>-</MapButton>
-        <MapButton label="Locate me" onClick={locateMe}>o</MapButton>
+        <MapButton label="Zoom in" icon="plus" onClick={() => zoomBy(1)} />
+        <MapButton label="Zoom out" icon="minus" onClick={() => zoomBy(-1)} />
+        <MapButton label="Locate me" icon="navigation-variant" onClick={locateMe} />
       </div>
 
       {showInfoPanel ? (
@@ -429,16 +434,16 @@ export default function InteractiveMap({
 
 function MapButton({
   label,
-  children,
+  icon,
   onClick,
 }: {
   label: string;
-  children: React.ReactNode;
+  icon: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
   onClick: () => void;
 }) {
   return (
     <button aria-label={label} title={label} type="button" style={styles.controlButton} onClick={onClick}>
-      {children}
+      <MaterialCommunityIcons name={icon} size={17} color={colors.textSecondary} />
     </button>
   );
 }
@@ -448,6 +453,7 @@ const styles = {
     width: "100%",
     overflow: "hidden",
     backgroundColor: "#DCD3F0",
+    fontFamily: "Inter_400Regular, system-ui, sans-serif",
   } satisfies React.CSSProperties,
   map: {
     width: "100%",
@@ -471,7 +477,7 @@ const styles = {
   searchIcon: {
     color: colors.textMuted,
     fontSize: 20,
-    fontWeight: 900,
+    fontWeight: 600,
   } satisfies React.CSSProperties,
   searchInput: {
     flex: 1,
@@ -480,12 +486,22 @@ const styles = {
     outline: "none",
     color: colors.text,
     fontSize: 13,
-    fontWeight: 700,
+    fontWeight: 600,
     background: "transparent",
+  } satisfies React.CSSProperties,
+  searchFilterIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "#F6F2FC",
+    flexShrink: 0,
   } satisfies React.CSSProperties,
   searching: {
     color: colors.primary,
-    fontWeight: 900,
+    fontWeight: 600,
   } satisfies React.CSSProperties,
   searchResults: {
     position: "absolute",
@@ -510,7 +526,7 @@ const styles = {
     color: colors.text,
     textAlign: "left",
     fontSize: 12,
-    fontWeight: 700,
+    fontWeight: 500,
     cursor: "pointer",
   } satisfies React.CSSProperties,
   controls: {
@@ -530,7 +546,7 @@ const styles = {
     background: colors.surface,
     color: colors.primary,
     fontSize: 18,
-    fontWeight: 900,
+    fontWeight: 700,
     cursor: "pointer",
     boxShadow: "0 6px 16px rgba(42,21,80,0.16)",
   } satisfies React.CSSProperties,
@@ -551,11 +567,12 @@ const styles = {
   coordinates: {
     color: colors.primary,
     fontSize: 12,
+    fontWeight: 600,
   } satisfies React.CSSProperties,
   address: {
     color: colors.text,
     fontSize: 12,
-    fontWeight: 700,
+    fontWeight: 500,
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
@@ -567,7 +584,7 @@ const styles = {
     background: "transparent",
     color: colors.warning,
     fontSize: 11,
-    fontWeight: 800,
+    fontWeight: 600,
     cursor: "pointer",
     textAlign: "left",
   } satisfies React.CSSProperties,

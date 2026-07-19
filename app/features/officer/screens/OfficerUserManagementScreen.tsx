@@ -1,7 +1,16 @@
-import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
-import { useCallback, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
-import { colors } from "../../../constants/colors";
+import { Text } from "@/src/theme/typography";
+import {
+  useFocusEffect,
+  useNavigation,
+  useRoute } from "@react-navigation/native";
+import { useCallback,
+  useState } from "react";
+import { Alert,
+  Pressable,
+  StyleSheet,
+  View,
+} from "react-native";
+import { officerColors } from "../../../constants/theme";
 import { getApiErrorMessage } from "../../../../src/lib/api";
 import { useAuth } from "../../auth/context/AuthContext";
 import OfficerScreen from "../components/OfficerScreen";
@@ -216,20 +225,20 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   panel: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
+    backgroundColor: officerColors.surface,
+    borderColor: officerColors.borderStrong,
     borderRadius: 8,
     borderWidth: 1,
     gap: 10,
     padding: 14,
   },
   name: {
-    color: colors.text,
+    color: officerColors.text,
     fontSize: 20,
     fontWeight: "900",
   },
   meta: {
-    color: colors.textMuted,
+    color: officerColors.textMuted,
     fontSize: 12,
     lineHeight: 18,
   },
@@ -248,8 +257,8 @@ const styles = StyleSheet.create({
   },
   row: {
     alignItems: "center",
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
+    backgroundColor: officerColors.surface,
+    borderColor: officerColors.borderStrong,
     borderRadius: 8,
     borderWidth: 1,
     flexDirection: "row",
@@ -260,7 +269,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rowTitle: {
-    color: colors.text,
+    color: officerColors.text,
     fontSize: 15,
     fontWeight: "900",
   },

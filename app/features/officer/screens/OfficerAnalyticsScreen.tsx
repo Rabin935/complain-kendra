@@ -1,7 +1,12 @@
-import { useFocusEffect } from "@react-navigation/native";
-import { useCallback, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
-import { colors } from "../../../constants/colors";
+import { Text } from "@/src/theme/typography";
+import {
+  useFocusEffect } from "@react-navigation/native";
+import { useCallback,
+  useState } from "react";
+import { StyleSheet,
+  View,
+} from "react-native";
+import { officerColors } from "../../../constants/theme";
 import { getApiErrorMessage } from "../../../../src/lib/api";
 import OfficerScreen from "../components/OfficerScreen";
 import { EmptyState, ErrorState, LoadingState, Section, SelectRow, TextField } from "../components/OfficerUI";
@@ -150,27 +155,27 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   statCard: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
+    backgroundColor: officerColors.surface,
+    borderColor: officerColors.borderStrong,
     borderRadius: 8,
     borderWidth: 1,
     padding: 14,
     width: "48%",
   },
   statValue: {
-    color: colors.text,
+    color: officerColors.text,
     fontSize: 24,
     fontWeight: "900",
   },
   statLabel: {
-    color: colors.textMuted,
+    color: officerColors.textMuted,
     fontSize: 12,
     fontWeight: "800",
     marginTop: 6,
   },
   chartList: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
+    backgroundColor: officerColors.surface,
+    borderColor: officerColors.borderStrong,
     borderRadius: 8,
     borderWidth: 1,
     gap: 12,
@@ -184,24 +189,24 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   chartLabel: {
-    color: colors.text,
+    color: officerColors.text,
     fontSize: 13,
     fontWeight: "800",
     textTransform: "capitalize",
   },
   chartValue: {
-    color: colors.textMuted,
+    color: officerColors.textMuted,
     fontSize: 12,
     fontWeight: "900",
   },
   barTrack: {
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: officerColors.surfaceRaised,
     borderRadius: 999,
     height: 9,
     overflow: "hidden",
   },
   barFill: {
-    backgroundColor: colors.primary,
+    backgroundColor: officerColors.accent,
     borderRadius: 999,
     height: 9,
   },

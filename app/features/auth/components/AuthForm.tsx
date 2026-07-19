@@ -1,4 +1,6 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Text, TextInput } from "@/src/theme/typography";
+import {
+  MaterialCommunityIcons } from "@expo/vector-icons";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -7,8 +9,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from "react-native";
 import { colors } from "../../../constants/colors";

@@ -1,7 +1,8 @@
+import { Text } from "@/src/theme/typography";
 import type { ReactNode } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { colors } from "../../../constants/colors";
+import { officerColors } from "../../../constants/theme";
 
 export default function OfficerScreen({
   title,
@@ -33,11 +34,11 @@ export default function OfficerScreen({
 
 const styles = StyleSheet.create({
   safeArea: {
-    backgroundColor: colors.background,
+    backgroundColor: officerColors.background,
     flex: 1,
   },
   content: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingTop: 14,
   },
   contentWithTabs: {
@@ -48,18 +49,20 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   eyebrow: {
-    color: colors.primary,
-    fontSize: 12,
+    color: officerColors.textMuted,
+    fontSize: 11,
     fontWeight: "900",
+    letterSpacing: 1.4,
     textTransform: "uppercase",
   },
   title: {
-    color: colors.text,
+    color: officerColors.text,
     fontSize: 28,
     fontWeight: "900",
+    letterSpacing: -0.4,
   },
   subtitle: {
-    color: colors.textMuted,
+    color: officerColors.textSecondary,
     fontSize: 14,
     lineHeight: 20,
   },

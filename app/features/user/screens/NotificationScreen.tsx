@@ -1,13 +1,18 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { NavigationProp, useNavigation } from "@react-navigation/native";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Text } from "@/src/theme/typography";
+import {
+  MaterialCommunityIcons } from "@expo/vector-icons";
+import { NavigationProp,
+  useNavigation } from "@react-navigation/native";
+import { useCallback,
+  useEffect,
+  useMemo,
+  useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -18,7 +23,7 @@ import {
   markNotificationRead,
 } from "../services/citizen.service";
 import type { CitizenNotification } from "../types/citizen.types";
-import type { UserStackParamList, UserTabParamList } from "../types/user.types";
+import type { UserStackParamList } from "../types/user.types";
 
 type NotificationNavigation = NavigationProp<UserStackParamList>;
 type NotificationFilter = "all" | "unread" | "mentions";
@@ -27,17 +32,6 @@ const filters: Array<{ id: NotificationFilter; label: string }> = [
   { id: "all", label: "All" },
   { id: "unread", label: "Unread" },
   { id: "mentions", label: "Mentions" },
-];
-
-const bottomTabs: Array<{
-  route: keyof UserTabParamList;
-  label: string;
-  icon: keyof typeof MaterialCommunityIcons.glyphMap;
-}> = [
-  { route: "Home", label: "Home", icon: "home-variant-outline" },
-  { route: "Mine", label: "Mine", icon: "clipboard-text-clock-outline" },
-  { route: "Browse", label: "Browse", icon: "web" },
-  { route: "Profile", label: "Profile", icon: "account" },
 ];
 
 function isToday(value: string): boolean {
@@ -87,6 +81,12 @@ function isMention(notification: CitizenNotification): boolean {
   const text = `${notification.title} ${notification.body}`.toLowerCase();
 
   return type.includes("comment") || type.includes("mention") || text.includes("commented");
+}
+
+function isResolvedNotification(notification: CitizenNotification): boolean {
+  const type = notification.type?.toLowerCase() ?? "";
+  const text = `${notification.title} ${notification.body}`.toLowerCase();
+  return type === "complaint_resolved" || text.includes("complaint resolved");
 }
 
 function getNotificationIcon(notification: CitizenNotification): {
@@ -216,12 +216,11 @@ export default function NotificationScreen() {
     const complaintId = getComplaintId(notification);
 
     if (complaintId) {
-      navigation.navigate("ComplaintDetail", { complaintId });
+      navigation.navigate(
+        isResolvedNotification(notification) ? "RateResolution" : "ComplaintDetail",
+        { complaintId },
+      );
     }
-  }
-
-  function openTab(route: keyof UserTabParamList) {
-    navigation.navigate("MainTabs", { screen: route });
   }
 
   if (loading) {
@@ -319,34 +318,6 @@ export default function NotificationScreen() {
           />
         </ScrollView>
 
-        <View style={[styles.bottomNav, { paddingBottom: Math.max(insets.bottom, 10) }]}>
-          <Pressable style={styles.navButton} onPress={() => openTab("Home")}>
-            <MaterialCommunityIcons name={bottomTabs[0].icon} size={26} color={colors.textMuted} />
-            <Text style={styles.navLabel}>Home</Text>
-          </Pressable>
-          <Pressable style={styles.navButton} onPress={() => openTab("Mine")}>
-            <MaterialCommunityIcons name={bottomTabs[1].icon} size={26} color={colors.textMuted} />
-            <Text style={styles.navLabel}>Mine</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Create report"
-            style={({ pressed }) => [styles.createSlot, pressed ? styles.pressed : null]}
-            onPress={() => navigation.navigate("Report")}
-          >
-            <View style={styles.createButton}>
-              <MaterialCommunityIcons name="plus" size={31} color={colors.surface} />
-            </View>
-          </Pressable>
-          <Pressable style={styles.navButton} onPress={() => openTab("Browse")}>
-            <MaterialCommunityIcons name={bottomTabs[2].icon} size={26} color={colors.textMuted} />
-            <Text style={styles.navLabel}>Browse</Text>
-          </Pressable>
-          <Pressable style={styles.navButton} onPress={() => openTab("Profile")}>
-            <MaterialCommunityIcons name={bottomTabs[3].icon} size={26} color={colors.textMuted} />
-            <Text style={styles.navLabel}>Profile</Text>
-          </Pressable>
-        </View>
       </View>
     </SafeAreaView>
   );
@@ -644,49 +615,6 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: 13,
     fontWeight: "700",
-  },
-  bottomNav: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    minHeight: 88,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.surface,
-    paddingTop: 12,
-    paddingHorizontal: 8,
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
-  navButton: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 3,
-  },
-  navLabel: {
-    color: colors.textMuted,
-    fontSize: 10,
-    fontWeight: "800",
-  },
-  createSlot: {
-    flex: 1,
-    alignItems: "center",
-    marginTop: -28,
-  },
-  createButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 22,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: colors.primaryDeep,
-    shadowOpacity: 0.26,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 9 },
-    elevation: 14,
   },
   pressed: {
     opacity: 0.72,

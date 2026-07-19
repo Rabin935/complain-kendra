@@ -16,6 +16,7 @@ export interface DashboardShortcut {
 
 export type UserTabParamList = {
   Home: undefined;
+  Notifications: undefined;
   Mine: undefined;
   Browse: undefined;
   Profile: undefined;
@@ -24,8 +25,16 @@ export type UserTabParamList = {
 export type UserStackParamList = {
   MainTabs: NavigatorScreenParams<UserTabParamList> | undefined;
   Report: { category?: CitizenComplaintCategory } | undefined;
-  Notifications: undefined;
   Settings: undefined;
+  EditProfile: undefined;
+  ChangePassword: undefined;
+  LanguageSettings: undefined;
+  HelpSupport: undefined;
+  Leaderboard: undefined;
+  SavedIssues: undefined;
+  RateResolution: {
+    complaintId: string;
+  };
   ComplaintDetail: {
     complaintId: string;
   };

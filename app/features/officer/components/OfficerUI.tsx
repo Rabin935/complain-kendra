@@ -1,14 +1,15 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Text, TextInput } from "@/src/theme/typography";
+import {
+  MaterialCommunityIcons } from "@expo/vector-icons";
 import type { ReactNode } from "react";
 import {
   ActivityIndicator,
   Pressable,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from "react-native";
 import { colors } from "../../../constants/colors";
+import { officerColors } from "../../../constants/theme";
 
 export function Section({
   title,
@@ -63,7 +64,7 @@ export function IconButton({
       <MaterialCommunityIcons
         name={icon}
         size={18}
-        color={tone === "neutral" ? colors.text : colors.surface}
+        color={tone === "neutral" ? officerColors.text : "#FFFFFF"}
       />
       <Text style={[styles.buttonLabel, tone === "neutral" ? styles.buttonLabelNeutral : null]}>
         {label}
@@ -88,7 +89,7 @@ export function TextField({
       value={value}
       onChangeText={onChangeText}
       placeholder={placeholder}
-      placeholderTextColor={colors.textMuted}
+      placeholderTextColor={officerColors.textMuted}
       multiline={multiline}
       style={[styles.input, multiline ? styles.multiline : null]}
     />
@@ -98,7 +99,7 @@ export function TextField({
 export function EmptyState({ title, message }: { title: string; message: string }) {
   return (
     <View style={styles.stateBox}>
-      <MaterialCommunityIcons name="text-box-search-outline" size={28} color={colors.textMuted} />
+      <MaterialCommunityIcons name="text-box-search-outline" size={28} color={officerColors.textMuted} />
       <Text style={styles.stateTitle}>{title}</Text>
       <Text style={styles.stateMessage}>{message}</Text>
     </View>
@@ -119,7 +120,7 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry: () 
 export function LoadingState({ label = "Loading..." }: { label?: string }) {
   return (
     <View style={styles.stateBox}>
-      <ActivityIndicator color={colors.primary} />
+      <ActivityIndicator color={officerColors.accent} />
       <Text style={styles.stateMessage}>{label}</Text>
     </View>
   );
@@ -180,7 +181,7 @@ export const styles = StyleSheet.create({
     gap: 12,
   },
   sectionTitle: {
-    color: colors.text,
+    color: officerColors.text,
     fontSize: 18,
     fontWeight: "800",
   },
@@ -195,8 +196,8 @@ export const styles = StyleSheet.create({
     textTransform: "capitalize",
   },
   badge_neutral: {
-    backgroundColor: colors.surfaceMuted,
-    color: colors.textSecondary,
+    backgroundColor: officerColors.surfaceRaised,
+    color: officerColors.textSecondary,
   },
   badge_info: {
     backgroundColor: "#DBEAFE",
@@ -228,8 +229,8 @@ export const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   button_neutral: {
-    backgroundColor: colors.surfaceMuted,
-    borderColor: colors.border,
+    backgroundColor: officerColors.surfaceRaised,
+    borderColor: officerColors.borderStrong,
     borderWidth: 1,
   },
   button_danger: {
@@ -242,19 +243,19 @@ export const styles = StyleSheet.create({
     opacity: 0.86,
   },
   buttonLabel: {
-    color: colors.surface,
+    color: "#FFFFFF",
     fontSize: 13,
     fontWeight: "800",
   },
   buttonLabelNeutral: {
-    color: colors.text,
+    color: officerColors.text,
   },
   input: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
+    backgroundColor: officerColors.surfaceRaised,
+    borderColor: officerColors.borderStrong,
     borderRadius: 8,
     borderWidth: 1,
-    color: colors.text,
+    color: officerColors.text,
     fontSize: 14,
     minHeight: 44,
     paddingHorizontal: 12,
@@ -266,20 +267,20 @@ export const styles = StyleSheet.create({
   },
   stateBox: {
     alignItems: "center",
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
+    backgroundColor: officerColors.surfaceRaised,
+    borderColor: officerColors.borderStrong,
     borderRadius: 8,
     borderWidth: 1,
     gap: 10,
     padding: 22,
   },
   stateTitle: {
-    color: colors.text,
+    color: officerColors.text,
     fontSize: 16,
     fontWeight: "800",
   },
   stateMessage: {
-    color: colors.textMuted,
+    color: officerColors.textMuted,
     fontSize: 13,
     lineHeight: 19,
     textAlign: "center",
@@ -299,7 +300,7 @@ export const styles = StyleSheet.create({
     backgroundColor: colors.error,
   },
   toastText: {
-    color: colors.surface,
+    color: "#FFFFFF",
     fontSize: 13,
     fontWeight: "800",
     textAlign: "center",
@@ -308,7 +309,7 @@ export const styles = StyleSheet.create({
     gap: 8,
   },
   selectLabel: {
-    color: colors.textSecondary,
+    color: officerColors.textSecondary,
     fontSize: 12,
     fontWeight: "800",
     textTransform: "uppercase",
@@ -319,8 +320,8 @@ export const styles = StyleSheet.create({
     gap: 8,
   },
   segment: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
+    backgroundColor: officerColors.surfaceRaised,
+    borderColor: officerColors.borderStrong,
     borderRadius: 8,
     borderWidth: 1,
     paddingHorizontal: 10,
@@ -331,11 +332,11 @@ export const styles = StyleSheet.create({
     borderColor: colors.primary,
   },
   segmentText: {
-    color: colors.textSecondary,
+    color: officerColors.textSecondary,
     fontSize: 12,
     fontWeight: "800",
   },
   segmentTextActive: {
-    color: colors.surface,
+    color: "#FFFFFF",
   },
 });

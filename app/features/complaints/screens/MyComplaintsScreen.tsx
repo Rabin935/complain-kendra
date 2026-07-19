@@ -1,6 +1,12 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { NavigationProp, useNavigation } from "@react-navigation/native";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Text } from "@/src/theme/typography";
+import {
+  MaterialCommunityIcons } from "@expo/vector-icons";
+import { NavigationProp,
+  useNavigation } from "@react-navigation/native";
+import { LinearGradient } from "expo-linear-gradient";
+import { useCallback,
+  useEffect,
+  useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -8,8 +14,6 @@ import {
   Pressable,
   RefreshControl,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -23,29 +27,39 @@ import type {
 import type { UserStackParamList, UserTabParamList } from "../../user/types/user.types";
 import {
   formatCompactDate,
-  priorityColors,
-  priorityLabels,
   statusColors,
   statusLabels,
 } from "../../user/utils/citizenUi";
 
 type StatusFilter = CitizenComplaintStatus | "all";
 type MineNavigation = NavigationProp<UserTabParamList & UserStackParamList>;
+type FilterCounts = Record<"all" | "pending" | "in_progress" | "resolved", number>;
 
 const statusFilters: { label: string; value: StatusFilter }[] = [
   { label: "All", value: "all" },
   { label: "Pending", value: "pending" },
-  { label: "Accepted", value: "accepted" },
-  { label: "In Progress", value: "in_progress" },
+  { label: "Progress", value: "in_progress" },
   { label: "Resolved", value: "resolved" },
-  { label: "Rejected", value: "rejected" },
 ];
+const categoryEmojis: Record<CitizenComplaint["category"], string> = {
+  road: "🚧",
+  water: "💧",
+  power: "💡",
+  waste: "🗑",
+  trees: "🌿",
+  other: "•••",
+};
 
 export default function MyComplaintsScreen() {
   const navigation = useNavigation<MineNavigation>();
   const [complaints, setComplaints] = useState<CitizenComplaint[]>([]);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [filterCounts, setFilterCounts] = useState<FilterCounts>({
+    all: 0,
+    pending: 0,
+    in_progress: 0,
+    resolved: 0,
+  });
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -54,22 +68,7 @@ export default function MyComplaintsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [liveMessage, setLiveMessage] = useState<string | null>(null);
 
-  const filteredComplaints = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-
-    if (!query) {
-      return complaints;
-    }
-
-    return complaints.filter((complaint) => {
-      return (
-        complaint.title.toLowerCase().includes(query) ||
-        complaint.complaintNo.toLowerCase().includes(query) ||
-        complaint.location.address.toLowerCase().includes(query) ||
-        categoryMeta[complaint.category].label.toLowerCase().includes(query)
-      );
-    });
-  }, [complaints, searchQuery]);
+  const filteredComplaints = complaints;
 
   const loadComplaints = useCallback(
     async (nextPage = 1, mode: "replace" | "append" = "replace") => {
@@ -92,6 +91,15 @@ export default function MyComplaintsScreen() {
               id: `${complaint.id}-page-${nextPage}-${index}`,
             }))
           : result.data;
+
+      if (statusFilter === "all" && nextPage === 1) {
+        setFilterCounts({
+          all: nextComplaints.length,
+          pending: nextComplaints.filter((complaint) => complaint.status === "pending").length,
+          in_progress: nextComplaints.filter((complaint) => complaint.status === "in_progress").length,
+          resolved: nextComplaints.filter((complaint) => complaint.status === "resolved").length,
+        });
+      }
 
       setComplaints((current) =>
         mode === "append" ? dedupeComplaints([...current, ...nextComplaints]) : nextComplaints,
@@ -185,29 +193,10 @@ export default function MyComplaintsScreen() {
   return (
     <SafeAreaView edges={["top"]} style={styles.safeArea}>
       <View style={styles.header}>
-        <View>
-          <Text style={styles.eyebrow}>Track your ward reports</Text>
-          <Text style={styles.title}>My Complaints</Text>
-        </View>
+        <Text style={styles.title}>My Complaints</Text>
         <Pressable style={styles.filterButton}>
-          <MaterialCommunityIcons name="tune-variant" size={22} color={colors.primary} />
+          <MaterialCommunityIcons name="tune-variant" size={18} color={colors.text} />
         </Pressable>
-      </View>
-
-      <View style={styles.searchBar}>
-        <MaterialCommunityIcons name="magnify" size={20} color={colors.textMuted} />
-        <TextInput
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholder="Search by title, ID, or ward..."
-          placeholderTextColor={colors.textMuted}
-          style={styles.searchInput}
-        />
-        {searchQuery ? (
-          <Pressable onPress={() => setSearchQuery("")}>
-            <MaterialCommunityIcons name="close-circle" size={18} color={colors.textMuted} />
-          </Pressable>
-        ) : null}
       </View>
 
       <View style={styles.statusScrollShell}>
@@ -230,6 +219,23 @@ export default function MyComplaintsScreen() {
               >
                 {item.label}
               </Text>
+              <View
+                style={[
+                  styles.statusCount,
+                  statusFilter === item.value ? styles.statusCountActive : null,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.statusCountText,
+                    statusFilter === item.value ? styles.statusCountTextActive : null,
+                  ]}
+                >
+                  {item.value in filterCounts
+                    ? filterCounts[item.value as keyof FilterCounts]
+                    : 0}
+                </Text>
+              </View>
             </Pressable>
           )}
         />
@@ -260,20 +266,78 @@ export default function MyComplaintsScreen() {
         onEndReached={loadMoreComplaints}
         onEndReachedThreshold={0.45}
         ListEmptyComponent={
-          complaints.length === 0 ? (
-            <View style={styles.emptyCard}>
-              <MaterialCommunityIcons name="clipboard-plus-outline" size={42} color={colors.primary} />
+          statusFilter === "all" ? (
+            <View style={styles.emptyState}>
+              <View style={styles.emptyIllustration}>
+                <View style={styles.emptyGlow} />
+                <View style={styles.emptyDashedRing} />
+                <View style={styles.emptyDocument}>
+                  <MaterialCommunityIcons
+                    name="clipboard-text-outline"
+                    size={34}
+                    color={colors.primary}
+                  />
+                  <View style={styles.documentLineLong} />
+                  <View style={styles.documentLineShort} />
+                </View>
+                <MaterialCommunityIcons
+                  name="camera-outline"
+                  size={22}
+                  color={colors.primary}
+                  style={styles.cameraEmoji}
+                />
+                <MaterialCommunityIcons
+                  name="map-marker"
+                  size={20}
+                  color={colors.accent}
+                  style={styles.pinEmoji}
+                />
+                <View style={styles.orangeDot} />
+              </View>
               <Text style={styles.emptyTitle}>No complaints yet</Text>
-              <Text style={styles.emptyText}>Report your first issue and help improve your ward.</Text>
-              <Pressable style={styles.primaryButton} onPress={() => navigation.navigate("Report")}>
-                <Text style={styles.primaryButtonText}>Create Report</Text>
+              <Text style={styles.emptyText}>
+                See an issue in your neighborhood? Report it in under a minute — we&apos;ll handle
+                the rest.
+              </Text>
+              <Pressable style={styles.emptyPrimaryShell} onPress={() => navigation.navigate("Report")}>
+                <LinearGradient
+                  colors={["#7B4FC8", "#6038B0"]}
+                  start={{ x: 0.5, y: 0 }}
+                  end={{ x: 0.5, y: 1 }}
+                  style={styles.emptyPrimary}
+                >
+                  <Text style={styles.emptyPrimaryText}>Report Your First Issue</Text>
+                  <MaterialCommunityIcons name="arrow-right" size={18} color="#FFFFFF" />
+                </LinearGradient>
               </Pressable>
+              <Pressable style={styles.browseLink} onPress={() => navigation.navigate("Browse")}>
+                <MaterialCommunityIcons name="web" size={15} color={colors.primary} />
+                <Text style={styles.browseLinkText}>Browse issues near you</Text>
+              </Pressable>
+              <View style={styles.tipCard}>
+                <View style={styles.tipIcon}>
+                  <MaterialCommunityIcons
+                    name="lightbulb-on-outline"
+                    size={18}
+                    color={colors.accent}
+                  />
+                </View>
+                <View style={styles.tipCopy}>
+                  <Text style={styles.tipTitle}>Pro tip</Text>
+                  <Text style={styles.tipText}>
+                    Reports with photos get resolved 3× faster on average.
+                  </Text>
+                </View>
+              </View>
             </View>
           ) : (
             <View style={styles.emptyCard}>
               <MaterialCommunityIcons name="filter-remove-outline" size={42} color={colors.primary} />
               <Text style={styles.emptyTitle}>No complaints found for this status</Text>
-              <Text style={styles.emptyText}>Try another status or clear your search.</Text>
+              <Text style={styles.emptyText}>Choose another filter or return to all complaints.</Text>
+              <Pressable style={styles.primaryButton} onPress={() => setStatusFilter("all")}>
+                <Text style={styles.primaryButtonText}>Show All Complaints</Text>
+              </Pressable>
             </View>
           )
         }
@@ -318,47 +382,41 @@ function ComplaintCard({
   onRate: () => void;
 }) {
   const meta = categoryMeta[complaint.category];
-  const isPriority = complaint.priority === "high" || complaint.priority === "critical";
 
   return (
-    <Pressable style={({ pressed }) => [styles.card, pressed ? styles.pressed : null]} onPress={onOpen}>
+    <Pressable
+      style={({ pressed }) => [styles.card, pressed ? styles.pressed : null]}
+      onPress={onOpen}
+      onLongPress={complaint.status === "resolved" ? onRate : undefined}
+    >
       <View style={styles.cardHeader}>
         <View style={[styles.categoryIcon, { backgroundColor: meta.softColor }]}>
-          <MaterialCommunityIcons
-            name={meta.icon as keyof typeof MaterialCommunityIcons.glyphMap}
-            size={24}
-            color={meta.color}
-          />
+          <Text style={styles.categoryEmoji}>{categoryEmojis[complaint.category]}</Text>
         </View>
         <View style={styles.cardTitleBlock}>
-          <Text style={styles.cardTitle} numberOfLines={2}>
+          <View style={styles.cardIdentityRow}>
+            <Text style={styles.cardId}>{complaint.complaintNo}</Text>
+            <View style={[styles.statusBadge, { backgroundColor: `${statusColors[complaint.status]}18` }]}>
+              <Text style={[styles.statusText, { color: statusColors[complaint.status] }]}>
+                {statusLabels[complaint.status]}
+              </Text>
+            </View>
+          </View>
+          <Text style={styles.cardTitle} numberOfLines={1}>
             {complaint.title}
           </Text>
-          <Text style={styles.cardId}>{complaint.complaintNo}</Text>
-        </View>
-        <View style={[styles.statusBadge, { backgroundColor: `${statusColors[complaint.status]}18` }]}>
-          <Text style={[styles.statusText, { color: statusColors[complaint.status] }]}>
-            {statusLabels[complaint.status]}
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.locationRow}>
-        <MaterialCommunityIcons name="map-marker-outline" size={15} color={colors.textMuted} />
-        <Text style={styles.locationText} numberOfLines={1}>
-          {complaint.location.ward} · {complaint.location.address}
-        </Text>
-      </View>
-
-      <View style={styles.metaRow}>
-        <Text style={styles.metaText}>Submitted {formatCompactDate(complaint.createdAt)}</Text>
-        {isPriority ? (
-          <View style={[styles.priorityBadge, { backgroundColor: `${priorityColors[complaint.priority]}14` }]}>
-            <Text style={[styles.priorityText, { color: priorityColors[complaint.priority] }]}>
-              {priorityLabels[complaint.priority]}
+          <View style={styles.cardMetaRow}>
+            <MaterialCommunityIcons name="map-marker-outline" size={12} color={colors.textMuted} />
+            <Text style={styles.cardMetaLine} numberOfLines={1}>
+              {complaint.location.ward}
+            </Text>
+            <View style={styles.cardMetaDot} />
+            <MaterialCommunityIcons name="clock-outline" size={12} color={colors.textMuted} />
+            <Text style={styles.cardMetaLine} numberOfLines={1}>
+              {formatCompactDate(complaint.createdAt)}
             </Text>
           </View>
-        ) : null}
+        </View>
       </View>
 
       <View style={styles.progressBlock}>
@@ -367,27 +425,26 @@ function ComplaintCard({
           <Text style={styles.progressValue}>{complaint.progress}%</Text>
         </View>
         <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${complaint.progress}%` }]} />
+          <View
+            style={[
+              styles.progressFill,
+              {
+                width: `${complaint.progress}%`,
+                backgroundColor: complaint.status === "resolved" ? colors.success : colors.info,
+              },
+            ]}
+          />
         </View>
       </View>
 
       <View style={styles.cardFooter}>
-        <View style={styles.footerStat}>
-          <MaterialCommunityIcons name="arrow-up-bold-outline" size={16} color={colors.primary} />
-          <Text style={styles.footerStatText}>{complaint.upvotes}</Text>
-        </View>
-        <View style={styles.footerStat}>
-          <MaterialCommunityIcons name="comment-outline" size={16} color={colors.textMuted} />
-          <Text style={styles.footerMutedText}>{complaint.comments}</Text>
-        </View>
+        <MaterialCommunityIcons name="arrow-up-bold" size={13} color={colors.primary} />
+        <Text style={styles.footerStatText}>{complaint.upvotes}</Text>
+        <MaterialCommunityIcons name="comment-outline" size={13} color={colors.textMuted} />
+        <Text style={styles.footerMutedText}>{complaint.comments}</Text>
         <View style={styles.footerSpacer} />
-        {complaint.status === "resolved" ? (
-          <Pressable style={styles.rateButton} onPress={onRate}>
-            <Text style={styles.rateButtonText}>Rate Resolution</Text>
-          </Pressable>
-        ) : null}
         <Text style={styles.viewText}>View</Text>
-        <MaterialCommunityIcons name="arrow-right" size={17} color={colors.primary} />
+        <MaterialCommunityIcons name="chevron-right" size={15} color={colors.primary} />
       </View>
     </Pressable>
   );
@@ -418,25 +475,18 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 18,
-    paddingTop: 12,
-    paddingBottom: 12,
-  },
-  eyebrow: {
-    color: colors.primary,
-    fontSize: 12,
-    fontWeight: "900",
-    textTransform: "uppercase",
+    paddingTop: 8,
+    paddingBottom: 18,
   },
   title: {
     color: colors.text,
-    fontSize: 27,
-    fontWeight: "900",
-    marginTop: 4,
+    fontSize: 19,
+    fontWeight: "800",
   },
   filterButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.surface,
@@ -462,19 +512,22 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   statusScrollShell: {
-    paddingTop: 12,
+    paddingBottom: 14,
   },
   statusChips: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     gap: 8,
   },
   statusChip: {
-    paddingHorizontal: 13,
+    paddingHorizontal: 14,
     paddingVertical: 9,
     borderRadius: 999,
     backgroundColor: colors.surface,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.border,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   statusChipActive: {
     backgroundColor: colors.primary,
@@ -486,6 +539,25 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   statusChipTextActive: {
+    color: colors.surface,
+  },
+  statusCount: {
+    minWidth: 22,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 99,
+    alignItems: "center",
+    backgroundColor: colors.surfaceMuted,
+  },
+  statusCountActive: {
+    backgroundColor: "rgba(255,255,255,0.25)",
+  },
+  statusCountText: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  statusCountTextActive: {
     color: colors.surface,
   },
   liveBanner: {
@@ -507,48 +579,75 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   listContent: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingHorizontal: 20,
+    paddingTop: 0,
     paddingBottom: 118,
     gap: 12,
   },
   listContentEmpty: {
     flexGrow: 1,
     justifyContent: "center",
+    paddingHorizontal: 20,
+    paddingTop: 0,
   },
   card: {
     padding: 14,
-    borderRadius: 22,
+    borderRadius: 20,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
   },
   cardHeader: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     gap: 12,
   },
   categoryIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 17,
+    width: 64,
+    height: 64,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
+  },
+  categoryEmoji: {
+    fontSize: 29,
   },
   cardTitleBlock: {
     flex: 1,
     gap: 4,
+    minWidth: 0,
+  },
+  cardIdentityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   cardTitle: {
     color: colors.text,
     fontSize: 15,
     fontWeight: "900",
-    lineHeight: 20,
+    lineHeight: 19,
   },
   cardId: {
-    color: colors.textMuted,
-    fontSize: 12,
+    color: colors.primary,
+    fontSize: 10,
     fontWeight: "800",
+  },
+  cardMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  cardMetaDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    marginHorizontal: 2,
+    backgroundColor: colors.textMuted,
+  },
+  cardMetaLine: {
+    color: colors.textMuted,
+    fontSize: 11,
   },
   statusBadge: {
     paddingHorizontal: 9,
@@ -593,7 +692,8 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   progressBlock: {
-    marginTop: 14,
+    marginTop: 12,
+    marginBottom: 10,
   },
   progressTop: {
     flexDirection: "row",
@@ -611,7 +711,7 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   progressTrack: {
-    height: 8,
+    height: 6,
     borderRadius: 999,
     backgroundColor: colors.surfaceMuted,
     overflow: "hidden",
@@ -624,9 +724,8 @@ const styles = StyleSheet.create({
   cardFooter: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    marginTop: 14,
-    paddingTop: 12,
+    gap: 5,
+    paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
@@ -640,7 +739,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceMuted,
   },
   footerStatText: {
-    color: colors.primary,
+    color: colors.textSecondary,
     fontSize: 12,
     fontWeight: "900",
   },
@@ -692,18 +791,169 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  emptyState: {
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingBottom: 10,
+  },
+  emptyIllustration: {
+    position: "relative",
+    width: 200,
+    height: 200,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  emptyGlow: {
+    position: "absolute",
+    width: 190,
+    height: 190,
+    borderRadius: 95,
+    backgroundColor: "#FAF8FE",
+  },
+  emptyDashedRing: {
+    position: "absolute",
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    borderWidth: 2,
+    borderStyle: "dashed",
+    borderColor: "#EEE8FA",
+  },
+  emptyDocument: {
+    width: 100,
+    height: 120,
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: "#EEE8FA",
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    shadowColor: "#2A1550",
+    shadowOpacity: 0.14,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 6,
+  },
+  documentLineLong: {
+    width: 50,
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: "#EEE8FA",
+  },
+  documentLineShort: {
+    width: 36,
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: "#EEE8FA",
+  },
+  cameraEmoji: {
+    position: "absolute",
+    top: 16,
+    right: 8,
+  },
+  pinEmoji: {
+    position: "absolute",
+    bottom: 24,
+    left: 12,
+  },
+  orangeDot: {
+    position: "absolute",
+    top: 28,
+    left: 6,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: "#F59E0B",
+    shadowColor: "#F59E0B",
+    shadowOpacity: 0.7,
+    shadowRadius: 8,
+    elevation: 5,
+  },
   emptyTitle: {
     color: colors.text,
-    fontSize: 18,
-    fontWeight: "900",
-    marginTop: 12,
+    fontSize: 24,
+    fontWeight: "800",
+    letterSpacing: -0.6,
   },
   emptyText: {
+    maxWidth: 300,
     color: colors.textMuted,
-    fontSize: 13,
-    lineHeight: 20,
+    fontSize: 14,
+    lineHeight: 22,
     textAlign: "center",
-    marginTop: 7,
+    marginTop: 10,
+    marginBottom: 28,
+  },
+  emptyPrimaryShell: {
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#6038B0",
+    shadowOpacity: 0.3,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 7,
+  },
+  emptyPrimary: {
+    minHeight: 53,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  emptyPrimaryText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  browseLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    padding: 12,
+  },
+  browseLinkText: {
+    color: "#6038B0",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  tipCard: {
+    width: "100%",
+    minHeight: 86,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#EEE8FA",
+    backgroundColor: "#F6F2FC",
+  },
+  tipIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+  },
+  tipCopy: {
+    flex: 1,
+  },
+  tipTitle: {
+    color: "#2A1550",
+    fontSize: 12,
+    fontWeight: "800",
+    marginBottom: 3,
+  },
+  tipText: {
+    color: "#4A4458",
+    fontSize: 12,
+    lineHeight: 18,
   },
   primaryButton: {
     minHeight: 44,

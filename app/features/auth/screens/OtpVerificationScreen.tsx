@@ -1,6 +1,12 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Text, TextInput } from "@/src/theme/typography";
+import {
+  MaterialCommunityIcons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { LinearGradient } from "expo-linear-gradient";
+import { useEffect,
+  useMemo,
+  useRef,
+  useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -8,11 +14,10 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from "react-native";
 import { colors } from "../../../constants/colors";
+import { shadows } from "../../../constants/theme";
 import { getApiErrorMessage } from "../../../../src/lib/api";
 import { sendOtp, verifyOtp } from "../services/auth.service";
 import type { AuthStackParamList } from "../types/auth.types";
@@ -21,6 +26,17 @@ type OtpVerificationProps = NativeStackScreenProps<AuthStackParamList, "OtpVerif
 
 const OTP_LENGTH = 6;
 const RESEND_SECONDS = 60;
+
+function formatMobileNumber(phone?: string): string {
+  const digits = phone?.replace(/\D/g, "") ?? "";
+  const localNumber = digits.startsWith("977") ? digits.slice(3) : digits;
+
+  if (localNumber.length === 10) {
+    return `+977 ${localNumber.slice(0, 2)} ${localNumber.slice(2, 6)} ${localNumber.slice(6)}`;
+  }
+
+  return phone || "your registered mobile";
+}
 
 export default function OtpVerificationScreen({ navigation, route }: OtpVerificationProps) {
   const inputRef = useRef<TextInput>(null);
@@ -32,6 +48,7 @@ export default function OtpVerificationScreen({ navigation, route }: OtpVerifica
   const [error, setError] = useState<string | null>(null);
   const [verified, setVerified] = useState(false);
   const email = route.params.email;
+  const mobileNumber = formatMobileNumber(route.params.phone);
 
   const digits = useMemo(
     () => Array.from({ length: OTP_LENGTH }, (_, index) => otp[index] ?? ""),
@@ -127,25 +144,45 @@ export default function OtpVerificationScreen({ navigation, route }: OtpVerifica
             onPress={() => navigation.replace("Login")}
             hitSlop={8}
           >
-            <MaterialCommunityIcons name="arrow-left" size={22} color={colors.surface} />
+            <MaterialCommunityIcons name="arrow-left" size={20} color={colors.text} />
           </Pressable>
-          <View style={styles.progressRow}>
-            <View style={styles.progressDone}>
-              <MaterialCommunityIcons name="check" size={16} color="#6038B0" />
-            </View>
-            <View style={styles.progressLine} />
-            <View style={styles.progressActive}>
-              <Text style={styles.progressText}>2</Text>
-            </View>
+          <Text style={styles.headerTitle}>Verify Mobile</Text>
+          <View style={styles.stepPill}>
+            <Text style={styles.stepText}>Step 2/2</Text>
           </View>
-          <Text style={styles.eyebrow}>Step 2 of 2</Text>
-          <Text style={styles.title}>Verify your email</Text>
-          <Text style={styles.subtitle}>
-            We sent a 6 digit OTP to {email}. Enter it below to activate your account.
-          </Text>
         </View>
 
-        <View style={styles.card}>
+        <View style={styles.main}>
+          <View style={styles.progressBars}>
+            <View style={styles.progressBar} />
+            <View style={styles.progressBar} />
+          </View>
+
+          <View style={styles.hero}>
+            <View style={styles.heroIconRing}>
+              <LinearGradient
+                colors={["#EEE8FA", "#F6F2FC"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.heroIcon}
+              >
+                <MaterialCommunityIcons
+                  name="message-processing-outline"
+                  size={44}
+                  color={colors.primary}
+                />
+              </LinearGradient>
+            </View>
+            <Text style={styles.title}>Enter verification code</Text>
+            <Text style={styles.subtitle}>We sent a 6-digit code to</Text>
+            <View style={styles.destinationRow}>
+              <Text numberOfLines={1} style={styles.destination}>{mobileNumber}</Text>
+              <Pressable onPress={() => navigation.replace("Register")} hitSlop={8}>
+                <Text style={styles.changeText}>Change</Text>
+              </Pressable>
+            </View>
+          </View>
+
           {route.params.message ? <Text style={styles.noticeText}>{route.params.message}</Text> : null}
           {devOtp ? <Text style={styles.devText}>Development OTP: {devOtp}</Text> : null}
 
@@ -192,25 +229,60 @@ export default function OtpVerificationScreen({ navigation, route }: OtpVerifica
             </View>
           ) : null}
 
-          <Pressable
-            style={[styles.verifyButton, !canVerify ? styles.buttonDisabled : null]}
-            onPress={() => void handleVerify()}
-            disabled={!canVerify}
-          >
-            {loading ? <ActivityIndicator color={colors.surface} /> : null}
-            <Text style={styles.verifyText}>{loading ? "Verifying..." : "Verify OTP"}</Text>
-          </Pressable>
-
           <View style={styles.resendRow}>
-            <Text style={styles.timerText}>
-              {secondsLeft > 0 ? `Resend available in ${secondsLeft}s` : "Didn't receive it?"}
-            </Text>
+            <Text style={styles.timerText}>Didn't receive code? </Text>
             <Pressable onPress={() => void handleResend()} disabled={!canResend} hitSlop={8}>
               <Text style={[styles.resendText, !canResend ? styles.resendTextDisabled : null]}>
-                {resending ? "Sending..." : "Resend OTP"}
+                {resending
+                  ? "Sending..."
+                  : secondsLeft > 0
+                    ? `Resend in 0:${String(secondsLeft).padStart(2, "0")}`
+                    : "Resend code"}
               </Text>
             </Pressable>
           </View>
+
+          <Pressable
+            style={[styles.verifyButtonShell, !canVerify ? styles.buttonDisabled : null]}
+            onPress={() => void handleVerify()}
+            disabled={!canVerify}
+          >
+            <LinearGradient
+              colors={["#7B4FC8", "#6038B0"]}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+              style={styles.verifyButton}
+            >
+              {loading ? <ActivityIndicator color={colors.surface} /> : null}
+              <Text style={styles.verifyText}>
+                {loading ? "Verifying..." : "Verify & Continue"}
+              </Text>
+              {loading ? null : (
+                <MaterialCommunityIcons name="check-circle-outline" size={18} color="#FFFFFF" />
+              )}
+            </LinearGradient>
+          </Pressable>
+
+          <View style={styles.dividerRow}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>OR USE EMAIL</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <Pressable
+            style={({ pressed }) => [styles.emailCard, pressed ? styles.pressed : null]}
+            onPress={() => void handleResend()}
+            disabled={!canResend}
+          >
+            <View style={styles.emailIcon}>
+              <MaterialCommunityIcons name="email-outline" size={19} color="#2563EB" />
+            </View>
+            <View style={styles.emailCopy}>
+              <Text style={styles.emailTitle}>Send code to email</Text>
+              <Text numberOfLines={1} style={styles.emailValue}>{email}</Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={18} color={colors.textMuted} />
+          </Pressable>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -220,7 +292,7 @@ export default function OtpVerificationScreen({ navigation, route }: OtpVerifica
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#FDF7FF",
+    backgroundColor: "#FFFFFF",
   },
   content: {
     flexGrow: 1,
@@ -229,12 +301,13 @@ const styles = StyleSheet.create({
   header: {
     width: "100%",
     maxWidth: 430,
-    paddingTop: 54,
-    paddingHorizontal: 24,
-    paddingBottom: 92,
-    backgroundColor: "#6038B0",
-    borderBottomLeftRadius: 40,
-    borderBottomRightRadius: 40,
+    minHeight: 66,
+    paddingTop: 8,
+    paddingHorizontal: 20,
+    paddingBottom: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
   },
   backButton: {
     width: 40,
@@ -242,10 +315,73 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "#F8F6FC",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.22)",
+    borderColor: "#E8E4F0",
+  },
+  headerTitle: {
+    flex: 1,
+    color: "#15121F",
+    fontSize: 19,
+    fontWeight: "800",
+  },
+  stepPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: "#F8F6FC",
+    borderWidth: 1,
+    borderColor: "#E8E4F0",
+  },
+  stepText: {
+    color: "#8B8597",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  main: {
+    width: "100%",
+    maxWidth: 430,
+    paddingHorizontal: 22,
+    paddingBottom: 32,
+  },
+  progressBars: {
+    flexDirection: "row",
+    gap: 6,
     marginBottom: 28,
+  },
+  progressBar: {
+    flex: 1,
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: "#6038B0",
+  },
+  hero: {
+    alignItems: "center",
+    paddingTop: 12,
+    paddingBottom: 28,
+  },
+  heroIconRing: {
+    width: 128,
+    height: 128,
+    borderRadius: 64,
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderColor: "#EEE8FA",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  heroIcon: {
+    width: 92,
+    height: 92,
+    borderRadius: 28,
+    borderWidth: 1.5,
+    borderColor: "#EEE8FA",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  heroEmoji: {
+    fontSize: 44,
   },
   progressRow: {
     position: "absolute",
@@ -291,18 +427,38 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   title: {
-    color: colors.surface,
-    fontSize: 31,
-    lineHeight: 37,
-    fontWeight: "900",
-    letterSpacing: 0,
+    color: "#15121F",
+    fontSize: 24,
+    lineHeight: 30,
+    fontWeight: "800",
+    letterSpacing: -0.6,
+    textAlign: "center",
+    marginBottom: 10,
   },
   subtitle: {
-    color: "rgba(255,255,255,0.82)",
+    color: "#8B8597",
     fontSize: 14,
-    lineHeight: 21,
-    fontWeight: "600",
-    marginTop: 12,
+    lineHeight: 20,
+    textAlign: "center",
+  },
+  destinationRow: {
+    maxWidth: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    marginTop: 2,
+  },
+  destination: {
+    maxWidth: "75%",
+    color: "#15121F",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  changeText: {
+    color: "#6038B0",
+    fontSize: 13,
+    fontWeight: "700",
   },
   card: {
     width: "100%",
@@ -324,7 +480,8 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     lineHeight: 19,
-    marginBottom: 12,
+    marginBottom: 10,
+    textAlign: "center",
   },
   devText: {
     color: colors.primary,
@@ -334,27 +491,29 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     fontSize: 12,
     fontWeight: "900",
-    marginBottom: 18,
+    marginBottom: 12,
+    textAlign: "center",
   },
   otpRow: {
     flexDirection: "row",
     gap: 8,
     justifyContent: "center",
-    marginBottom: 18,
+    marginBottom: 16,
   },
   otpBox: {
-    width: 45,
-    height: 56,
-    borderRadius: 15,
+    width: 48,
+    height: 60,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F8F1FF",
-    borderWidth: 1.5,
-    borderColor: "#E7DFF2",
+    backgroundColor: "#F6F2FC",
+    borderWidth: 2,
+    borderColor: "#EEE8FA",
   },
   otpBoxFocused: {
     borderColor: "#6038B0",
     backgroundColor: colors.surface,
+    ...shadows.focusRing,
   },
   otpBoxError: {
     borderColor: colors.error,
@@ -406,19 +565,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "900",
   },
-  verifyButton: {
-    minHeight: 58,
-    borderRadius: 17,
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 8,
-    backgroundColor: "#6038B0",
+  verifyButtonShell: {
+    borderRadius: 16,
+    overflow: "hidden",
     shadowColor: "#6038B0",
     shadowOpacity: 0.28,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 11 },
     elevation: 7,
+  },
+  verifyButton: {
+    minHeight: 53,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
   },
   verifyText: {
     color: colors.surface,
@@ -431,15 +593,12 @@ const styles = StyleSheet.create({
   resendRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-    marginTop: 18,
+    justifyContent: "center",
+    marginBottom: 28,
   },
   timerText: {
-    flex: 1,
     color: colors.textMuted,
-    fontSize: 12,
-    fontWeight: "700",
+    fontSize: 13,
   },
   resendText: {
     color: colors.primary,
@@ -447,6 +606,62 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   resendTextDisabled: {
-    color: colors.textMuted,
+    color: colors.primary,
+  },
+  dividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginVertical: 18,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#E8E4F0",
+  },
+  dividerText: {
+    color: "#8B8597",
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 1,
+  },
+  emailCard: {
+    minHeight: 68,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "#E8E4F0",
+    backgroundColor: "#F8F6FC",
+  },
+  emailIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#DBEAFE",
+  },
+  emailEmoji: {
+    fontSize: 18,
+  },
+  emailCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  emailTitle: {
+    color: "#15121F",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  emailValue: {
+    color: "#8B8597",
+    fontSize: 11,
+    marginTop: 2,
+  },
+  pressed: {
+    opacity: 0.75,
   },
 });

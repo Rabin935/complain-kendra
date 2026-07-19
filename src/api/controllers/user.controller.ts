@@ -1,10 +1,12 @@
 import type { NextFunction, Request, Response } from "express";
 import {
   changePassword,
+  deleteCurrentUser,
   getCurrentUser,
   getPublicUser,
   getUserBadges,
   getUserStats,
+  submitSupportRequest,
   updateCurrentUser,
   updateLanguage,
   uploadAvatar as uploadAvatarService,
@@ -84,6 +86,42 @@ export async function password(request: Request, response: Response, next: NextF
     response.status(200).json({
       success: true,
       message: "Password changed.",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function deleteMe(request: Request, response: Response, next: NextFunction) {
+  try {
+    const body = request.body as { password?: string; confirmation?: string };
+    await deleteCurrentUser({
+      userId: requireCitizenId(request),
+      password: body.password,
+      confirmation: body.confirmation,
+    });
+
+    response.status(200).json({
+      success: true,
+      message: "Account deleted.",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function support(request: Request, response: Response, next: NextFunction) {
+  try {
+    const ticket = await submitSupportRequest(
+      requireCitizenId(request),
+      request.body as Record<string, unknown>,
+      request.file,
+    );
+
+    response.status(201).json({
+      success: true,
+      message: "Support request submitted.",
+      ticket,
     });
   } catch (error) {
     next(error);

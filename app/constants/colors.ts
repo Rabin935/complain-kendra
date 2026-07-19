@@ -4,6 +4,9 @@ export const colors = {
   primaryDeep: "#2A1550",
   primaryMid: "#7B4FC8",
   primaryLight: "#F6F2FC",
+  primarySoft: "#EEE8FA",
+  /** Lavender used for accented words on purple heroes. */
+  accentLavender: "#C4B5FD",
   accent: "#F59E0B",
   background: "#F6F2FC",
   surface: "#FFFFFF",
@@ -16,5 +19,5 @@ export const colors = {
   success: "#22C55E",
   warning: "#F59E0B",
   info: "#3B82F6",
-  shadow: "rgba(42, 21, 80, 0.1)",
+  shadow: "rgba(39, 18, 77, 0.1)",
 };

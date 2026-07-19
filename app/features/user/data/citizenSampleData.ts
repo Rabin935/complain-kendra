@@ -135,6 +135,7 @@ export const sampleAiAnalysis: AiAnalysisResult = {
   department: "Ward Review Desk",
   etaDays: 3,
   summary: "AI analysis is pending.",
+  improvedDescription: "",
   keywords: [],
   duplicateCheck: {
     isDuplicate: false,

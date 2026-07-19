@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import BadgeModel from "../models/Badge";
 import ComplaintModel from "../models/Complaint";
 import ComplaintUpvoteModel from "../models/ComplaintUpvote";
+import RefreshTokenModel from "../models/RefreshToken";
 import UserBadgeModel from "../models/UserBadge";
 import UserModel from "../models/User";
 import { AppError } from "../utils/appError";
@@ -26,6 +27,7 @@ export function toPublicUser(user: {
   wardId?: string;
   address?: string;
   homeArea?: string;
+  bio?: string;
   city?: string;
   municipality?: string;
   location?: unknown;
@@ -47,6 +49,7 @@ export function toPublicUser(user: {
     wardId: user.wardId,
     address: user.address,
     homeArea: user.homeArea,
+    bio: user.bio,
     city: user.city,
     municipality: user.municipality,
     location: user.location,
@@ -81,9 +84,14 @@ export async function updateCurrentUser(userId: string, payload: Record<string, 
   const phone = getString(payload.phone);
   const address = getString(payload.address);
   const homeArea = getString(payload.homeArea ?? payload.area);
+  const bio = getString(payload.bio);
   const isPublic = payload.is_public ?? payload.isPublic;
 
   if (name) {
+    if (name.length < 2 || name.length > 80) {
+      throw new AppError("Name must be between 2 and 80 characters.", 400);
+    }
+
     user.name = name;
   }
 
@@ -105,6 +113,16 @@ export async function updateCurrentUser(userId: string, payload: Record<string, 
       ...(isRecord(user.location) ? user.location : {}),
       area: homeArea,
     };
+  }
+
+  if (bio !== undefined) {
+    if (bio.length > 250) {
+      throw new AppError("Bio must be 250 characters or fewer.", 400);
+    }
+
+    user.bio = bio;
+  } else if (Object.prototype.hasOwnProperty.call(payload, "bio")) {
+    user.bio = undefined;
   }
 
   const selectedWard = await resolveWardFromPayload(payload, {
@@ -170,8 +188,15 @@ export async function changePassword(input: {
   const currentPassword = requireString(input.currentPassword, "Current password");
   const newPassword = requireString(input.newPassword, "New password");
 
-  if (newPassword.length < 6) {
-    throw new AppError("New password must be at least 6 characters.", 400);
+  if (newPassword === currentPassword) {
+    throw new AppError("New password must be different from your current password.", 400);
+  }
+
+  if (!isStrongPassword(newPassword)) {
+    throw new AppError(
+      "Password must be at least 8 characters and include uppercase, lowercase, number, and special character.",
+      400,
+    );
   }
 
   const passwordMatches = await bcrypt.compare(currentPassword, user.password);
@@ -182,6 +207,21 @@ export async function changePassword(input: {
 
   user.password = newPassword;
   await user.save();
+
+  await RefreshTokenModel.updateMany(
+    { subjectId: user._id.toString(), subjectType: "citizen", revokedAt: undefined },
+    { $set: { revokedAt: new Date() } },
+  );
+}
+
+function isStrongPassword(value: string): boolean {
+  return (
+    value.length >= 8 &&
+    /[A-Z]/.test(value) &&
+    /[a-z]/.test(value) &&
+    /\d/.test(value) &&
+    /[^A-Za-z0-9]/.test(value)
+  );
 }
 
 export async function updateLanguage(userId: string, language?: string) {
@@ -282,5 +322,89 @@ export async function getPublicUser(userId: string) {
     level: user.level,
     levelTitle: user.levelTitle,
     createdAt: user.createdAt,
+  };
+}
+
+export async function deleteCurrentUser(input: {
+  userId: string;
+  password?: string;
+  confirmation?: string;
+}) {
+  const user = await UserModel.findById(requireObjectId(input.userId, "user id"));
+
+  if (!user) {
+    throw new AppError("User not found.", 404);
+  }
+
+  if (input.confirmation !== "DELETE") {
+    throw new AppError("Type DELETE to confirm account deletion.", 400);
+  }
+
+  const password = requireString(input.password, "Password");
+  const passwordMatches = await bcrypt.compare(password, user.password);
+
+  if (!passwordMatches) {
+    throw new AppError("Password confirmation is incorrect.", 400);
+  }
+
+  await Promise.all([
+    RefreshTokenModel.updateMany(
+      { subjectId: user._id.toString(), subjectType: "citizen", revokedAt: undefined },
+      { $set: { revokedAt: new Date() } },
+    ),
+    UserModel.deleteOne({ _id: user._id }),
+  ]);
+}
+
+export async function submitSupportRequest(
+  userId: string,
+  payload: Record<string, unknown>,
+  screenshot?: AvatarFile,
+) {
+  await getCurrentUser(userId);
+
+  const category = requireString(payload.category, "Support category");
+  const subject = requireString(payload.subject, "Subject");
+  const description = requireString(payload.description, "Description");
+  const allowedCategories = new Set([
+    "Account",
+    "Complaint",
+    "Technical Issue",
+    "Officer Misconduct",
+    "General Inquiry",
+    "Feedback",
+  ]);
+
+  if (!allowedCategories.has(category)) {
+    throw new AppError("Invalid support category.", 400);
+  }
+
+  if (subject.length < 3 || subject.length > 120) {
+    throw new AppError("Subject must be between 3 and 120 characters.", 400);
+  }
+
+  if (description.length < 10 || description.length > 1000) {
+    throw new AppError("Description must be between 10 and 1000 characters.", 400);
+  }
+
+  let screenshotUrl: string | undefined;
+
+  if (screenshot) {
+    screenshotUrl = await saveUploadedImage({
+      buffer: screenshot.buffer,
+      mimeType: screenshot.mimetype,
+      originalName: screenshot.originalname,
+      folder: "support",
+    });
+  }
+
+  return {
+    id: `support-${Date.now()}`,
+    category,
+    subject,
+    description,
+    screenshotUrl,
+    status: "submitted",
+    createdAt: new Date().toISOString(),
   };
 }

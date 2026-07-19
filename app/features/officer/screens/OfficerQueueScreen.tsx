@@ -1,7 +1,17 @@
-import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { colors } from "../../../constants/colors";
+import { Text } from "@/src/theme/typography";
+import {
+  useFocusEffect,
+  useNavigation,
+  useRoute } from "@react-navigation/native";
+import { useCallback,
+  useEffect,
+  useMemo,
+  useState } from "react";
+import { Pressable,
+  StyleSheet,
+  View,
+} from "react-native";
+import { officerColors } from "../../../constants/theme";
 import { useAuth } from "../../auth/context/AuthContext";
 import { getApiErrorMessage } from "../../../../src/lib/api";
 import { useRealtimeInvalidation } from "../../realtime/hooks/useRealtimeInvalidation";
@@ -269,8 +279,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   card: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
+    backgroundColor: officerColors.surface,
+    borderColor: officerColors.borderStrong,
     borderRadius: 8,
     borderWidth: 1,
     gap: 12,
@@ -287,12 +297,12 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   complaintNo: {
-    color: colors.primary,
+    color: officerColors.accent,
     fontSize: 12,
     fontWeight: "900",
   },
   cardTitle: {
-    color: colors.text,
+    color: officerColors.text,
     fontSize: 16,
     fontWeight: "900",
   },
@@ -302,9 +312,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   meta: {
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: officerColors.surfaceRaised,
     borderRadius: 8,
-    color: colors.textSecondary,
+    color: officerColors.textSecondary,
     fontSize: 12,
     fontWeight: "700",
     paddingHorizontal: 10,
@@ -317,7 +327,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   pageText: {
-    color: colors.textSecondary,
+    color: officerColors.textSecondary,
     fontSize: 13,
     fontWeight: "800",
   },

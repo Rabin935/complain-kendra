@@ -47,6 +47,7 @@ const userSchema = new Schema<User, UserModel>(
     ward: { type: String, trim: true, default: undefined },
     wardId: { type: String, trim: true, default: undefined, index: true },
     homeArea: { type: String, trim: true, default: undefined },
+    bio: { type: String, trim: true, maxlength: 250, default: undefined },
     address: { type: String, trim: true, default: undefined },
     city: { type: String, trim: true, default: undefined },
     municipality: { type: String, trim: true, default: undefined },

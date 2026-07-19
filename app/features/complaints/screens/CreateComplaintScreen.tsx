@@ -1,7 +1,20 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { NavigationProp, RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import { Text, TextInput } from "@/src/theme/typography";
+import {
+  MaterialCommunityIcons
+} from "@expo/vector-icons";
+import {
+  CommonActions,
+  NavigationProp,
+  RouteProp,
+  useNavigation,
+  useRoute
+} from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
-import { useEffect, useState } from "react";
+import { LinearGradient } from "expo-linear-gradient";
+import {
+  useEffect,
+  useState
+} from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -12,8 +25,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
   useWindowDimensions,
 } from "react-native";
@@ -52,12 +63,20 @@ const categoryOrder: CitizenComplaintCategory[] = [
   "trees",
   "other",
 ];
+const categoryEmojis: Record<CitizenComplaintCategory, string> = {
+  road: "🚧",
+  water: "💧",
+  power: "⚡",
+  waste: "🗑",
+  trees: "🌿",
+  other: "•••",
+};
 
 const photoCriticalCategories = new Set<CitizenComplaintCategory>(["road", "water", "waste", "trees"]);
 const maxDescriptionLength = 500;
 const maxPhotos = 4;
 const maxPhotoSize = 10 * 1024 * 1024;
-const allowedMimeTypes = new Set(["image/jpeg", "image/png", "image/heic", "image/heif"]);
+const allowedMimeTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]);
 const pinStep = 0.0005;
 
 interface GeolocationPositionLike {
@@ -69,13 +88,16 @@ interface GeolocationPositionLike {
 
 interface ReverseGeocodeAddress {
   road?: string;
+  locality?: string;
   neighbourhood?: string;
   suburb?: string;
+  city_district?: string;
   city?: string;
   town?: string;
   village?: string;
   municipality?: string;
   county?: string;
+  state?: string;
 }
 
 interface ReverseGeocodeResult {
@@ -115,11 +137,23 @@ function getCurrentCoordinates(): Promise<{ lat: number; lng: number }> {
 }
 
 function getWardFromAddress(address: ReverseGeocodeAddress | undefined, displayName: string): {
-  ward: string;
-  wardId: string;
-  wardNumber: string;
+  ward?: string;
+  wardId?: string;
+  wardNumber?: string;
+  city?: string;
 } {
-  const wardMatch = displayName.match(/ward\s*(?:no\.?\s*)?(\d+)/i);
+  const cityDistrictMatch = (address?.city_district ?? displayName).match(/\b([A-Za-z][A-Za-z\s]*)-(\d{1,2})\b/);
+
+  if (cityDistrictMatch?.[1] && cityDistrictMatch[2]) {
+    return {
+      ward: `Ward ${cityDistrictMatch[2]}`,
+      wardId: cityDistrictMatch[2],
+      wardNumber: cityDistrictMatch[2],
+      city: cityDistrictMatch[1].trim(),
+    };
+  }
+
+  const wardMatch = displayName.match(/ward\s*(?:no\.?\s*)?[-\s]?(\d{1,2})/i);
 
   if (wardMatch?.[1]) {
     return {
@@ -139,11 +173,7 @@ function getWardFromAddress(address: ReverseGeocodeAddress | undefined, displayN
     };
   }
 
-  return {
-    ward: sampleLocation.ward,
-    wardId: sampleLocation.wardId,
-    wardNumber: sampleLocation.wardNumber ?? "12",
-  };
+  return {};
 }
 
 async function reverseGeocodeCoordinates(lat: number, lng: number): Promise<CitizenLocation> {
@@ -160,24 +190,27 @@ async function reverseGeocodeCoordinates(lat: number, lng: number): Promise<Citi
   const displayName = result.display_name ?? `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
   const derivedWard = getWardFromAddress(address, displayName);
   const wardRecord = await lookupWardForCoordinates(lat, lng);
-  const area = address?.neighbourhood ?? address?.suburb ?? address?.road ?? sampleLocation.area;
+  const area = address?.locality ?? address?.neighbourhood ?? address?.suburb ?? address?.road ?? sampleLocation.area;
   const city =
+    derivedWard.city ??
     address?.city ??
     address?.town ??
     address?.village ??
     address?.municipality ??
     sampleLocation.city;
+  const resolvedWardName = derivedWard.ward ?? wardRecord?.wardName;
+  const resolvedWardNumber = derivedWard.wardNumber ?? wardRecord?.wardNumber;
 
   return {
     address: displayName,
     area,
-    ward: wardRecord?.wardName ?? derivedWard.ward,
-    wardId: wardRecord?.id ?? derivedWard.wardId,
-    wardName: wardRecord?.wardName ?? derivedWard.ward,
-    wardNumber: wardRecord?.wardNumber ?? derivedWard.wardNumber,
-    city: wardRecord?.city ?? city,
-    municipality: wardRecord?.municipality ?? sampleLocation.municipality,
-    province: wardRecord?.province ?? sampleLocation.province,
+    ward: resolvedWardName ?? "Ward unavailable",
+    wardId: derivedWard.wardId ?? wardRecord?.id ?? "",
+    wardName: resolvedWardName,
+    wardNumber: resolvedWardNumber,
+    city,
+    municipality: address?.municipality ?? address?.city ?? wardRecord?.municipality ?? sampleLocation.municipality,
+    province: address?.state ?? wardRecord?.province ?? sampleLocation.province,
     lat,
     lng,
   };
@@ -198,6 +231,8 @@ function buildLocationFromMapSelection(
 ): CitizenLocation {
   const address = selection.address;
   const ward = selection.ward;
+  const resolvedWard = address?.ward ?? ward?.wardName;
+  const resolvedWardNumber = address?.wardNumber ?? ward?.wardNumber ?? address?.ward?.match(/\d+/)?.[0];
 
   return {
     ...currentLocation,
@@ -207,13 +242,13 @@ function buildLocationFromMapSelection(
       address?.city ??
       address?.municipality ??
       currentLocation.area,
-    ward: address?.ward ?? ward?.wardName ?? currentLocation.ward,
-    wardId: ward?.wardId ?? currentLocation.wardId,
-    wardName: address?.ward ?? ward?.wardName ?? currentLocation.wardName,
-    wardNumber: address?.ward?.match(/\d+/)?.[0] ?? ward?.wardNumber ?? currentLocation.wardNumber,
-    city: address?.city ?? currentLocation.city,
-    municipality: ward?.municipality ?? address?.municipality ?? currentLocation.municipality,
-    province: ward?.province ?? address?.province ?? currentLocation.province,
+    ward: resolvedWard ?? "Ward unavailable",
+    wardId: address?.wardNumber ?? ward?.wardId ?? "",
+    wardName: resolvedWard,
+    wardNumber: resolvedWardNumber,
+    city: address?.city ?? ward?.district ?? currentLocation.city,
+    municipality: address?.municipality ?? ward?.municipality ?? currentLocation.municipality,
+    province: address?.province ?? ward?.province ?? currentLocation.province,
     lat: selection.coordinates.lat,
     lng: selection.coordinates.lng,
   };
@@ -354,7 +389,7 @@ export default function CreateComplaintScreen() {
       return;
     }
 
-    navigation.navigate("Home");
+    openMainTab("Home");
   }
 
   function continueFromStepOne() {
@@ -383,6 +418,11 @@ export default function CreateComplaintScreen() {
     const payload = buildPayload(category);
     const result = await analyzeReportDraft(payload);
     setAiResult(result.data);
+    const improvedDescription = result.data.improvedDescription?.trim();
+
+    if (improvedDescription) {
+      setDescription(improvedDescription.slice(0, maxDescriptionLength));
+    }
 
     if (result.error) {
       setAiWarning("AI failed to reach the live service. Manual submit is still allowed.");
@@ -602,12 +642,26 @@ export default function CreateComplaintScreen() {
 
   function resetAndHome() {
     resetForm();
-    navigation.navigate("Home");
+    openMainTab("Home");
   }
 
   function trackComplaint() {
     resetForm();
-    navigation.navigate("Mine");
+    openMainTab("Mine");
+  }
+
+  function openMainTab(screen: keyof UserTabParamList) {
+    navigation.dispatch(
+      CommonActions.reset({
+        index: 0,
+        routes: [
+          {
+            name: "MainTabs",
+            params: { screen },
+          },
+        ],
+      }),
+    );
   }
 
   function resetForm() {
@@ -623,39 +677,65 @@ export default function CreateComplaintScreen() {
   }
 
   if (successComplaint) {
+    const successAnalysis = successComplaint.aiAnalysis ?? aiResult;
+    const successConfidence = successAnalysis?.confidence ?? aiResult?.confidence ?? 0;
+    const successDepartment = successAnalysis?.department ?? aiResult?.department ?? "Ward Review Desk";
+    const assignedWard = successComplaint.location.ward || location.ward || "your ward";
+
     return (
-      <SafeAreaView edges={["top"]} style={styles.safeArea}>
+      <SafeAreaView edges={["top"]} style={styles.successSafeArea}>
         <ScrollView contentContainerStyle={styles.successContent} showsVerticalScrollIndicator={false}>
-          <View style={styles.successIcon}>
-            <MaterialCommunityIcons name="check-circle-outline" size={54} color={colors.success} />
+          <View style={styles.successHero}>
+            <View style={styles.successMarkWrap}>
+              <View style={styles.successRingInner} />
+              <View style={styles.successRingOuter} />
+              <View style={styles.successIcon}>
+                <MaterialCommunityIcons name="check" size={68} color={colors.surface} />
+              </View>
+            </View>
+
+            <Text style={styles.successTitle}>Report Submitted!</Text>
+            <Text style={styles.successText}>
+              Your complaint is now in the queue. We'll keep you posted as it moves forward.
+            </Text>
+
+            <View style={styles.successIdBadge}>
+              <Text style={styles.successIdLabel}>Complaint ID</Text>
+              <View style={styles.successIdDivider} />
+              <Text style={styles.successId}>{successComplaint.complaintNo}</Text>
+              <MaterialCommunityIcons name="content-copy" size={16} color={colors.textMuted} />
+            </View>
           </View>
-          <Text style={styles.successTitle}>Your complaint has been submitted</Text>
-          <Text style={styles.successId}>{successComplaint.complaintNo}</Text>
-          <Text style={styles.successText}>SMS and email confirmation sent to your account.</Text>
 
           <View style={styles.checklist}>
-            {[
-              "SMS & email confirmation sent",
-              "Ward officer review",
-              "Status updates will appear in My Complaints",
-            ].map((item) => (
-              <View key={item} style={styles.checklistRow}>
-                <MaterialCommunityIcons name="checkbox-marked-circle-outline" size={20} color={colors.success} />
-                <Text style={styles.checklistText}>{item}</Text>
-              </View>
-            ))}
+            <SuccessChecklistRow
+              complete
+              title="AI analysis completed"
+              subtitle={successConfidence ? `${successConfidence}% confidence` : "Analysis saved"}
+            />
+            <SuccessChecklistRow
+              complete
+              title={`Assigned to ${assignedWard} Office`}
+              subtitle={successDepartment}
+            />
+            <SuccessChecklistRow
+              complete
+              title="SMS & Email confirmation sent"
+              subtitle="Just now"
+            />
+            <SuccessChecklistRow
+              title="Awaiting ward officer review"
+              subtitle="Within 24 hrs"
+              last
+            />
           </View>
 
-          <View style={styles.successPoints}>
-            <MaterialCommunityIcons name="star-circle-outline" size={22} color={colors.warning} />
-            <Text style={styles.successPointsText}>+50 points awarded for verified civic reporting</Text>
-          </View>
-
-          <Pressable style={styles.submitButton} onPress={trackComplaint}>
-            <Text style={styles.submitButtonText}>Track My Complaint</Text>
+          <Pressable style={styles.successPrimaryButton} onPress={trackComplaint}>
+            <Text style={styles.successPrimaryText}>Track My Complaint</Text>
+            <MaterialCommunityIcons name="arrow-right" size={18} color={colors.surface} />
           </Pressable>
-          <Pressable style={styles.secondaryButton} onPress={resetAndHome}>
-            <Text style={styles.secondaryButtonText}>Back to Home</Text>
+          <Pressable style={styles.successHomeButton} onPress={resetAndHome}>
+            <Text style={styles.successHomeText}>Back to Home</Text>
           </Pressable>
         </ScrollView>
       </SafeAreaView>
@@ -680,7 +760,7 @@ export default function CreateComplaintScreen() {
             <Text style={styles.title}>
               {step === 1 ? "Report an Issue" : step === 2 ? "Location & Photos" : "AI Analysis"}
             </Text>
-            <Text style={styles.stepText}>{step}/3</Text>
+            <Text style={styles.stepCount}>{step}/3</Text>
           </View>
 
           <View style={styles.progressSegments}>
@@ -777,6 +857,36 @@ export default function CreateComplaintScreen() {
   );
 }
 
+function SuccessChecklistRow({
+  complete,
+  title,
+  subtitle,
+  last,
+}: {
+  complete?: boolean;
+  title: string;
+  subtitle: string;
+  last?: boolean;
+}) {
+  return (
+    <View style={[styles.successChecklistRow, last ? styles.successChecklistRowLast : null]}>
+      <View style={[styles.successChecklistIcon, complete ? styles.successChecklistIconComplete : null]}>
+        <MaterialCommunityIcons
+          name={complete ? "check" : "dots-horizontal"}
+          size={complete ? 15 : 16}
+          color={complete ? colors.surface : colors.textMuted}
+        />
+      </View>
+      <View style={styles.successChecklistCopy}>
+        <Text style={[styles.successChecklistTitle, !complete ? styles.successChecklistTitlePending : null]}>
+          {title}
+        </Text>
+        <Text style={styles.successChecklistSubtitle}>{subtitle}</Text>
+      </View>
+    </View>
+  );
+}
+
 function CreateDraftStep({
   category,
   title,
@@ -837,11 +947,7 @@ function CreateDraftStep({
               onPress={() => onCategoryChange(item)}
             >
               <View style={[styles.categoryIcon, { backgroundColor: active ? colors.surface : "#EEE8FA20" }]}>
-                <MaterialCommunityIcons
-                  name={meta.icon as keyof typeof MaterialCommunityIcons.glyphMap}
-                  size={21}
-                  color={active ? colors.primary : meta.color}
-                />
+                <Text style={styles.categoryEmoji}>{categoryEmojis[item]}</Text>
               </View>
               <Text style={[styles.categoryLabel, active ? styles.categoryLabelActive : null]}>
                 {meta.label}
@@ -855,11 +961,11 @@ function CreateDraftStep({
       <View style={styles.fieldGroup}>
         <Text style={styles.label}>Title</Text>
         <View style={[styles.iconInput, errors.title ? styles.inputError : null]}>
-          <MaterialCommunityIcons name="note-edit-outline" size={18} color={colors.textMuted} />
+          <MaterialCommunityIcons name="note-text-outline" size={18} color={colors.textMuted} />
           <TextInput
             value={title}
             onChangeText={onTitleChange}
-            placeholder="Large pothole on Ring Road"
+            placeholder="Title of the Issue"
             placeholderTextColor={colors.textMuted}
             style={styles.inlineInput}
             maxLength={90}
@@ -876,7 +982,7 @@ function CreateDraftStep({
         <TextInput
           value={description}
           onChangeText={onDescriptionChange}
-          placeholder="Deep pothole causing traffic disruption. Has been there for a week."
+          placeholder="Description of the Issue"
           placeholderTextColor={colors.textMuted}
           style={[styles.input, styles.textArea, errors.description ? styles.inputError : null]}
           multiline
@@ -894,7 +1000,7 @@ function CreateDraftStep({
         <Text style={styles.label}>Location</Text>
         <Pressable style={styles.locationCardCompact} onPress={onOpenLocationPicker}>
           <View style={styles.locationIconCompact}>
-            <MaterialCommunityIcons name="map-marker-outline" size={24} color={colors.primary} />
+            <MaterialCommunityIcons name="map-marker" size={18} color={colors.primary} />
           </View>
           <View style={styles.locationBody}>
             <Text style={styles.locationTitle} numberOfLines={1}>
@@ -904,7 +1010,7 @@ function CreateDraftStep({
               {formatLocationSubtitle(location, gpsLocked)}
             </Text>
           </View>
-          <MaterialCommunityIcons name="crosshairs-gps" size={24} color={colors.primary} />
+          <MaterialCommunityIcons name="target" size={18} color={colors.primary} />
         </Pressable>
         {errors.location ? <Text style={styles.errorText}>{errors.location}</Text> : null}
       </View>
@@ -939,7 +1045,7 @@ function CreateDraftStep({
           if (index === photos.length + 1) {
             return (
               <Pressable key={`gallery-${index}`} style={styles.photoActionTile} onPress={onPickGallery}>
-                <MaterialCommunityIcons name="image-outline" size={22} color={colors.textMuted} />
+                <MaterialCommunityIcons name="image-outline" size={22} color={colors.textSecondary} />
                 <Text style={styles.photoActionTileText}>Gallery</Text>
               </Pressable>
             );
@@ -952,14 +1058,27 @@ function CreateDraftStep({
       {slowNetwork ? <Text style={styles.warningText}>{slowNetwork}</Text> : null}
 
       <Pressable
-        style={[styles.aiSubmitButton, analyzing ? styles.buttonDisabled : null]}
+        style={[styles.aiSubmitButtonShell, analyzing ? styles.buttonDisabled : null]}
         onPress={onAnalyze}
         disabled={analyzing}
       >
-        {analyzing ? <ActivityIndicator color={colors.surface} /> : null}
-        <Text style={styles.submitButtonText}>{analyzing ? "Analyzing..." : "Analyze with AI"}</Text>
-        {!analyzing ? <MaterialCommunityIcons name="lightning-bolt" size={18} color={colors.surface} /> : null}
-        {!analyzing ? <MaterialCommunityIcons name="arrow-right" size={18} color={colors.surface} /> : null}
+        <LinearGradient
+          colors={["#7B4FC8", "#6038B0"]}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={styles.aiSubmitButton}
+        >
+          {analyzing ? <ActivityIndicator color={colors.surface} /> : null}
+          {analyzing ? null : (
+            <MaterialCommunityIcons name="flash" size={18} color={colors.surface} />
+          )}
+          <Text style={styles.submitButtonText}>
+            {analyzing ? "Analyzing..." : "Analyze with AI"}
+          </Text>
+          {analyzing ? null : (
+            <MaterialCommunityIcons name="arrow-right" size={18} color={colors.surface} />
+          )}
+        </LinearGradient>
       </Pressable>
     </View>
   );
@@ -1319,37 +1438,82 @@ function StepThree({
   onSubmit: () => void;
 }) {
   const meta = selectedMeta ?? categoryMeta[category];
+  const detectedMeta = aiResult ? categoryMeta[aiResult.detectedCategory] : meta;
+  const confidence = aiResult?.confidence ?? 0;
+  const duplicatePercent = Math.round((aiResult?.duplicateCheck.similarityScore ?? 0) * 100);
+  const duplicateLabel = aiResult?.duplicateCheck.isDuplicate ? `${duplicatePercent}%` : "None";
+  const estimatedResolution = aiResult ? `${aiResult.etaDays}-${aiResult.etaDays + 2} days` : "Manual review";
 
   return (
-    <View style={styles.stepPanel}>
-      <View style={styles.aiCard}>
-        <View style={styles.aiHeader}>
-          <View style={styles.aiIcon}>
-            <MaterialCommunityIcons name="auto-fix" size={24} color={colors.surface} />
+    <View style={styles.analysisPanel}>
+      <View style={styles.analysisHero}>
+        <View style={styles.analysisGridOverlay} />
+        <View style={styles.analysisGlow} />
+        <View style={styles.analysisHeroContent}>
+          <View style={styles.analysisHeroHeader}>
+            <View style={styles.analysisHeroIcon}>
+              <MaterialCommunityIcons name="lightning-bolt" size={18} color={colors.surface} />
+            </View>
+            <View style={styles.analysisHeroCopy}>
+              <Text style={styles.analysisEyebrow}>
+                {aiResult?.verified ? "AI Verified" : "AI Review"}
+              </Text>
+              <Text style={styles.analysisHeroStatus}>
+                {aiResult ? "Analysis Complete" : "Manual Submit Available"}
+              </Text>
+            </View>
+            <View style={styles.analysisMatchBadge}>
+              <Text style={styles.analysisMatchText}>
+                {aiResult ? `${confidence}% match` : "Review"}
+              </Text>
+            </View>
           </View>
-          <View>
-            <Text style={styles.aiTitle}>AI verification</Text>
-            <Text style={styles.aiSubtitle}>
-              {aiResult?.verified ? "Verified complaint signal" : "Manual review available"}
-            </Text>
+
+          <Text style={styles.analysisHeroTitle} numberOfLines={2}>
+            {aiResult ? `${detectedMeta.label} Detected` : title}
+          </Text>
+          <Text style={styles.analysisHeroDescription} numberOfLines={3}>
+            {aiResult?.improvedDescription ??
+              aiResult?.summary ??
+              aiResult?.sizeEstimate ??
+              "AI could not complete the automated review, but the report can still be submitted for manual assessment."}
+          </Text>
+
+          <View style={styles.analysisStatRow}>
+            <AnalysisStat label="Confidence" value={aiResult ? `${confidence}%` : "-"} />
+            <AnalysisStat label="Photos" value={`${photoCount} of ${maxPhotos}`} />
+            <AnalysisStat label="Duplicate?" value={duplicateLabel} />
           </View>
         </View>
+      </View>
 
-        {aiWarning ? <Text style={styles.warningText}>{aiWarning}</Text> : null}
+      {aiWarning ? <Text style={styles.warningText}>{aiWarning}</Text> : null}
 
-        {aiResult ? (
-          <View style={styles.aiGrid}>
-            <AiMetric label="Detected" value={categoryMeta[aiResult.detectedCategory].label} />
-            <AiMetric label="Confidence" value={`${aiResult.confidence}%`} />
-            <AiMetric label="Severity" value={aiResult.severityLabel} />
-            <AiMetric label="Priority" value={priorityLabels[aiResult.priority]} color={priorityColors[aiResult.priority]} />
-            <AiMetric label="Department" value={aiResult.department} wide />
-            <AiMetric label="ETA" value={`${aiResult.etaDays} days`} />
-            {aiResult.sizeEstimate ? <AiMetric label="Size" value={aiResult.sizeEstimate} wide /> : null}
-          </View>
-        ) : (
-          <Text style={styles.aiSubtitle}>AI failed but manual submit is allowed.</Text>
-        )}
+      <View style={styles.analysisInfoGrid}>
+        <AnalysisInfoCard
+          icon="tag-outline"
+          label="Category"
+          value={aiResult ? detectedMeta.label : meta.label}
+          color={colors.primary}
+        />
+        <AnalysisInfoCard
+          icon="alert-outline"
+          label="Priority"
+          value={aiResult ? priorityLabels[aiResult.priority] : "Manual"}
+          color={aiResult ? priorityColors[aiResult.priority] : colors.warning}
+        />
+        <AnalysisInfoCard
+          icon="bank-outline"
+          label="Department"
+          value={aiResult?.department ?? "Ward Office"}
+          color={colors.primary}
+        />
+        <AnalysisInfoCard
+          icon="clock-outline"
+          label="Est. Resolution"
+          value={estimatedResolution}
+          color={colors.info}
+        />
       </View>
 
       {aiResult?.duplicateCheck.isDuplicate ? (
@@ -1390,72 +1554,73 @@ function StepThree({
             </View>
           </View>
         </View>
-      ) : null}
+      ) : (
+        <View style={styles.analysisDuplicateCard}>
+          <View style={styles.analysisDuplicateTop}>
+            <View style={styles.analysisDuplicateIcon}>
+              <MaterialCommunityIcons name="radar" size={20} color={colors.primary} />
+            </View>
+            <View style={styles.analysisDuplicateCopy}>
+              <Text style={styles.analysisDuplicateTitle}>No duplicates found</Text>
+              <Text style={styles.analysisDuplicateText}>Scanned nearby reports in your ward</Text>
+            </View>
+            <MaterialCommunityIcons name="check-circle" size={23} color={colors.success} />
+          </View>
+        </View>
+      )}
 
       {duplicateError ? <Text style={styles.errorText}>{duplicateError}</Text> : null}
 
-      <View style={styles.summaryCard}>
-        <Text style={styles.summaryTitle}>Confirmation summary</Text>
-        <View style={styles.summaryRow}>
-          <MaterialCommunityIcons
-            name={meta.icon as keyof typeof MaterialCommunityIcons.glyphMap}
-            size={18}
-            color={meta.color}
-          />
-          <Text style={styles.summaryText}>{title}</Text>
-        </View>
-        <View style={styles.summaryRow}>
-          <MaterialCommunityIcons name="tag-outline" size={18} color={colors.primary} />
-          <Text style={styles.summaryText}>{meta.label}</Text>
-        </View>
-        <View style={styles.summaryRow}>
-          <MaterialCommunityIcons name="map-marker-outline" size={18} color={colors.primary} />
-          <Text style={styles.summaryText}>{locationText}</Text>
-        </View>
-        <View style={styles.summaryRow}>
-          <MaterialCommunityIcons name="image-outline" size={18} color={colors.primary} />
-          <Text style={styles.summaryText}>{photoCount} photo{photoCount === 1 ? "" : "s"}</Text>
-        </View>
-      </View>
-
       {slowNetwork ? <Text style={styles.warningText}>{slowNetwork}</Text> : null}
 
-      <View style={styles.finalActions}>
-        <Pressable style={styles.secondaryButton} onPress={onEdit}>
-          <Text style={styles.secondaryButtonText}>Edit Report</Text>
-        </Pressable>
+      <View style={styles.analysisActions}>
         <Pressable
-          style={[styles.submitButton, submitting ? styles.buttonDisabled : null]}
+          style={[styles.analysisSubmitButton, submitting ? styles.buttonDisabled : null]}
           onPress={onSubmit}
           disabled={submitting}
         >
           {submitting ? <ActivityIndicator color={colors.surface} /> : null}
-          <Text style={styles.submitButtonText}>
-            {submitting ? "Submitting..." : "Submit Complaint"}
+          <Text style={styles.analysisSubmitText}>
+            {submitting ? "Submitting..." : "Submit Report"}
           </Text>
+          {!submitting ? <MaterialCommunityIcons name="arrow-right" size={18} color={colors.surface} /> : null}
+        </Pressable>
+        <Pressable style={styles.analysisEditButton} onPress={onEdit}>
+          <MaterialCommunityIcons name="pencil-outline" size={15} color={colors.textMuted} />
+          <Text style={styles.analysisEditText}>Edit details</Text>
         </Pressable>
       </View>
     </View>
   );
 }
 
-function AiMetric({
+function AnalysisStat({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.analysisStat}>
+      <Text style={styles.analysisStatLabel}>{label}</Text>
+      <Text style={styles.analysisStatValue} numberOfLines={1}>{value}</Text>
+    </View>
+  );
+}
+
+function AnalysisInfoCard({
+  icon,
   label,
   value,
   color,
-  wide,
 }: {
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
   label: string;
   value: string;
-  color?: string;
-  wide?: boolean;
+  color: string;
 }) {
   return (
-    <View style={[styles.aiMetric, wide ? styles.aiMetricWide : null]}>
-      <Text style={styles.aiMetricLabel}>{label}</Text>
-      <Text style={[styles.aiMetricValue, color ? { color } : null]} numberOfLines={2}>
-        {value}
-      </Text>
+    <View style={styles.analysisInfoCard}>
+      <View style={styles.analysisInfoHeader}>
+        <MaterialCommunityIcons name={icon} size={15} color={color} />
+        <Text style={styles.analysisInfoLabel}>{label}</Text>
+      </View>
+      <Text style={[styles.analysisInfoValue, { color }]} numberOfLines={2}>{value}</Text>
     </View>
   );
 }
@@ -1509,16 +1674,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  stepText: {
-    color: colors.textMuted,
-    fontSize: 12,
-    fontWeight: "800",
-  },
   title: {
     flex: 1,
     color: colors.text,
     fontSize: 19,
     fontWeight: "900",
+  },
+  stepCount: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: "800",
   },
   progressSegments: {
     flexDirection: "row",
@@ -1602,6 +1767,11 @@ const styles = StyleSheet.create({
     borderRadius: 11,
     alignItems: "center",
     justifyContent: "center",
+  },
+  categoryEmoji: {
+    fontSize: 20,
+    color: colors.text,
+    fontWeight: "800",
   },
   categoryLabel: {
     color: colors.textSecondary,
@@ -1727,6 +1897,16 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.68,
   },
+  aiSubmitButtonShell: {
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: colors.primary,
+    shadowOpacity: 0.32,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 8,
+    marginTop: 2,
+  },
   aiSubmitButton: {
     minHeight: 54,
     borderRadius: 16,
@@ -1734,13 +1914,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     flexDirection: "row",
     gap: 8,
-    backgroundColor: colors.primary,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.32,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 8,
-    marginTop: 2,
   },
   locationCard: {
     flexDirection: "row",
@@ -2153,6 +2326,221 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
   },
+  analysisPanel: {
+    paddingTop: 4,
+    gap: 18,
+  },
+  analysisHero: {
+    minHeight: 224,
+    borderRadius: 24,
+    padding: 20,
+    overflow: "hidden",
+    backgroundColor: colors.primaryDeep,
+  },
+  analysisGridOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.28)",
+  },
+  analysisGlow: {
+    position: "absolute",
+    top: -46,
+    right: -42,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: "rgba(196,181,253,0.24)",
+  },
+  analysisHeroContent: {
+    position: "relative",
+    gap: 13,
+  },
+  analysisHeroHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+  },
+  analysisHeroIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.18)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.24)",
+  },
+  analysisHeroCopy: {
+    flex: 1,
+  },
+  analysisEyebrow: {
+    color: "rgba(255,255,255,0.66)",
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 1.4,
+    textTransform: "uppercase",
+  },
+  analysisHeroStatus: {
+    color: colors.surface,
+    fontSize: 15,
+    fontWeight: "900",
+    marginTop: 1,
+  },
+  analysisMatchBadge: {
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: "rgba(34,197,94,0.22)",
+    borderWidth: 1,
+    borderColor: "rgba(134,239,172,0.42)",
+  },
+  analysisMatchText: {
+    color: "#86EFAC",
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  analysisHeroTitle: {
+    color: colors.surface,
+    fontSize: 22,
+    fontWeight: "900",
+    lineHeight: 27,
+  },
+  analysisHeroDescription: {
+    color: "rgba(255,255,255,0.76)",
+    fontSize: 13,
+    fontWeight: "600",
+    lineHeight: 20,
+  },
+  analysisStatRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  analysisStat: {
+    flex: 1,
+    minHeight: 58,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.16)",
+  },
+  analysisStatLabel: {
+    color: "rgba(255,255,255,0.62)",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  analysisStatValue: {
+    color: colors.surface,
+    fontSize: 14,
+    fontWeight: "900",
+    marginTop: 3,
+  },
+  analysisInfoGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  analysisInfoCard: {
+    width: "48.3%",
+    minHeight: 88,
+    borderRadius: 16,
+    padding: 14,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  analysisInfoHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 7,
+  },
+  analysisInfoLabel: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+  },
+  analysisInfoValue: {
+    fontSize: 15,
+    fontWeight: "900",
+    lineHeight: 20,
+  },
+  analysisDuplicateCard: {
+    borderRadius: 18,
+    padding: 14,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  analysisDuplicateTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  analysisDuplicateIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#EEE8FA",
+  },
+  analysisDuplicateIconWarning: {
+    backgroundColor: "#FFFBEB",
+  },
+  analysisDuplicateCopy: {
+    flex: 1,
+  },
+  analysisDuplicateTitle: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  analysisDuplicateText: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: "700",
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  analysisActions: {
+    gap: 10,
+  },
+  analysisSubmitButton: {
+    minHeight: 54,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+    backgroundColor: colors.primary,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.28,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 8,
+  },
+  analysisSubmitText: {
+    color: colors.surface,
+    fontSize: 16,
+    fontWeight: "900",
+  },
+  analysisEditButton: {
+    minHeight: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 6,
+  },
+  analysisEditText: {
+    color: colors.textMuted,
+    fontSize: 13,
+    fontWeight: "900",
+  },
   aiCard: {
     padding: 16,
     borderRadius: 24,
@@ -2288,80 +2676,200 @@ const styles = StyleSheet.create({
   finalActions: {
     gap: 10,
   },
+  successSafeArea: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
   successContent: {
     flexGrow: 1,
-    paddingHorizontal: 20,
-    paddingTop: 54,
-    paddingBottom: 118,
-    alignItems: "center",
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 28,
+    backgroundColor: colors.surface,
   },
-  successIcon: {
-    width: 92,
-    height: 92,
-    borderRadius: 46,
+  successHero: {
+    flexGrow: 1,
+    minHeight: 388,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#DCFCE7",
-    marginBottom: 18,
+    paddingBottom: 12,
+  },
+  successMarkWrap: {
+    position: "relative",
+    width: 180,
+    height: 180,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  successRingInner: {
+    position: "absolute",
+    width: 154,
+    height: 154,
+    borderRadius: 77,
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderColor: "#EEE8FA",
+  },
+  successRingOuter: {
+    position: "absolute",
+    width: 206,
+    height: 206,
+    borderRadius: 103,
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderColor: "rgba(96,56,176,0.12)",
+  },
+  successIcon: {
+    width: 116,
+    height: 116,
+    borderRadius: 58,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#16A34A",
+    shadowColor: "#16A34A",
+    shadowOpacity: 0.5,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 16 },
+    elevation: 10,
   },
   successTitle: {
     color: colors.text,
-    fontSize: 24,
-    lineHeight: 30,
+    fontSize: 28,
+    lineHeight: 34,
     fontWeight: "900",
     textAlign: "center",
+    marginBottom: 10,
+  },
+  successText: {
+    maxWidth: 300,
+    color: colors.textSecondary,
+    fontSize: 14,
+    lineHeight: 22,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  successIdBadge: {
+    marginTop: 22,
+    minHeight: 42,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: "#EEE8FA",
+    shadowColor: colors.primaryDeep,
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
+  },
+  successIdLabel: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+  },
+  successIdDivider: {
+    width: 1,
+    height: 16,
+    backgroundColor: colors.border,
   },
   successId: {
     color: colors.primary,
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: "900",
-    marginTop: 10,
-  },
-  successText: {
-    color: colors.textMuted,
-    fontSize: 13,
-    lineHeight: 20,
-    textAlign: "center",
-    marginTop: 8,
+    letterSpacing: 0.4,
   },
   checklist: {
     alignSelf: "stretch",
-    gap: 12,
-    marginTop: 24,
-    padding: 16,
-    borderRadius: 22,
+    marginBottom: 10,
+    paddingHorizontal: 14,
+    paddingTop: 4,
+    paddingBottom: 4,
+    borderRadius: 18,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  checklistRow: {
+  successChecklistRow: {
+    minHeight: 58,
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  checklistText: {
+  successChecklistRowLast: {
+    borderBottomWidth: 0,
+  },
+  successChecklistIcon: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    backgroundColor: colors.surfaceMuted,
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderColor: colors.border,
+  },
+  successChecklistIconComplete: {
+    backgroundColor: colors.success,
+    borderWidth: 0,
+    borderStyle: "solid",
+  },
+  successChecklistCopy: {
     flex: 1,
-    color: colors.textSecondary,
+  },
+  successChecklistTitle: {
+    color: colors.text,
     fontSize: 13,
-    fontWeight: "800",
+    fontWeight: "900",
   },
-  successPoints: {
-    alignSelf: "stretch",
-    flexDirection: "row",
+  successChecklistTitlePending: {
+    color: colors.textSecondary,
+  },
+  successChecklistSubtitle: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  successPrimaryButton: {
+    minHeight: 54,
+    borderRadius: 16,
     alignItems: "center",
-    gap: 10,
-    marginTop: 14,
-    marginBottom: 20,
-    padding: 14,
-    borderRadius: 18,
-    backgroundColor: "#FFFBEB",
-    borderWidth: 1,
-    borderColor: "#FDE68A",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+    backgroundColor: colors.primary,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.28,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 8,
+    marginBottom: 10,
   },
-  successPointsText: {
-    flex: 1,
-    color: "#92400E",
-    fontSize: 12,
+  successPrimaryText: {
+    color: colors.surface,
+    fontSize: 16,
+    fontWeight: "900",
+  },
+  successHomeButton: {
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  successHomeText: {
+    color: colors.primary,
+    fontSize: 14,
     fontWeight: "900",
   },
 });
