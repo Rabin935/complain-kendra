@@ -15,6 +15,7 @@ import {
   View,
 } from "react-native";
 import { radii, shadows } from "@/app/constants/theme";
+import { useTranslation } from "../../../i18n/LanguageContext";
 import GoogleWebSignInButton from "../components/GoogleWebSignInButton";
 import { useAuth } from "../context/AuthContext";
 import type { AuthStackParamList } from "../types/auth.types";
@@ -27,6 +28,7 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function LoginScreen({ navigation }: LoginScreenProps) {
   const { login, signInWithGoogle, loading, googleSignInHint } = useAuth();
+  const { t } = useTranslation("auth");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
@@ -52,17 +54,17 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
     const nextEmail = email.trim().toLowerCase();
 
     if (!nextEmail) {
-      setValidationError("Email address is required.");
+      setValidationError(t("emailRequired"));
       return;
     }
 
     if (!emailPattern.test(nextEmail)) {
-      setValidationError("Enter a valid email address.");
+      setValidationError(t("emailInvalid"));
       return;
     }
 
     if (!password) {
-      setValidationError("Password is required.");
+      setValidationError(t("passwordRequired"));
       return;
     }
 
@@ -72,8 +74,8 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
         password,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to login right now.";
-      Alert.alert("Login failed", message);
+      const message = error instanceof Error ? error.message : t("loginError");
+      Alert.alert(t("loginFailed"), message);
       throw error;
     }
   }
@@ -83,8 +85,8 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
       await signInWithGoogle(idToken);
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Unable to login with Google right now.";
-      Alert.alert("Google Sign-In failed", message);
+        error instanceof Error ? error.message : t("googleLoginError");
+      Alert.alert(t("googleLoginFailed"), message);
       throw error;
     }
   }
@@ -132,27 +134,22 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
               <MaterialCommunityIcons name="map-marker" size={30} color="#6038B0" />
             </View>
             <View>
-              <Text style={styles.brand}>
-                Complain<Text style={styles.brandAccent}>Kendra</Text>
-              </Text>
-              <Text style={styles.brandTagline}>Report · Track · Resolve</Text>
+              <Text style={styles.brand}>{t("brandName")}</Text>
+              <Text style={styles.brandTagline}>{t("brandTagline")}</Text>
             </View>
           </View>
-          <Text style={styles.heroTitle}>
-            Welcome back,{"\n"}
-            <Text style={styles.heroTitleAccent}>citizen.</Text>
-          </Text>
+          <Text style={styles.heroTitle}>{t("welcomeBackCitizen")}</Text>
         </LinearGradient>
 
         <View style={styles.content}>
           <View style={styles.card}>
-          <Text style={styles.cardTitle}>Sign in to your account</Text>
-          <Text style={styles.cardSubtitle}>Continue tracking complaints in your ward.</Text>
+          <Text style={styles.cardTitle}>{t("signInTitle")}</Text>
+          <Text style={styles.cardSubtitle}>{t("signInSubtitle")}</Text>
           {validationError ? <Text style={styles.errorText}>{validationError}</Text> : null}
 
           <View style={styles.form}>
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Email Address</Text>
+              <Text style={styles.label}>{t("emailAddress")}</Text>
               <View
                 style={[
                   styles.inputShell,
@@ -169,7 +166,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
                   onChangeText={updateEmail}
                   onFocus={() => setFocusedField("email")}
                   onBlur={() => setFocusedField(null)}
-                  placeholder="citizen@example.com"
+                  placeholder={t("emailPlaceholder")}
                   placeholderTextColor="#8B8597"
                   style={styles.input}
                   autoCapitalize="none"
@@ -181,7 +178,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
             </View>
 
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Password</Text>
+              <Text style={styles.label}>{t("password")}</Text>
               <View
                 style={[
                   styles.inputShell,
@@ -225,11 +222,11 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
                     <MaterialCommunityIcons name="check" size={14} color="#FFFFFF" />
                   ) : null}
                 </View>
-                <Text style={styles.optionText}>Remember me</Text>
+                <Text style={styles.optionText}>{t("rememberMe")}</Text>
               </Pressable>
 
               <Pressable onPress={() => navigation.navigate("ForgotPassword")} hitSlop={8}>
-                <Text style={styles.forgotText}>Forgot password?</Text>
+                <Text style={styles.forgotText}>{t("forgotPassword")}</Text>
               </Pressable>
             </View>
 
@@ -252,7 +249,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
                   <>
-                    <Text style={styles.submitText}>Sign In</Text>
+                    <Text style={styles.submitText}>{t("signIn")}</Text>
                     <MaterialCommunityIcons name="login" size={18} color="#FFFFFF" />
                   </>
                 )}
@@ -262,7 +259,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
 
           <View style={styles.dividerRow}>
             <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or continue with</Text>
+            <Text style={styles.dividerText}>{t("orContinueWith")}</Text>
             <View style={styles.dividerLine} />
           </View>
 
@@ -291,7 +288,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
               ) : (
                 <>
                   <MaterialCommunityIcons name="google" size={18} color="#4285F4" />
-                  <Text style={styles.googleText}>Continue with Google</Text>
+                  <Text style={styles.googleText}>{t("continueWithGoogle")}</Text>
                 </>
               )}
             </Pressable>
@@ -301,15 +298,15 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
           </View>
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>New to ComplainKendra?</Text>
+            <Text style={styles.footerText}>{t("newToApp")}</Text>
             <Pressable onPress={() => navigation.navigate("Register")} hitSlop={8}>
-              <Text style={styles.footerLink}>Create an account</Text>
+              <Text style={styles.footerLink}>{t("createAccount")}</Text>
             </Pressable>
           </View>
 
           <View style={styles.trustRow}>
             <MaterialCommunityIcons name="shield-check" size={14} color="#6038B0" />
-            <Text style={styles.trustText}>Secured by Govt. of Nepal e-Services</Text>
+            <Text style={styles.trustText}>{t("securedBy")}</Text>
           </View>
         </View>
       </ScrollView>

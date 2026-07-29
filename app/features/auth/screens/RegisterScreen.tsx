@@ -27,6 +27,7 @@ import {
   type WardOption,
 } from "../../user/services/ward.service";
 import { useAuth } from "../context/AuthContext";
+import { useTranslation } from "../../../i18n/LanguageContext";
 import { sendOtp } from "../services/auth.service";
 import type { AuthStackParamList } from "../types/auth.types";
 
@@ -46,6 +47,7 @@ const fallbackCities = ["Kathmandu", "Lalitpur", "Bhaktapur"];
 
 export default function RegisterScreen({ navigation }: RegisterScreenProps) {
   const { register, loading } = useAuth();
+  const { t } = useTranslation("auth");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
@@ -73,7 +75,8 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
     return score;
   }, [password]);
 
-  const passwordStrength = passwordScore >= 3 ? "Strong" : passwordScore === 2 ? "Okay" : "Weak";
+  const passwordStrength =
+    passwordScore >= 3 ? t("strengthStrong") : passwordScore === 2 ? t("strengthOkay") : t("strengthWeak");
 
   useEffect(() => {
     async function loadCities() {
@@ -137,15 +140,15 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
     const cleanArea = homeArea.trim() || selectedWard?.area || "";
     const fullName = [cleanFirstName, cleanLastName].filter(Boolean).join(" ");
 
-    if (!cleanFirstName) return setValidationError("First name is required.");
-    if (!cleanLastName) return setValidationError("Last name is required.");
-    if (!cleanPhone) return setValidationError("Mobile number is required.");
-    if (!cleanEmail) return setValidationError("Email address is required.");
-    if (!emailPattern.test(cleanEmail)) return setValidationError("Enter a valid email address.");
-    if (!selectedCity) return setValidationError("City is required.");
-    if (!selectedWard) return setValidationError("Ward is required.");
-    if (!password) return setValidationError("Password is required.");
-    if (password.length < 6) return setValidationError("Password must be at least 6 characters.");
+    if (!cleanFirstName) return setValidationError(t("firstNameRequired"));
+    if (!cleanLastName) return setValidationError(t("lastNameRequired"));
+    if (!cleanPhone) return setValidationError(t("mobileRequired"));
+    if (!cleanEmail) return setValidationError(t("emailRequired"));
+    if (!emailPattern.test(cleanEmail)) return setValidationError(t("emailInvalid"));
+    if (!selectedCity) return setValidationError(t("cityRequired"));
+    if (!selectedWard) return setValidationError(t("wardRequired"));
+    if (!password) return setValidationError(t("passwordRequired"));
+    if (password.length < 6) return setValidationError(t("passwordMinLength"));
 
     try {
       const message = await register({
@@ -170,8 +173,8 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
       });
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Unable to create your account right now.";
-      Alert.alert("Registration failed", message);
+        error instanceof Error ? error.message : t("registrationError");
+      Alert.alert(t("registrationFailed"), message);
       throw error;
     }
   }
@@ -220,27 +223,22 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
               </View>
             </View>
 
-            <Text style={styles.eyebrow}>Step 1 of 2 - Your Details</Text>
-            <Text style={styles.title}>
-              Create your{"\n"}
-              <Text style={styles.titleAccent}>citizen account</Text>
-            </Text>
-            <Text style={styles.subtitle}>
-              Join 24,000+ residents reporting civic issues across Nepal.
-            </Text>
+            <Text style={styles.eyebrow}>{t("registerStep")}</Text>
+            <Text style={styles.title}>{t("createCitizenAccount")}</Text>
+            <Text style={styles.subtitle}>{t("joinResidents")}</Text>
           </LinearGradient>
 
           <View style={styles.formSection}>
-            <Text style={styles.formTitle}>Create your account</Text>
-            <Text style={styles.formSubtitle}>Enter your details to start reporting civic issues.</Text>
+            <Text style={styles.formTitle}>{t("createYourAccount")}</Text>
+            <Text style={styles.formSubtitle}>{t("enterDetails")}</Text>
             {validationError ? <Text style={styles.errorText}>{validationError}</Text> : null}
 
             <View style={styles.nameGrid}>
               <FormField
-                label="First Name"
+                label={t("firstName")}
                 icon="account"
                 value={firstName}
-                placeholder="First name"
+                placeholder={t("firstName")}
                 focused={focusedField === "firstName"}
                 onFocus={() => setFocusedField("firstName")}
                 onBlur={() => setFocusedField(null)}
@@ -250,10 +248,10 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
                 }}
               />
               <FormField
-                label="Last Name"
+                label={t("lastName")}
                 icon="account"
                 value={lastName}
-                placeholder="Last Name"
+                placeholder={t("lastName")}
                 focused={focusedField === "lastName"}
                 onFocus={() => setFocusedField("lastName")}
                 onBlur={() => setFocusedField(null)}
@@ -265,7 +263,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
             </View>
 
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Mobile Number</Text>
+              <Text style={styles.label}>{t("mobileNumber")}</Text>
               <View style={styles.phoneRow}>
                 <View style={styles.countryBox}>
                   <Text style={styles.countryText}>NP +977</Text>
@@ -296,10 +294,10 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
             </View>
 
             <FormField
-              label="Email Address"
+              label={t("emailAddress")}
               icon="email-outline"
               value={email}
-              placeholder="citizen@example.com"
+              placeholder={t("emailPlaceholder")}
               focused={focusedField === "email"}
               keyboardType="email-address"
               autoCapitalize="none"
@@ -313,37 +311,37 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
             />
 
             <SelectorField
-              label="City"
+              label={t("city")}
               icon="city-variant-outline"
-              title={selectedCity || "Select city"}
-              subtitle="Choose your city first"
+              title={selectedCity || t("selectCity")}
+              subtitle={t("chooseCityFirst")}
               onPress={() => setSelectorMode("city")}
             />
 
             <SelectorField
-              label="Ward"
+              label={t("ward")}
               icon="office-building-marker-outline"
               title={
                 locationLoading
-                  ? "Loading wards..."
+                  ? t("loadingWards")
                   : selectedWard
                     ? `${selectedWard.wardName} - ${selectedWard.city}`
-                    : "Select ward"
+                    : t("selectWard")
               }
               subtitle={
                 selectedWard
                   ? [selectedWard.area, selectedWard.municipality].filter(Boolean).join(" - ")
-                  : "Assigned ward office"
+                  : t("assignedWardOffice")
               }
               onPress={() => setSelectorMode("ward")}
               disabled={!selectedCity || locationLoading}
             />
 
             <FormField
-              label="Address"
+              label={t("address")}
               icon="home-city-outline"
               value={homeArea}
-              placeholder={selectedWard?.area || "Ward address"}
+              placeholder={selectedWard?.area || t("wardAddress")}
               focused={focusedField === "homeArea"}
               onFocus={() => setFocusedField("homeArea")}
               onBlur={() => setFocusedField(null)}
@@ -354,7 +352,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
             />
 
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Password</Text>
+              <Text style={styles.label}>{t("password")}</Text>
               <View
                 style={[
                   styles.inputShell,
@@ -370,7 +368,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
                   }}
                   onFocus={() => setFocusedField("password")}
                   onBlur={() => setFocusedField(null)}
-                  placeholder="Password"
+                  placeholder={t("passwordPlaceholder")}
                   placeholderTextColor="#9CA3AF"
                   style={[styles.input, styles.passwordInput]}
                   secureTextEntry={!showPassword}
@@ -402,14 +400,14 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
                   ))}
                 </View>
                 <View style={styles.strengthTextRow}>
-                  <Text style={styles.passwordHint}>8+ chars with number and symbol</Text>
+                  <Text style={styles.passwordHint}>{t("passwordStrengthHint")}</Text>
                   <Text
                     style={[
                       styles.strengthLabel,
                       passwordScore >= 3 ? styles.strengthLabelStrong : null,
                     ]}
                   >
-                    {password ? passwordStrength : "Required"}
+                    {password ? passwordStrength : t("strengthRequired")}
                   </Text>
                 </View>
               </View>
@@ -434,7 +432,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
                   <>
-                    <Text style={styles.submitText}>Continue</Text>
+                    <Text style={styles.submitText}>{t("continueButton")}</Text>
                     <MaterialCommunityIcons name="arrow-right" size={18} color="#FFFFFF" />
                   </>
                 )}
@@ -443,9 +441,9 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
           </View>
 
           <View style={styles.loginFooter}>
-            <Text style={styles.loginFooterText}>Already have an account?</Text>
+            <Text style={styles.loginFooterText}>{t("alreadyHaveAccount")}</Text>
             <Pressable onPress={() => navigation.replace("Login")} hitSlop={8}>
-              <Text style={styles.loginFooterLink}>Sign in</Text>
+              <Text style={styles.loginFooterLink}>{t("signInLink")}</Text>
             </Pressable>
           </View>
         </View>
@@ -453,14 +451,14 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
 
       <SelectorModal
         visible={selectorMode !== null}
-        title={selectorMode === "ward" ? "Select Ward" : "Select City"}
+        title={selectorMode === "ward" ? t("selectWardTitle") : t("selectCityTitle")}
         onClose={() => setSelectorMode(null)}
       >
         {selectorItems.length === 0 ? (
           <View style={styles.emptySelectorState}>
             <MaterialCommunityIcons name="map-marker-alert-outline" size={24} color="#9CA3AF" />
-            <Text style={styles.emptySelectorTitle}>No ward options available</Text>
-            <Text style={styles.emptySelectorText}>Try choosing the city again or restart the app.</Text>
+            <Text style={styles.emptySelectorTitle}>{t("noWardOptions")}</Text>
+            <Text style={styles.emptySelectorText}>{t("wardOptionsHint")}</Text>
           </View>
         ) : null}
 
@@ -468,7 +466,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps) {
           const isCity = typeof item === "string";
           const id = isCity ? item : item.id;
           const title = isCity ? item : `${item.wardName} - ${item.city}`;
-          const subtitle = isCity ? "Load wards in this city" : [item.area, item.municipality].filter(Boolean).join(" - ");
+          const subtitle = isCity ? t("loadWardsInCity") : [item.area, item.municipality].filter(Boolean).join(" - ");
           const selected = isCity ? selectedCity === item : selectedWard?.id === item.id;
 
           return (

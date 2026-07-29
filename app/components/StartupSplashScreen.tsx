@@ -68,7 +68,7 @@ export default function StartupSplashScreen({
     });
     const loadingAnimation = Animated.timing(loadingProgress, {
       toValue: 100,
-      duration: 2800,
+      duration: 700,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     });

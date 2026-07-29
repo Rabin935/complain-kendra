@@ -18,6 +18,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../../../constants/colors";
+import { useTranslation } from "../../../i18n/LanguageContext";
+import { useCitizenLabels } from "../../../i18n/useCitizenLabels";
 import {
   fetchCitizenProfile,
   fetchNotificationPreferences,
@@ -44,6 +46,9 @@ const defaultPreferences: NotificationPreferences = {
 
 export default function SettingsScreen() {
   const navigation = useNavigation<SettingsNavigation>();
+  const { t } = useTranslation("settings");
+  const { t: tc } = useTranslation("common");
+  const { t: tCitizen } = useCitizenLabels();
   const [profile, setProfile] = useState<CitizenProfile | null>(null);
   const [preferences, setPreferences] = useState<NotificationPreferences>(defaultPreferences);
   const [loading, setLoading] = useState(true);
@@ -86,7 +91,7 @@ export default function SettingsScreen() {
     const result = await updateNotificationPreferences({ [key]: value });
     setPreferences(result.data);
     setSavingKey(null);
-    showToast(result.error ? "Preference saved locally." : "Setting updated.");
+    showToast(result.error ? t("preferenceSavedLocally") : t("settingUpdated"));
   }
 
   async function updatePublic(nextValue: boolean) {
@@ -98,11 +103,11 @@ export default function SettingsScreen() {
     setProfile((current) => (current ? { ...current, isPublic: nextValue } : current));
     const result = await updatePublicProfile(nextValue);
     setSavingKey(null);
-    showToast(result.error ? "Public profile saved locally." : "Privacy setting updated.");
+    showToast(result.error ? t("publicProfileSavedLocally") : t("privacyUpdated"));
   }
 
   function openComingSoon(title: string) {
-    Alert.alert(title, "This setting is not available yet.");
+    Alert.alert(title, t("comingSoon"));
   }
 
   if (loading) {
@@ -110,7 +115,7 @@ export default function SettingsScreen() {
       <SafeAreaView edges={["top"]} style={styles.safeArea}>
         <View style={styles.centerState}>
           <ActivityIndicator color={colors.primary} />
-          <Text style={styles.centerText}>Loading settings...</Text>
+          <Text style={styles.centerText}>{t("loadingSettings")}</Text>
         </View>
       </SafeAreaView>
     );
@@ -121,13 +126,13 @@ export default function SettingsScreen() {
       <View style={styles.header}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Go back"
+          accessibilityLabel={t("goBack")}
           style={({ pressed }) => [styles.backButton, pressed ? styles.pressed : null]}
           onPress={() => navigation.goBack()}
         >
           <MaterialCommunityIcons name="arrow-left" size={22} color={colors.text} />
         </Pressable>
-        <Text style={styles.title}>Settings</Text>
+        <Text style={styles.title}>{t("title")}</Text>
       </View>
 
       <ScrollView
@@ -149,12 +154,12 @@ export default function SettingsScreen() {
           </View>
         ) : null}
 
-        <SettingsSection title="Notifications">
+        <SettingsSection title={t("sectionNotifications")}>
           <SettingsToggleRow
             icon="bell-outline"
             iconColor={colors.primary}
-            title="Push Notifications"
-            subtitle="Status updates, comments"
+            title={t("pushNotifications")}
+            subtitle={t("pushSubtitle")}
             value={preferences.push}
             loading={savingKey === "push"}
             onValueChange={(value) => void updatePreference("push", value)}
@@ -162,8 +167,8 @@ export default function SettingsScreen() {
           <SettingsToggleRow
             icon="email-outline"
             iconColor={colors.info}
-            title="Email Alerts"
-            subtitle={profile?.email || "Email updates"}
+            title={t("emailAlerts")}
+            subtitle={profile?.email || t("emailUpdates")}
             value={preferences.email}
             loading={savingKey === "email"}
             onValueChange={(value) => void updatePreference("email", value)}
@@ -171,8 +176,8 @@ export default function SettingsScreen() {
           <SettingsToggleRow
             icon="cellphone"
             iconColor={colors.warning}
-            title="SMS Updates"
-            subtitle={profile?.phone || "Critical only"}
+            title={t("smsUpdates")}
+            subtitle={profile?.phone || t("smsCriticalOnly")}
             value={preferences.sms}
             loading={savingKey === "sms"}
             onValueChange={(value) => void updatePreference("sms", value)}
@@ -180,8 +185,8 @@ export default function SettingsScreen() {
           <SettingsToggleRow
             icon="newspaper-variant-outline"
             iconColor={colors.success}
-            title="Weekly Ward Digest"
-            subtitle="Every Sunday"
+            title={t("weeklyDigest")}
+            subtitle={t("weeklyDigestSubtitle")}
             value={preferences.complaintUpdates}
             loading={savingKey === "complaintUpdates"}
             onValueChange={(value) => void updatePreference("complaintUpdates", value)}
@@ -189,25 +194,25 @@ export default function SettingsScreen() {
           />
         </SettingsSection>
 
-        <SettingsSection title="Privacy & Security">
+        <SettingsSection title={t("sectionPrivacy")}>
           <SettingsActionRow
             icon="lock-reset"
             iconColor={colors.primary}
-            title="Change Password"
-            subtitle="Update your account password"
+            title={t("changePassword")}
+            subtitle={t("changePasswordSubtitle")}
             onPress={() => navigation.navigate("ChangePassword")}
           />
           <SettingsActionRow
             icon="shield-lock-outline"
             iconColor={colors.info}
-            title="Two-Factor Auth"
-            onPress={() => openComingSoon("Two-Factor Auth")}
+            title={t("twoFactorAuth")}
+            onPress={() => openComingSoon(t("twoFactorAuth"))}
           />
           <SettingsToggleRow
             icon="eye-outline"
             iconColor={colors.success}
-            title="Show me in public"
-            subtitle="Display name & avatar"
+            title={t("showMePublic")}
+            subtitle={t("showMePublicSubtitle")}
             value={Boolean(profile?.isPublic)}
             loading={savingKey === "public"}
             onValueChange={(value) => void updatePublic(value)}
@@ -215,55 +220,55 @@ export default function SettingsScreen() {
           <SettingsActionRow
             icon="download-outline"
             iconColor={colors.warning}
-            title="Download my data"
-            onPress={() => openComingSoon("Download my data")}
+            title={t("downloadData")}
+            onPress={() => openComingSoon(t("downloadData"))}
             last
           />
         </SettingsSection>
 
-        <SettingsSection title="Preferences">
+        <SettingsSection title={t("sectionPreferences")}>
           <SettingsActionRow
             icon="web"
             iconColor={colors.primary}
-            title="Language"
+            title={t("language")}
             subtitle={profile?.language ?? "English"}
             onPress={() => navigation.navigate("LanguageSettings")}
           />
           <SettingsActionRow
             icon="palette-outline"
             iconColor={colors.error}
-            title="Theme"
-            subtitle="System"
-            onPress={() => openComingSoon("Theme")}
+            title={t("theme")}
+            subtitle={t("themeSystem")}
+            onPress={() => openComingSoon(t("theme"))}
           />
           <SettingsActionRow
             icon="map-marker-radius-outline"
             iconColor={colors.info}
-            title="Default Ward"
-            subtitle={formatWard(profile)}
-            onPress={() => openComingSoon("Default Ward")}
+            title={t("defaultWard")}
+            subtitle={formatWard(profile, tCitizen)}
+            onPress={() => openComingSoon(t("defaultWard"))}
             last
           />
         </SettingsSection>
 
-        <SettingsSection title="Support">
+        <SettingsSection title={t("sectionSupport")}>
           <SettingsActionRow
             icon="help-circle-outline"
             iconColor={colors.primary}
-            title="Help Center"
+            title={t("helpCenter")}
             onPress={() => navigation.navigate("HelpSupport")}
           />
           <SettingsActionRow
             icon="message-text-outline"
             iconColor={colors.error}
-            title="Send Feedback"
+            title={t("sendFeedback")}
             onPress={() => navigation.navigate("HelpSupport")}
           />
           <SettingsActionRow
             icon="file-document-outline"
             iconColor={colors.textSecondary}
-            title="Terms & Privacy"
-            onPress={() => openComingSoon("Terms & Privacy")}
+            title={t("termsPrivacy")}
+            onPress={() => openComingSoon(t("termsPrivacy"))}
             last
           />
         </SettingsSection>
@@ -272,16 +277,19 @@ export default function SettingsScreen() {
   );
 }
 
-function formatWard(profile: CitizenProfile | null): string {
+function formatWard(
+  profile: CitizenProfile | null,
+  tCitizen: (key: string, vars?: Record<string, string | number>) => string,
+): string {
   if (!profile) {
-    return "Ward not set";
+    return tCitizen("wardNotSet");
   }
 
   return (
     profile.location.ward ||
-    (profile.location.wardNumber ? `Ward ${profile.location.wardNumber}` : "") ||
+    (profile.location.wardNumber ? tCitizen("wardNumber", { number: profile.location.wardNumber }) : "") ||
     profile.location.area ||
-    "Ward not set"
+    tCitizen("wardNotSet")
   );
 }
 

@@ -29,6 +29,7 @@ const config: ExpoConfig = {
       : {}),
   },
   android: {
+    package: "com.complainthub.app",
     adaptiveIcon: {
       foregroundImage: "./assets/images/adaptive-icon.png",
       backgroundColor: "#ffffff",
@@ -47,19 +48,15 @@ const config: ExpoConfig = {
   },
   web: {
     bundler: "metro",
-    output: "static",
+    output: "single",
     favicon: "./assets/images/favicon.png",
   },
   plugins: [
-    "expo-router",
     "expo-sqlite",
     "expo-web-browser",
     // The Expo plugin links google-services.json / GoogleService-Info.plist during native builds.
     "@react-native-google-signin/google-signin",
   ],
-  experiments: {
-    typedRoutes: true,
-  },
   extra: {
     googleWebClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? "",
   },

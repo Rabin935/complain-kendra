@@ -9,6 +9,7 @@ import {
   useNavigation,
   useRoute
 } from "@react-navigation/native";
+import axios from "axios";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -29,7 +30,10 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { getApiErrorMessage } from "../../../../src/lib/api";
 import { colors } from "../../../constants/colors";
+import { useTranslation } from "../../../i18n/LanguageContext";
+import { useCitizenLabels } from "../../../i18n/useCitizenLabels";
 import InteractiveMap from "../../map/components/InteractiveMap";
 import type { SelectedMapLocation } from "../../map/types";
 import { categoryMeta, sampleLocation } from "../../user/data/citizenSampleData";
@@ -279,6 +283,8 @@ function getMapTileUrl(lat: number, lng: number, zoom = 16): string {
 export default function CreateComplaintScreen() {
   const navigation = useNavigation<ReportNavigation>();
   const route = useRoute<ReportRoute>();
+  const { t } = useTranslation("createComplaint");
+  const { t: tc } = useTranslation("common");
   const [step, setStep] = useState<Step>(1);
   const [category, setCategory] = useState<CitizenComplaintCategory | null>(route.params?.category ?? null);
   const [title, setTitle] = useState("");
@@ -455,7 +461,7 @@ export default function CreateComplaintScreen() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     if (!permission.granted) {
-      Alert.alert("Permission needed", "Gallery permission is required to upload report photos.");
+      Alert.alert(t("permissionNeeded"), t("permissionNeeded"));
       return;
     }
 
@@ -482,7 +488,7 @@ export default function CreateComplaintScreen() {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
 
     if (!permission.granted) {
-      Alert.alert("Permission needed", "Camera permission is required to capture report photos.");
+      Alert.alert(t("permissionNeeded"), t("permissionNeeded"));
       return;
     }
 
@@ -608,13 +614,13 @@ export default function CreateComplaintScreen() {
     setDuplicateChoice("followed");
   }
 
-  async function submitComplaint() {
+  async function submitComplaint(forceNew = false) {
     if (!category || !validateStepOne() || !validateStepTwo()) {
       setStep(!category || !title.trim() || !description.trim() ? 1 : 2);
       return;
     }
 
-    if (aiResult?.duplicateCheck.isDuplicate && duplicateChoice !== "new") {
+    if (!forceNew && aiResult?.duplicateCheck.isDuplicate && duplicateChoice !== "new") {
       setErrors((current) => ({
         ...current,
         photos: "Choose whether to follow the existing complaint or continue as new.",
@@ -627,14 +633,33 @@ export default function CreateComplaintScreen() {
     try {
       const result = await submitCitizenComplaint({
         ...buildPayload(category),
-        continueAsNew: duplicateChoice === "new",
+        continueAsNew: forceNew || duplicateChoice === "new",
       });
       setSuccessComplaint(result.data);
       setAiWarning(null);
       setErrors({});
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Submission failed. Please retry.";
-      Alert.alert("Submission Failed", message);
+      if (axios.isAxiosError(error) && error.response?.status === 409) {
+        const duplicate = (error.response.data as { duplicate?: {
+          duplicate_complaint_no?: string;
+          duplicate_title?: string;
+        } })?.duplicate;
+        const duplicateLabel = duplicate?.duplicate_complaint_no
+          ? `${duplicate.duplicate_complaint_no} (${duplicate.duplicate_title ?? "nearby report"})`
+          : "a nearby report";
+
+        Alert.alert(
+          "Similar complaint found",
+          `This looks like it may match ${duplicateLabel} that's already open. Submit it as a new report anyway, or go back to follow the existing one instead.`,
+          [
+            { text: "Cancel", style: "cancel" },
+            { text: "Submit as new", onPress: () => void submitComplaint(true) },
+          ],
+        );
+        return;
+      }
+
+      Alert.alert(t("submissionFailed"), getApiErrorMessage(error));
     } finally {
       setSubmitting(false);
     }
@@ -758,7 +783,7 @@ export default function CreateComplaintScreen() {
               <MaterialCommunityIcons name="arrow-left" size={20} color={colors.text} />
             </Pressable>
             <Text style={styles.title}>
-              {step === 1 ? "Report an Issue" : step === 2 ? "Location & Photos" : "AI Analysis"}
+              {step === 1 ? t("stepReport") : step === 2 ? t("stepLocation") : t("stepAi")}
             </Text>
             <Text style={styles.stepCount}>{step}/3</Text>
           </View>
@@ -924,13 +949,15 @@ function CreateDraftStep({
   onOpenLocationPicker: () => void;
   onAnalyze: () => void;
 }) {
+  const { t } = useTranslation("createComplaint");
+  const { categoryMeta } = useCitizenLabels();
   const { width } = useWindowDimensions();
   const photoSlots = Array.from({ length: maxPhotos });
   const categoryCardWidth = Math.floor((width - 64) / 3);
 
   return (
     <View style={styles.draftPanel}>
-      <Text style={styles.formSectionLabel}>Choose category</Text>
+      <Text style={styles.formSectionLabel}>{t("chooseCategory")}</Text>
       <View style={styles.categoryGrid}>
         {categoryOrder.map((item) => {
           const meta = categoryMeta[item];
@@ -965,7 +992,7 @@ function CreateDraftStep({
           <TextInput
             value={title}
             onChangeText={onTitleChange}
-            placeholder="Title of the Issue"
+            placeholder={t("titlePlaceholder")}
             placeholderTextColor={colors.textMuted}
             style={styles.inlineInput}
             maxLength={90}
@@ -982,7 +1009,7 @@ function CreateDraftStep({
         <TextInput
           value={description}
           onChangeText={onDescriptionChange}
-          placeholder="Description of the Issue"
+          placeholder={t("descriptionPlaceholder")}
           placeholderTextColor={colors.textMuted}
           style={[styles.input, styles.textArea, errors.description ? styles.inputError : null]}
           multiline
@@ -1073,7 +1100,7 @@ function CreateDraftStep({
             <MaterialCommunityIcons name="flash" size={18} color={colors.surface} />
           )}
           <Text style={styles.submitButtonText}>
-            {analyzing ? "Analyzing..." : "Analyze with AI"}
+            {analyzing ? t("analyzing") : t("analyzeWithAi")}
           </Text>
           {analyzing ? null : (
             <MaterialCommunityIcons name="arrow-right" size={18} color={colors.surface} />
@@ -1286,6 +1313,7 @@ function StepTwo({
   onAdjustPin: (deltaLat: number, deltaLng: number) => void;
   onAnalyze: () => void;
 }) {
+  const { t } = useTranslation("createComplaint");
   const photoRequired = Boolean(category && photoCriticalCategories.has(category));
   const mapTileUrl = getMapTileUrl(location.lat, location.lng);
 
@@ -1398,7 +1426,7 @@ function StepTwo({
         ) : (
           <MaterialCommunityIcons name="auto-fix" size={20} color={colors.surface} />
         )}
-        <Text style={styles.submitButtonText}>{analyzing ? "AI analyzing..." : "Analyze with AI"}</Text>
+        <Text style={styles.submitButtonText}>{analyzing ? t("analyzing") : t("analyzeWithAi")}</Text>
       </Pressable>
     </View>
   );
@@ -1437,6 +1465,7 @@ function StepThree({
   onContinueNew: () => void;
   onSubmit: () => void;
 }) {
+  const { t } = useTranslation("createComplaint");
   const meta = selectedMeta ?? categoryMeta[category];
   const detectedMeta = aiResult ? categoryMeta[aiResult.detectedCategory] : meta;
   const confidence = aiResult?.confidence ?? 0;
@@ -1581,7 +1610,7 @@ function StepThree({
         >
           {submitting ? <ActivityIndicator color={colors.surface} /> : null}
           <Text style={styles.analysisSubmitText}>
-            {submitting ? "Submitting..." : "Submit Report"}
+            {submitting ? t("submitting") : t("submitReport")}
           </Text>
           {!submitting ? <MaterialCommunityIcons name="arrow-right" size={18} color={colors.surface} /> : null}
         </Pressable>

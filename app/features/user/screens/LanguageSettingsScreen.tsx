@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../../../constants/colors";
+import { useLanguage, useTranslation } from "../../../i18n/LanguageContext";
 import {
   fetchCitizenProfile,
   updateCitizenLanguage,
@@ -19,17 +20,20 @@ import type { CitizenProfile } from "../types/citizen.types";
 import type { UserStackParamList } from "../types/user.types";
 
 type LanguageNavigation = NavigationProp<UserStackParamList>;
-type Language = CitizenProfile["language"];
-
-const languages: Array<{ value: Language; label: string; caption: string }> = [
-  { value: "English", label: "English", caption: "Use English across ComplainKendra." },
-  { value: "Nepali", label: "नेपाली", caption: "Save Nepali as your preferred language." },
-];
+type LanguageOption = CitizenProfile["language"];
 
 export default function LanguageSettingsScreen() {
   const navigation = useNavigation<LanguageNavigation>();
-  const [currentLanguage, setCurrentLanguage] = useState<Language>("English");
-  const [selectedLanguage, setSelectedLanguage] = useState<Language>("English");
+  const { t } = useTranslation("languageSettings");
+  const { language, setLanguage } = useLanguage();
+
+  const languages: Array<{ value: LanguageOption; label: string; caption: string }> = [
+    { value: "English", label: t("englishLabel"), caption: t("englishCaption") },
+    { value: "Nepali", label: t("nepaliLabel"), caption: t("nepaliCaption") },
+  ];
+
+  const [currentLanguage, setCurrentLanguage] = useState<LanguageOption>(language);
+  const [selectedLanguage, setSelectedLanguage] = useState<LanguageOption>(language);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,19 +45,32 @@ export default function LanguageSettingsScreen() {
     const result = await fetchCitizenProfile();
 
     if (result.source !== "api" || !result.data.id) {
-      setError(result.error ?? "Unable to load language settings.");
+      setError(result.error ?? t("loadError"));
       setLoading(false);
       return;
     }
 
     setCurrentLanguage(result.data.language);
     setSelectedLanguage(result.data.language);
+    setLanguage(result.data.language);
     setLoading(false);
-  }, []);
+  }, [setLanguage, t]);
 
   useEffect(() => {
     void loadLanguage();
-  }, [loadLanguage]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function handleSelectLanguage(languageOption: LanguageOption) {
+    setSelectedLanguage(languageOption);
+    setLanguage(languageOption);
+  }
+
+  function handleCancel() {
+    setLanguage(currentLanguage);
+    setSelectedLanguage(currentLanguage);
+    navigation.goBack();
+  }
 
   async function saveLanguage() {
     setSaving(true);
@@ -64,10 +81,11 @@ export default function LanguageSettingsScreen() {
       const updated = await updateCitizenLanguage(selectedLanguage);
       setCurrentLanguage(updated.language);
       setSelectedLanguage(updated.language);
-      setSuccess("Language preference saved.");
+      setLanguage(updated.language);
+      setSuccess(t("saveSuccess"));
       setTimeout(() => navigation.goBack(), 900);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Unable to save language.");
+      setError(caught instanceof Error ? caught.message : t("saveError"));
     } finally {
       setSaving(false);
     }
@@ -78,7 +96,7 @@ export default function LanguageSettingsScreen() {
       <SafeAreaView edges={["top"]} style={styles.safeArea}>
         <View style={styles.centerState}>
           <ActivityIndicator color={colors.primary} />
-          <Text style={styles.centerText}>Loading language...</Text>
+          <Text style={styles.centerText}>{t("loadingLanguage")}</Text>
         </View>
       </SafeAreaView>
     );
@@ -87,10 +105,10 @@ export default function LanguageSettingsScreen() {
   return (
     <SafeAreaView edges={["top"]} style={styles.safeArea}>
       <View style={styles.header}>
-        <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
+        <Pressable style={styles.backButton} onPress={handleCancel}>
           <MaterialCommunityIcons name="arrow-left" size={22} color={colors.text} />
         </Pressable>
-        <Text style={styles.title}>Language</Text>
+        <Text style={styles.title}>{t("headerTitle")}</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -109,26 +127,28 @@ export default function LanguageSettingsScreen() {
         ) : null}
 
         <View style={styles.currentCard}>
-          <Text style={styles.sectionLabel}>Current Language</Text>
-          <Text style={styles.currentValue}>{currentLanguage === "Nepali" ? "नेपाली" : "English"}</Text>
+          <Text style={styles.sectionLabel}>{t("currentLanguageLabel")}</Text>
+          <Text style={styles.currentValue}>
+            {currentLanguage === "Nepali" ? t("nepaliLabel") : t("englishLabel")}
+          </Text>
         </View>
 
-        <Text style={styles.sectionLabel}>Available Languages</Text>
+        <Text style={styles.sectionLabel}>{t("availableLanguagesLabel")}</Text>
         <View style={styles.languageList}>
-          {languages.map((language) => {
-            const selected = selectedLanguage === language.value;
+          {languages.map((languageOption) => {
+            const selected = selectedLanguage === languageOption.value;
             return (
               <Pressable
-                key={language.value}
+                key={languageOption.value}
                 style={[styles.languageCard, selected ? styles.languageCardSelected : null]}
-                onPress={() => setSelectedLanguage(language.value)}
+                onPress={() => handleSelectLanguage(languageOption.value)}
               >
                 <View style={[styles.radio, selected ? styles.radioSelected : null]}>
                   {selected ? <View style={styles.radioDot} /> : null}
                 </View>
                 <View style={styles.languageCopy}>
-                  <Text style={styles.languageTitle}>{language.label}</Text>
-                  <Text style={styles.languageCaption}>{language.caption}</Text>
+                  <Text style={styles.languageTitle}>{languageOption.label}</Text>
+                  <Text style={styles.languageCaption}>{languageOption.caption}</Text>
                 </View>
               </Pressable>
             );
@@ -137,9 +157,7 @@ export default function LanguageSettingsScreen() {
 
         <View style={styles.infoCard}>
           <MaterialCommunityIcons name="translate" size={20} color={colors.primary} />
-          <Text style={styles.infoText}>
-            If localization is not available on a screen yet, this preference will still be saved for future use.
-          </Text>
+          <Text style={styles.infoText}>{t("infoText")}</Text>
         </View>
 
         <Pressable
@@ -147,10 +165,10 @@ export default function LanguageSettingsScreen() {
           style={[styles.primaryButton, saving ? styles.disabledButton : null]}
           onPress={() => void saveLanguage()}
         >
-          {saving ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.primaryText}>Save</Text>}
+          {saving ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.primaryText}>{t("saveButton")}</Text>}
         </Pressable>
-        <Pressable style={styles.secondaryButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.secondaryText}>Cancel</Text>
+        <Pressable style={styles.secondaryButton} onPress={handleCancel}>
+          <Text style={styles.secondaryText}>{t("cancelButton")}</Text>
         </Pressable>
       </ScrollView>
     </SafeAreaView>

@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../../../constants/colors";
+import { useTranslation } from "../../../i18n/LanguageContext";
 import { changeCitizenPassword } from "../services/citizen.service";
 import type { UserStackParamList } from "../types/user.types";
 
@@ -18,16 +19,19 @@ type ChangePasswordNavigation = NavigationProp<UserStackParamList>;
 
 type VisibilityKey = "current" | "next" | "confirm";
 
-const rules = [
-  { key: "length", label: "Minimum 8 characters", test: (value: string) => value.length >= 8 },
-  { key: "upper", label: "One uppercase letter", test: (value: string) => /[A-Z]/.test(value) },
-  { key: "lower", label: "One lowercase letter", test: (value: string) => /[a-z]/.test(value) },
-  { key: "number", label: "One number", test: (value: string) => /\d/.test(value) },
-  { key: "special", label: "One special character", test: (value: string) => /[^A-Za-z0-9]/.test(value) },
+const ruleKeys = ["policyMinLength", "policyUppercase", "policyLowercase", "policyNumber", "policySymbol"] as const;
+const ruleTests = [
+  (value: string) => value.length >= 8,
+  (value: string) => /[A-Z]/.test(value),
+  (value: string) => /[a-z]/.test(value),
+  (value: string) => /\d/.test(value),
+  (value: string) => /[^A-Za-z0-9]/.test(value),
 ];
 
 export default function ChangePasswordScreen() {
   const navigation = useNavigation<ChangePasswordNavigation>();
+  const { t } = useTranslation("changePassword");
+  const { t: tc } = useTranslation("common");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -41,10 +45,11 @@ export default function ChangePasswordScreen() {
   const [success, setSuccess] = useState<string | null>(null);
 
   const passedRules = useMemo(
-    () => rules.filter((rule) => rule.test(newPassword)).length,
+    () => ruleTests.filter((test) => test(newPassword)).length,
     [newPassword],
   );
-  const strengthLabel = passedRules <= 2 ? "Weak" : passedRules <= 4 ? "Good" : "Strong";
+  const strengthLabel =
+    passedRules <= 2 ? t("strengthWeak") : passedRules <= 4 ? t("strengthGood") : t("strengthStrong");
   const strengthColor = passedRules <= 2 ? colors.error : passedRules <= 4 ? colors.warning : colors.success;
 
   function toggleVisibility(key: VisibilityKey) {
@@ -53,23 +58,23 @@ export default function ChangePasswordScreen() {
 
   function validate(): string | null {
     if (!currentPassword) {
-      return "Current password is required.";
+      return t("currentRequired");
     }
 
     if (!newPassword) {
-      return "New password is required.";
+      return t("newRequired");
     }
 
     if (currentPassword === newPassword) {
-      return "New password cannot be the same as your current password.";
+      return t("sameAsCurrent");
     }
 
-    if (passedRules !== rules.length) {
-      return "New password does not meet the password policy.";
+    if (passedRules !== ruleTests.length) {
+      return t("policyNotMet");
     }
 
     if (newPassword !== confirmPassword) {
-      return "New password and confirm password do not match.";
+      return t("mismatchConfirm");
     }
 
     return null;
@@ -98,7 +103,7 @@ export default function ChangePasswordScreen() {
       setSuccess(message);
       setTimeout(() => navigation.goBack(), 1100);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Unable to update password.");
+      setError(caught instanceof Error ? caught.message : t("updateError"));
     } finally {
       setSaving(false);
     }
@@ -110,7 +115,7 @@ export default function ChangePasswordScreen() {
         <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
           <MaterialCommunityIcons name="arrow-left" size={22} color={colors.text} />
         </Pressable>
-        <Text style={styles.title}>Change Password</Text>
+        <Text style={styles.title}>{t("title")}</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -130,14 +135,14 @@ export default function ChangePasswordScreen() {
 
         <View style={styles.card}>
           <PasswordField
-            label="Current Password"
+            label={t("currentPassword")}
             value={currentPassword}
             visible={visible.current}
             onChangeText={setCurrentPassword}
             onToggle={() => toggleVisibility("current")}
           />
           <PasswordField
-            label="New Password"
+            label={t("newPassword")}
             value={newPassword}
             visible={visible.next}
             onChangeText={setNewPassword}
@@ -145,15 +150,15 @@ export default function ChangePasswordScreen() {
           />
           <View style={styles.strengthBlock}>
             <View style={styles.strengthHeader}>
-              <Text style={styles.strengthLabel}>Password strength</Text>
+              <Text style={styles.strengthLabel}>{t("strengthLabel")}</Text>
               <Text style={[styles.strengthValue, { color: strengthColor }]}>{strengthLabel}</Text>
             </View>
             <View style={styles.strengthTrack}>
-              <View style={[styles.strengthFill, { width: `${(passedRules / rules.length) * 100}%`, backgroundColor: strengthColor }]} />
+              <View style={[styles.strengthFill, { width: `${(passedRules / ruleTests.length) * 100}%`, backgroundColor: strengthColor }]} />
             </View>
           </View>
           <PasswordField
-            label="Confirm New Password"
+            label={t("confirmPassword")}
             value={confirmPassword}
             visible={visible.confirm}
             onChangeText={setConfirmPassword}
@@ -162,17 +167,17 @@ export default function ChangePasswordScreen() {
         </View>
 
         <View style={styles.policyCard}>
-          <Text style={styles.policyTitle}>Password Policy</Text>
-          {rules.map((rule) => {
-            const passed = rule.test(newPassword);
+          <Text style={styles.policyTitle}>{t("policyTitle")}</Text>
+          {ruleKeys.map((key, index) => {
+            const passed = ruleTests[index](newPassword);
             return (
-              <View key={rule.key} style={styles.policyRow}>
+              <View key={key} style={styles.policyRow}>
                 <MaterialCommunityIcons
                   name={passed ? "check-circle" : "circle-outline"}
                   size={18}
                   color={passed ? colors.success : colors.textMuted}
                 />
-                <Text style={[styles.policyText, passed ? styles.policyTextPassed : null]}>{rule.label}</Text>
+                <Text style={[styles.policyText, passed ? styles.policyTextPassed : null]}>{t(key)}</Text>
               </View>
             );
           })}
@@ -183,10 +188,10 @@ export default function ChangePasswordScreen() {
           style={[styles.primaryButton, saving ? styles.disabledButton : null]}
           onPress={() => void updatePassword()}
         >
-          {saving ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.primaryText}>Update Password</Text>}
+          {saving ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.primaryText}>{t("updatePassword")}</Text>}
         </Pressable>
         <Pressable style={styles.secondaryButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.secondaryText}>Cancel</Text>
+          <Text style={styles.secondaryText}>{tc("cancel")}</Text>
         </Pressable>
       </ScrollView>
     </SafeAreaView>

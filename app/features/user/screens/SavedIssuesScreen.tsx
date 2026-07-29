@@ -13,10 +13,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../../../constants/colors";
+import { useTranslation } from "../../../i18n/LanguageContext";
+import { useCitizenLabels } from "../../../i18n/useCitizenLabels";
 import { fetchSavedIssues, followComplaint } from "../services/citizen.service";
 import type { CitizenComplaint } from "../types/citizen.types";
 import type { UserStackParamList } from "../types/user.types";
-import { formatCompactDate, statusColors, statusLabels } from "../utils/citizenUi";
+import { formatCompactDate, statusColors } from "../utils/citizenUi";
 
 const categoryEmoji: Record<CitizenComplaint["category"], string> = {
   road: "🚧",
@@ -29,6 +31,9 @@ const categoryEmoji: Record<CitizenComplaint["category"], string> = {
 
 export default function SavedIssuesScreen() {
   const navigation = useNavigation<NavigationProp<UserStackParamList>>();
+  const { t } = useTranslation("savedIssues");
+  const { t: tc } = useTranslation("common");
+  const { statusLabels } = useCitizenLabels();
   const [issues, setIssues] = useState<CitizenComplaint[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -55,7 +60,7 @@ export default function SavedIssuesScreen() {
     if (result.source === "api") {
       setIssues((current) => current.filter((issue) => issue.id !== id));
     } else {
-      setError(result.error ?? "Unable to remove this saved issue.");
+      setError(result.error ?? t("removeError"));
     }
     setRemovingId(null);
   }
@@ -70,8 +75,8 @@ export default function SavedIssuesScreen() {
           <MaterialCommunityIcons name="arrow-left" size={21} color="#FFFFFF" />
         </Pressable>
         <View style={styles.headerCopy}>
-          <Text style={styles.eyebrow}>YOUR COLLECTION</Text>
-          <Text style={styles.title}>Saved Issues</Text>
+          <Text style={styles.eyebrow}>{t("collectionLabel")}</Text>
+          <Text style={styles.title}>{t("title")}</Text>
         </View>
         <View style={styles.headerIcon}>
           <MaterialCommunityIcons name="bookmark" size={20} color="#FCD34D" />
@@ -90,25 +95,29 @@ export default function SavedIssuesScreen() {
             <MaterialCommunityIcons name="bookmark-multiple" size={22} color="#F59E0B" />
           </View>
           <View style={styles.flex}>
-            <Text style={styles.summaryTitle}>{issues.length} saved {issues.length === 1 ? "issue" : "issues"}</Text>
-            <Text style={styles.summaryHint}>Follow important reports and receive their updates.</Text>
+            <Text style={styles.summaryTitle}>
+              {issues.length === 1
+                ? t("summaryOne", { count: issues.length })
+                : t("summaryMany", { count: issues.length })}
+            </Text>
+            <Text style={styles.summaryHint}>{t("summaryCaption")}</Text>
           </View>
         </View>
 
         {loading ? (
           <View style={styles.state}>
             <ActivityIndicator color={colors.primary} />
-            <Text style={styles.stateText}>Loading saved issues...</Text>
+            <Text style={styles.stateText}>{t("loading")}</Text>
           </View>
         ) : null}
 
         {!loading && error && issues.length === 0 ? (
           <View style={styles.state}>
             <MaterialCommunityIcons name="cloud-alert-outline" size={32} color={colors.error} />
-            <Text style={styles.stateTitle}>Unable to load saved issues</Text>
+            <Text style={styles.stateTitle}>{t("loadError")}</Text>
             <Text style={styles.stateText}>{error}</Text>
             <Pressable style={styles.primaryButton} onPress={() => void load()}>
-              <Text style={styles.primaryButtonText}>Try Again</Text>
+              <Text style={styles.primaryButtonText}>{tc("retry")}</Text>
             </Pressable>
           </View>
         ) : null}
@@ -118,13 +127,13 @@ export default function SavedIssuesScreen() {
             <View style={styles.emptyIcon}>
               <MaterialCommunityIcons name="bookmark-outline" size={38} color={colors.primary} />
             </View>
-            <Text style={styles.stateTitle}>No saved issues yet</Text>
-            <Text style={styles.stateText}>Open a complaint and follow it to save it here.</Text>
+            <Text style={styles.stateTitle}>{t("emptyTitle")}</Text>
+            <Text style={styles.stateText}>{t("emptyBody")}</Text>
             <Pressable
               style={styles.primaryButton}
               onPress={() => navigation.navigate("MainTabs", { screen: "Browse" })}
             >
-              <Text style={styles.primaryButtonText}>Browse Issues</Text>
+              <Text style={styles.primaryButtonText}>{t("browseIssues")}</Text>
             </Pressable>
           </View>
         ) : null}

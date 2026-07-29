@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../../../constants/colors";
+import { useTranslation } from "../../../i18n/LanguageContext";
 import {
   fetchComplaintById,
   rateComplaintResolution,
@@ -23,24 +24,21 @@ import type { UserStackParamList } from "../../user/types/user.types";
 
 type Props = NativeStackScreenProps<UserStackParamList, "RateResolution">;
 
-const feedbackOptions: Array<{
-  label: string;
-  icon: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
-}> = [
-  { label: "Fast response", icon: "lightning-bolt-outline" },
-  { label: "Professional", icon: "medal-outline" },
-  { label: "Clear updates", icon: "message-text-outline" },
-  { label: "Quality work", icon: "tools" },
-  { label: "Could be better", icon: "emoticon-confused-outline" },
-  { label: "Communication", icon: "phone-outline" },
-];
+const feedbackOptionKeys = [
+  { key: "chipFast", icon: "lightning-bolt-outline" },
+  { key: "chipProfessional", icon: "medal-outline" },
+  { key: "chipClear", icon: "message-text-outline" },
+  { key: "chipQuality", icon: "tools" },
+  { key: "chipBetter", icon: "emoticon-confused-outline" },
+  { key: "chipCommunication", icon: "phone-outline" },
+] as const;
 
-const ratingLabels: Record<number, string> = {
-  1: "Very disappointing",
-  2: "Could be better",
-  3: "Good experience",
-  4: "Great experience!",
-  5: "Excellent resolution!",
+const ratingLabelKeys: Record<number, "rating1" | "rating2" | "rating3" | "rating4" | "rating5"> = {
+  1: "rating1",
+  2: "rating2",
+  3: "rating3",
+  4: "rating4",
+  5: "rating5",
 };
 
 const categoryEmoji: Record<CitizenComplaint["category"], string> = {
@@ -60,7 +58,13 @@ function resolutionDays(complaint: CitizenComplaint) {
 }
 
 export default function RateResolutionScreen({ route, navigation }: Props) {
+  const { t } = useTranslation("rateResolution");
+  const { t: tc } = useTranslation("common");
   const complaintId = route.params.complaintId;
+  const feedbackOptions = feedbackOptionKeys.map((option) => ({
+    label: t(option.key),
+    icon: option.icon,
+  }));
   const [complaint, setComplaint] = useState<CitizenComplaint | null>(null);
   const [rating, setRating] = useState(4);
   const [selectedFeedback, setSelectedFeedback] = useState<string[]>([]);
@@ -77,12 +81,12 @@ export default function RateResolutionScreen({ route, navigation }: Props) {
         if (!active) return;
         setComplaint(detail.complaint);
         if (detail.complaint.status !== "resolved") {
-          setError("This complaint has not been marked resolved yet.");
+          setError(t("notResolved"));
         }
       })
       .catch((loadError) => {
         if (active) {
-          setError(loadError instanceof Error ? loadError.message : "Unable to load this resolution.");
+          setError(loadError instanceof Error ? loadError.message : t("loadError"));
         }
       })
       .finally(() => {
@@ -94,8 +98,8 @@ export default function RateResolutionScreen({ route, navigation }: Props) {
   }, [complaintId]);
 
   const department = useMemo(
-    () => complaint?.aiAnalysis?.department ?? "Ward Department",
-    [complaint?.aiAnalysis?.department],
+    () => complaint?.aiAnalysis?.department ?? t("wardDepartment"),
+    [complaint?.aiAnalysis?.department, t],
   );
 
   function toggleFeedback(label: string) {
@@ -122,7 +126,7 @@ export default function RateResolutionScreen({ route, navigation }: Props) {
       });
       setSubmitted(true);
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "Unable to submit feedback.");
+      setError(submitError instanceof Error ? submitError.message : t("submitError"));
     } finally {
       setSubmitting(false);
     }
@@ -133,7 +137,7 @@ export default function RateResolutionScreen({ route, navigation }: Props) {
       <SafeAreaView edges={["top"]} style={styles.safeArea}>
         <View style={styles.state}>
           <ActivityIndicator color={colors.primary} />
-          <Text style={styles.stateText}>Loading resolution...</Text>
+          <Text style={styles.stateText}>{t("loading")}</Text>
         </View>
       </SafeAreaView>
     );
@@ -144,10 +148,10 @@ export default function RateResolutionScreen({ route, navigation }: Props) {
       <SafeAreaView edges={["top"]} style={styles.safeArea}>
         <View style={styles.state}>
           <MaterialCommunityIcons name="alert-circle-outline" size={34} color={colors.error} />
-          <Text style={styles.stateTitle}>Resolution unavailable</Text>
+          <Text style={styles.stateTitle}>{t("unavailable")}</Text>
           <Text style={styles.stateText}>{error}</Text>
           <Pressable style={styles.secondaryButton} onPress={() => navigation.goBack()}>
-            <Text style={styles.secondaryButtonText}>Go Back</Text>
+            <Text style={styles.secondaryButtonText}>{t("goBack")}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -161,13 +165,13 @@ export default function RateResolutionScreen({ route, navigation }: Props) {
           <LinearGradient colors={["#34D399", "#16A34A"]} style={styles.successIcon}>
             <MaterialCommunityIcons name="check" size={48} color="#FFFFFF" />
           </LinearGradient>
-          <Text style={styles.successTitle}>Thank you!</Text>
-          <Text style={styles.stateText}>Your feedback helps the ward improve future resolutions.</Text>
+          <Text style={styles.successTitle}>{t("thankYou")}</Text>
+          <Text style={styles.stateText}>{t("thankYouBody")}</Text>
           <Pressable
             style={styles.secondaryButton}
             onPress={() => navigation.replace("ComplaintDetail", { complaintId })}
           >
-            <Text style={styles.secondaryButtonText}>View Complaint</Text>
+            <Text style={styles.secondaryButtonText}>{t("viewComplaint")}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -184,7 +188,7 @@ export default function RateResolutionScreen({ route, navigation }: Props) {
           <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
             <MaterialCommunityIcons name="arrow-left" size={20} color={colors.text} />
           </Pressable>
-          <Text style={styles.headerTitle}>Rate Resolution</Text>
+          <Text style={styles.headerTitle}>{t("title")}</Text>
         </View>
 
         <ScrollView
@@ -198,7 +202,7 @@ export default function RateResolutionScreen({ route, navigation }: Props) {
                 <MaterialCommunityIcons name="check" size={50} color="#FFFFFF" />
               </LinearGradient>
             </View>
-            <Text style={styles.heroTitle}>Your issue is resolved!</Text>
+            <Text style={styles.heroTitle}>{t("issueResolved")}</Text>
             <Text style={styles.heroSubtitle}>
               <Text style={styles.complaintNo}>#{complaint.complaintNo}</Text>
               {" · "}{complaint.title}
@@ -210,16 +214,18 @@ export default function RateResolutionScreen({ route, navigation }: Props) {
               <Text style={styles.categoryEmoji}>{categoryEmoji[complaint.category]}</Text>
             </View>
             <View style={styles.flex}>
-              <Text style={styles.resolutionTitle}>Resolved in {resolutionDays(complaint)} days</Text>
+              <Text style={styles.resolutionTitle}>
+                {t("resolvedInDays", { days: resolutionDays(complaint) })}
+              </Text>
               <Text style={styles.resolutionMeta}>{complaint.location.ward} · {department}</Text>
             </View>
             <View style={styles.resolvedBadge}>
               <MaterialCommunityIcons name="check-circle-outline" size={13} color="#166534" />
-              <Text style={styles.resolvedText}>Resolved</Text>
+              <Text style={styles.resolvedText}>{t("resolved")}</Text>
             </View>
           </View>
 
-          <Text style={styles.experienceTitle}>How was your experience?</Text>
+          <Text style={styles.experienceTitle}>{t("howWasExperience")}</Text>
           <View style={styles.starRow}>
             {[1, 2, 3, 4, 5].map((value) => (
               <Pressable key={value} hitSlop={5} onPress={() => setRating(value)}>
@@ -231,9 +237,9 @@ export default function RateResolutionScreen({ route, navigation }: Props) {
               </Pressable>
             ))}
           </View>
-          <Text style={styles.ratingLabel}>{ratingLabels[rating]}</Text>
+          <Text style={styles.ratingLabel}>{t(ratingLabelKeys[rating])}</Text>
 
-          <Text style={styles.fieldLabel}>WHAT WENT WELL?</Text>
+          <Text style={styles.fieldLabel}>{t("whatWentWell")}</Text>
           <View style={styles.feedbackWrap}>
             {feedbackOptions.map((option) => {
               const selected = selectedFeedback.includes(option.label);
@@ -257,12 +263,12 @@ export default function RateResolutionScreen({ route, navigation }: Props) {
           </View>
 
           <Text style={styles.fieldLabel}>
-            TELL US MORE <Text style={styles.optional}>(optional)</Text>
+            {t("tellUsMore")} <Text style={styles.optional}>({tc("optional")})</Text>
           </Text>
           <TextInput
             value={comment}
             onChangeText={setComment}
-            placeholder="Share what could be improved next time…"
+            placeholder={t("feedbackPlaceholder")}
             placeholderTextColor={colors.textMuted}
             multiline
             maxLength={500}
@@ -284,7 +290,7 @@ export default function RateResolutionScreen({ route, navigation }: Props) {
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
                 <>
-                  <Text style={styles.submitText}>Submit Feedback</Text>
+                  <Text style={styles.submitText}>{t("submitFeedback")}</Text>
                   <MaterialCommunityIcons name="send" size={18} color="#FFFFFF" />
                 </>
               )}
@@ -294,7 +300,7 @@ export default function RateResolutionScreen({ route, navigation }: Props) {
             style={styles.skipButton}
             onPress={() => navigation.replace("ComplaintDetail", { complaintId })}
           >
-            <Text style={styles.skipText}>Skip for now</Text>
+            <Text style={styles.skipText}>{t("skipForNow")}</Text>
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>

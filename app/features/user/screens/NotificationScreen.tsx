@@ -17,6 +17,8 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../../../constants/colors";
+import { useTranslation } from "../../../i18n/LanguageContext";
+import { useCitizenLabels } from "../../../i18n/useCitizenLabels";
 import {
   fetchNotifications,
   markAllNotificationsRead,
@@ -28,12 +30,6 @@ import type { UserStackParamList } from "../types/user.types";
 type NotificationNavigation = NavigationProp<UserStackParamList>;
 type NotificationFilter = "all" | "unread" | "mentions";
 
-const filters: Array<{ id: NotificationFilter; label: string }> = [
-  { id: "all", label: "All" },
-  { id: "unread", label: "Unread" },
-  { id: "mentions", label: "Mentions" },
-];
-
 function isToday(value: string): boolean {
   const date = new Date(value);
 
@@ -43,37 +39,6 @@ function isToday(value: string): boolean {
 
   const now = new Date();
   return date.toDateString() === now.toDateString();
-}
-
-function timeAgo(value: string): string {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "Just now";
-  }
-
-  const seconds = Math.max(1, Math.floor((Date.now() - date.getTime()) / 1000));
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-
-  if (minutes < 1) {
-    return "Just now";
-  }
-
-  if (minutes < 60) {
-    return `${minutes} min ago`;
-  }
-
-  if (hours < 24) {
-    return `${hours}h ago`;
-  }
-
-  if (days < 7) {
-    return `${days}d ago`;
-  }
-
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 function isMention(notification: CitizenNotification): boolean {
@@ -133,12 +98,21 @@ function getComplaintId(notification: CitizenNotification): string | null {
 export default function NotificationScreen() {
   const navigation = useNavigation<NotificationNavigation>();
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation("notifications");
+  const { t: tc } = useTranslation("common");
+  const { formatRelativeTime } = useCitizenLabels();
   const [notifications, setNotifications] = useState<CitizenNotification[]>([]);
   const [activeFilter, setActiveFilter] = useState<NotificationFilter>("all");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const filters: Array<{ id: NotificationFilter; label: string }> = [
+    { id: "all", label: t("filterAll") },
+    { id: "unread", label: t("filterUnread") },
+    { id: "mentions", label: t("filterMentions") },
+  ];
 
   const loadNotifications = useCallback(async () => {
     setError(null);
@@ -228,7 +202,7 @@ export default function NotificationScreen() {
       <SafeAreaView edges={["top"]} style={styles.safeArea}>
         <View style={styles.centerState}>
           <ActivityIndicator color={colors.primary} />
-          <Text style={styles.centerText}>Loading notifications...</Text>
+          <Text style={styles.centerText}>{t("loading")}</Text>
         </View>
       </SafeAreaView>
     );
@@ -238,7 +212,7 @@ export default function NotificationScreen() {
     <SafeAreaView edges={["top"]} style={styles.safeArea}>
       <View style={styles.root}>
         <View style={styles.header}>
-          <Text style={styles.title}>Notifications</Text>
+          <Text style={styles.title}>{t("title")}</Text>
           <Pressable
             accessibilityRole="button"
             disabled={!counts.unread || saving}
@@ -249,7 +223,7 @@ export default function NotificationScreen() {
             ]}
             onPress={() => void markAllRead()}
           >
-            <Text style={styles.markAllText}>{saving ? "Saving..." : "Mark all read"}</Text>
+            <Text style={styles.markAllText}>{saving ? t("saving") : t("markAllRead")}</Text>
           </Pressable>
         </View>
 
@@ -286,7 +260,7 @@ export default function NotificationScreen() {
             <MaterialCommunityIcons name="cloud-alert-outline" size={18} color={colors.error} />
             <Text style={styles.errorText}>{error}</Text>
             <Pressable style={styles.retryButton} onPress={refresh}>
-              <Text style={styles.retryText}>Retry</Text>
+              <Text style={styles.retryText}>{tc("retry")}</Text>
             </Pressable>
           </View>
         ) : null}
@@ -301,19 +275,25 @@ export default function NotificationScreen() {
           {!visibleNotifications.length ? (
             <View style={styles.emptyCard}>
               <MaterialCommunityIcons name="bell-sleep-outline" size={35} color={colors.primary} />
-              <Text style={styles.emptyTitle}>No notifications</Text>
-              <Text style={styles.emptyText}>New complaint updates will appear here.</Text>
+              <Text style={styles.emptyTitle}>{t("emptyTitle")}</Text>
+              <Text style={styles.emptyText}>{t("emptyBody")}</Text>
             </View>
           ) : null}
 
           <NotificationSection
-            title="Today"
+            title={t("today")}
             notifications={todayNotifications}
+            fallbackTitle={t("fallbackTitle")}
+            fallbackBody={t("fallbackBody")}
+            formatTime={formatRelativeTime}
             onPressNotification={(notification) => void openNotification(notification)}
           />
           <NotificationSection
-            title="Earlier"
+            title={t("earlier")}
             notifications={earlierNotifications}
+            fallbackTitle={t("fallbackTitle")}
+            fallbackBody={t("fallbackBody")}
+            formatTime={formatRelativeTime}
             onPressNotification={(notification) => void openNotification(notification)}
           />
         </ScrollView>
@@ -326,10 +306,16 @@ export default function NotificationScreen() {
 function NotificationSection({
   title,
   notifications,
+  fallbackTitle,
+  fallbackBody,
+  formatTime,
   onPressNotification,
 }: {
   title: string;
   notifications: CitizenNotification[];
+  fallbackTitle: string;
+  fallbackBody: string;
+  formatTime: (value: string) => string;
   onPressNotification: (notification: CitizenNotification) => void;
 }) {
   if (!notifications.length) {
@@ -343,6 +329,9 @@ function NotificationSection({
         <NotificationRow
           key={notification.id}
           notification={notification}
+          fallbackTitle={fallbackTitle}
+          fallbackBody={fallbackBody}
+          formatTime={formatTime}
           onPress={() => onPressNotification(notification)}
         />
       ))}
@@ -352,9 +341,15 @@ function NotificationSection({
 
 function NotificationRow({
   notification,
+  fallbackTitle,
+  fallbackBody,
+  formatTime,
   onPress,
 }: {
   notification: CitizenNotification;
+  fallbackTitle: string;
+  fallbackBody: string;
+  formatTime: (value: string) => string;
   onPress: () => void;
 }) {
   const meta = getNotificationIcon(notification);
@@ -374,14 +369,14 @@ function NotificationRow({
       </View>
       <View style={styles.notificationCopy}>
         <Text style={styles.notificationTitle} numberOfLines={2}>
-          {notification.title || "Notification"}
+          {notification.title || fallbackTitle}
         </Text>
         <Text style={styles.notificationBody} numberOfLines={2}>
-          {notification.body || "Complaint update"}
+          {notification.body || fallbackBody}
         </Text>
         <View style={styles.timeRow}>
           <MaterialCommunityIcons name="clock-outline" size={12} color={colors.textMuted} />
-          <Text style={styles.notificationTime}>{timeAgo(notification.createdAt)}</Text>
+          <Text style={styles.notificationTime}>{formatTime(notification.createdAt)}</Text>
         </View>
       </View>
       {notification.unread ? <View style={styles.unreadDot} /> : null}

@@ -12,6 +12,7 @@ import { Pressable,
   View,
 } from "react-native";
 import { colors } from "../../../constants/colors";
+import { useTranslation } from "../../../i18n/LanguageContext";
 import ComplaintDetailScreen from "../../complaints/screens/ComplaintDetailScreen";
 import MyComplaintsScreen from "../../complaints/screens/MyComplaintsScreen";
 import RateResolutionScreen from "../../complaints/screens/RateResolutionScreen";
@@ -33,38 +34,39 @@ import type { UserStackParamList, UserTabParamList } from "../types/user.types";
 const Tabs = createBottomTabNavigator<UserTabParamList>();
 const Stack = createNativeStackNavigator<UserStackParamList>();
 
-const tabConfig: Record<
-  keyof UserTabParamList,
-  {
-    label: string;
-    icon: string;
-  }
-> = {
-  Home: {
-    label: "Home",
-    icon: "home-variant-outline",
-  },
-  Notifications: {
-    label: "Notifications",
-    icon: "bell-outline",
-  },
-  Mine: {
-    label: "Mine",
-    icon: "clipboard-text-clock-outline",
-  },
-  Browse: {
-    label: "Browse",
-    icon: "web",
-  },
-  Profile: {
-    label: "Profile",
-    icon: "account",
-  },
-};
-
 function UserTabBar({ state, navigation }: BottomTabBarProps) {
+  const { t } = useTranslation("tabs");
   const stackNavigation = useNavigation<NavigationProp<UserStackParamList>>();
   const activeRouteName = state.routes[state.index]?.name;
+
+  const tabConfig: Record<
+    keyof UserTabParamList,
+    {
+      label: string;
+      icon: string;
+    }
+  > = {
+    Home: {
+      label: t("home"),
+      icon: "home-variant-outline",
+    },
+    Notifications: {
+      label: t("notifications"),
+      icon: "bell-outline",
+    },
+    Mine: {
+      label: t("mine"),
+      icon: "clipboard-text-clock-outline",
+    },
+    Browse: {
+      label: t("browse"),
+      icon: "web",
+    },
+    Profile: {
+      label: t("profile"),
+      icon: "account",
+    },
+  };
 
   function openTab(routeName: keyof UserTabParamList, routeKey: string, focused: boolean) {
     const event = navigation.emit({
@@ -114,7 +116,7 @@ function UserTabBar({ state, navigation }: BottomTabBarProps) {
       {renderTab("Mine")}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Create report"
+        accessibilityLabel={t("createReport")}
         style={({ pressed }) => [styles.createSlot, pressed ? styles.createButtonPressed : null]}
         onPress={() => stackNavigation.navigate("Report")}
       >

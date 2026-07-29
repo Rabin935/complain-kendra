@@ -1,13 +1,13 @@
 import { DefaultTheme, NavigationContainer } from "@react-navigation/native";
-import { useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { colors } from "../constants/colors";
 import StartupSplashScreen from "../components/StartupSplashScreen";
 import { useAuth } from "../features/auth/context/AuthContext";
-import AuthNavigator from "../features/auth/navigation/AuthNavigator";
-import OfficerNavigator from "../features/officer/navigation/OfficerNavigator";
-import UserNavigator from "../features/user/navigation/UserNavigator";
+import { useTranslation } from "../i18n/LanguageContext";
 
-const MIN_SPLASH_DURATION_MS = 1500;
+const AuthNavigator = lazy(() => import("../features/auth/navigation/AuthNavigator"));
+const OfficerNavigator = lazy(() => import("../features/officer/navigation/OfficerNavigator"));
+const UserNavigator = lazy(() => import("../features/user/navigation/UserNavigator"));
 
 const navigationTheme = {
   ...DefaultTheme,
@@ -22,51 +22,71 @@ const navigationTheme = {
 };
 
 export default function AppNavigator() {
+  const { t } = useTranslation("shell");
   const { token, initializing, user } = useAuth();
-  const [showSplash, setShowSplash] = useState(true);
-  const splashStartedAt = useRef(Date.now());
+  const [navigatorReady, setNavigatorReady] = useState(false);
   const isAuthenticated = Boolean(token);
   const navigatorKey = isAuthenticated ? "main-app" : "auth-flow";
   const isOfficerConsole =
     user?.role === "officer" || user?.role === "supervisor" || user?.role === "admin";
 
+  // Preload only the navigator we need so the first paint is smaller/faster after QR scan.
   useEffect(() => {
     if (initializing) {
+      setNavigatorReady(false);
       return;
     }
 
-    const elapsed = Date.now() - splashStartedAt.current;
-    const remainingTime = Math.max(MIN_SPLASH_DURATION_MS - elapsed, 0);
-    const timeoutId = setTimeout(() => {
-      setShowSplash(false);
-    }, remainingTime);
+    let cancelled = false;
 
-    return () => clearTimeout(timeoutId);
-  }, [initializing]);
+    async function preloadNavigator() {
+      try {
+        if (isAuthenticated) {
+          if (isOfficerConsole) {
+            await import("../features/officer/navigation/OfficerNavigator");
+          } else {
+            await import("../features/user/navigation/UserNavigator");
+          }
+        } else {
+          await import("../features/auth/navigation/AuthNavigator");
+        }
+      } finally {
+        if (!cancelled) {
+          setNavigatorReady(true);
+        }
+      }
+    }
 
-  if (showSplash) {
+    void preloadNavigator();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [initializing, isAuthenticated, isOfficerConsole]);
+
+  if (initializing || !navigatorReady) {
     return (
       <StartupSplashScreen
-        message={
-          initializing
-            ? "Checking your saved session..."
-            : "Opening your complaint dashboard..."
-        }
+        message={initializing ? t("checkingSession") : t("openingDashboard")}
       />
     );
   }
 
   return (
-    <NavigationContainer key={navigatorKey} theme={navigationTheme}>
-      {isAuthenticated ? (
-        isOfficerConsole ? (
-          <OfficerNavigator key="officer-app" />
+    <Suspense
+      fallback={<StartupSplashScreen message={t("openingDashboard")} />}
+    >
+      <NavigationContainer key={navigatorKey} theme={navigationTheme}>
+        {isAuthenticated ? (
+          isOfficerConsole ? (
+            <OfficerNavigator key="officer-app" />
+          ) : (
+            <UserNavigator key="main-app" />
+          )
         ) : (
-          <UserNavigator key="main-app" />
-        )
-      ) : (
-        <AuthNavigator flowKey={navigatorKey} />
-      )}
-    </NavigationContainer>
+          <AuthNavigator flowKey={navigatorKey} />
+        )}
+      </NavigationContainer>
+    </Suspense>
   );
 }

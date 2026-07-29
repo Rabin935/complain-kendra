@@ -17,10 +17,11 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../../../constants/colors";
+import { useTranslation } from "../../../i18n/LanguageContext";
+import { useCitizenLabels } from "../../../i18n/useCitizenLabels";
 import InteractiveMap from "../../map/components/InteractiveMap";
 import type { MapMarker, SelectedMapLocation } from "../../map/types";
 import { useRealtimeInvalidation } from "../../realtime/hooks/useRealtimeInvalidation";
-import { categoryMeta } from "../data/citizenSampleData";
 import {
   fetchCitizenProfile,
   fetchNearbyComplaints,
@@ -33,7 +34,7 @@ import type {
   CitizenProfile,
 } from "../types/citizen.types";
 import type { UserStackParamList, UserTabParamList } from "../types/user.types";
-import { formatDistance, statusColors, statusLabels } from "../utils/citizenUi";
+import { formatDistance, statusColors } from "../utils/citizenUi";
 
 type BrowseNavigation = NavigationProp<UserTabParamList & UserStackParamList>;
 
@@ -88,6 +89,8 @@ function hasUsableCoordinates(profile: CitizenProfile): boolean {
 
 export default function BrowseScreen() {
   const navigation = useNavigation<BrowseNavigation>();
+  const { t } = useTranslation("browse");
+  const { categoryMeta, categoryLabels, statusLabels } = useCitizenLabels();
   const [profile, setProfile] = useState<CitizenProfile | null>(null);
   const [complaints, setComplaints] = useState<CitizenComplaint[]>([]);
   const [, setMapLocation] = useState<SelectedMapLocation | null>(null);
@@ -154,12 +157,12 @@ export default function BrowseScreen() {
     setComplaints(complaintResult.data);
     setError(
       profileResult.error || complaintResult.error
-        ? "Network error. Showing saved public complaints."
+        ? t("networkError")
         : null,
     );
     setLoading(false);
     setRefreshing(false);
-  }, [categoryFilter]);
+  }, [categoryFilter, t]);
 
   useEffect(() => {
     void loadComplaints();
@@ -217,7 +220,7 @@ export default function BrowseScreen() {
             searchPlaceholder={
               profile
                 ? `${profile.location.area || profile.location.city}, ${profile.location.ward}`
-                : "Search ward or location"
+                : t("searchPlaceholder")
             }
             showInfoPanel={false}
             onLocationChange={setMapLocation}
@@ -251,7 +254,7 @@ export default function BrowseScreen() {
                       active ? styles.categoryChipTextActive : null,
                     ]}
                   >
-                    {category === "all" ? "All" : category === "road" ? "Roads" : meta?.label}
+                    {category === "all" ? t("filterAll") : categoryLabels[category]}
                   </Text>
                 </Pressable>
               );
@@ -263,14 +266,14 @@ export default function BrowseScreen() {
           <View style={styles.sheetHandle} />
           <View style={styles.sheetHeader}>
             <View>
-              <Text style={styles.sheetTitle}>Nearby Complaints</Text>
+              <Text style={styles.sheetTitle}>{t("nearbyComplaints")}</Text>
               <Text style={styles.sheetSubtitle}>
-                {filteredComplaints.length} active within 2 km
+                {t("activeWithinKm", { count: filteredComplaints.length })}
               </Text>
             </View>
             <View style={styles.distanceSortRow}>
               <MaterialCommunityIcons name="swap-vertical" size={14} color={colors.primary} />
-              <Text style={styles.distanceSort}>Distance</Text>
+              <Text style={styles.distanceSort}>{t("distance")}</Text>
             </View>
           </View>
 
@@ -284,7 +287,7 @@ export default function BrowseScreen() {
           {loading ? (
             <View style={styles.loadingCard}>
               <ActivityIndicator color={colors.primary} />
-              <Text style={styles.loadingText}>Loading nearby complaints...</Text>
+              <Text style={styles.loadingText}>{t("loading")}</Text>
             </View>
           ) : filteredComplaints.length ? (
             <View>
@@ -293,6 +296,11 @@ export default function BrowseScreen() {
                   key={complaint.id}
                   complaint={complaint}
                   bordered={index > 0}
+                  statusLabels={statusLabels}
+                  votesLabel={t("votes", {
+                    distance: formatDistance(complaint.distanceKm),
+                    count: complaint.upvotes,
+                  })}
                   onOpen={() => openComplaint(complaint)}
                   onUpvote={() => void handleUpvote(complaint)}
                 />
@@ -301,8 +309,8 @@ export default function BrowseScreen() {
           ) : (
             <View style={styles.emptyCard}>
               <MaterialCommunityIcons name="map-marker-off-outline" size={32} color={colors.primary} />
-              <Text style={styles.emptyTitle}>No complaints nearby</Text>
-              <Text style={styles.emptyText}>Try another category or search a wider area.</Text>
+              <Text style={styles.emptyTitle}>{t("emptyTitle")}</Text>
+              <Text style={styles.emptyText}>{t("emptyBody")}</Text>
             </View>
           )}
         </View>
@@ -314,14 +322,19 @@ export default function BrowseScreen() {
 function NearbyComplaintRow({
   complaint,
   bordered,
+  statusLabels,
+  votesLabel,
   onOpen,
   onUpvote,
 }: {
   complaint: CitizenComplaint;
   bordered: boolean;
+  statusLabels: Record<CitizenComplaint["status"], string>;
+  votesLabel: string;
   onOpen: () => void;
   onUpvote: () => void;
 }) {
+  const { categoryMeta } = useCitizenLabels();
   const meta = categoryMeta[complaint.category];
 
   return (
@@ -343,9 +356,7 @@ function NearbyComplaintRow({
             </Text>
           </View>
           <Pressable style={styles.upvoteRow} onPress={onUpvote} hitSlop={8}>
-            <Text style={styles.metaText}>
-              {formatDistance(complaint.distanceKm)} · {complaint.upvotes} votes
-            </Text>
+            <Text style={styles.metaText}>{votesLabel}</Text>
           </Pressable>
         </View>
       </View>

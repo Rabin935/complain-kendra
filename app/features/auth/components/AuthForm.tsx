@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { colors } from "../../../constants/colors";
+import { useTranslation } from "../../../i18n/LanguageContext";
 import GoogleWebSignInButton from "./GoogleWebSignInButton";
 import type { AuthFormProps, AuthFormValues } from "../types/auth.types";
 
@@ -35,22 +36,19 @@ export default function AuthForm({
   googleSignInHint,
   googleNote,
 }: AuthFormProps) {
+  const { t } = useTranslation("auth");
   const [values, setValues] = useState<AuthFormValues>(initialValues);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [activeAction, setActiveAction] = useState<"submit" | "google" | null>(null);
 
   const isRegisterMode = mode === "register";
-  const title = isRegisterMode ? "Create your account" : "Welcome back";
-  const subtitle = isRegisterMode
-    ? "Report local issues faster with a secure citizen account."
-    : "Sign in to continue tracking and submitting complaints.";
-  const submitLabel = isRegisterMode ? "Sign Up" : "Login";
-  const footerLabel = isRegisterMode
-    ? "Already have an account?"
-    : "Don't have an account?";
-  const footerAction = isRegisterMode ? "Login" : "Create one";
+  const title = isRegisterMode ? t("createYourAccount") : t("welcomeBack");
+  const subtitle = isRegisterMode ? t("registerSubtitle") : t("signInContinue");
+  const submitLabel = isRegisterMode ? t("signUp") : t("login");
+  const footerLabel = isRegisterMode ? t("alreadyHaveAccount") : t("dontHaveAccount");
+  const footerAction = isRegisterMode ? t("login") : t("createOne");
   const showGoogleButton = Boolean(onGoogleSignIn);
-  const googleButtonLabel = isRegisterMode ? "Sign up with Google" : "Sign in with Google";
+  const googleButtonLabel = isRegisterMode ? t("signUpWithGoogle") : t("signInWithGoogle");
   const isSubmitLoading = loading && activeAction !== "google";
   const isGoogleLoading = loading && activeAction === "google";
 
@@ -86,27 +84,27 @@ export default function AuthForm({
     };
 
     if (isRegisterMode && !nextValues.name) {
-      setValidationError("Name is required.");
+      setValidationError(t("nameRequired"));
       return;
     }
 
     if (!nextValues.email) {
-      setValidationError("Email is required.");
+      setValidationError(t("emailRequired"));
       return;
     }
 
     if (!emailPattern.test(nextValues.email)) {
-      setValidationError("Enter a valid email address.");
+      setValidationError(t("emailInvalid"));
       return;
     }
 
     if (!nextValues.password) {
-      setValidationError("Password is required.");
+      setValidationError(t("passwordRequired"));
       return;
     }
 
     if (nextValues.password.length < 6) {
-      setValidationError("Password must be at least 6 characters.");
+      setValidationError(t("passwordMinLength"));
       return;
     }
 
@@ -126,7 +124,7 @@ export default function AuthForm({
       >
         <View style={styles.card}>
           <View style={styles.header}>
-            <Text style={styles.badge}>Complain-kendra</Text>
+            <Text style={styles.badge}>{t("brandName")}</Text>
             <Text style={styles.title}>{title}</Text>
             <Text style={styles.subtitle}>{subtitle}</Text>
           </View>
@@ -135,11 +133,11 @@ export default function AuthForm({
 
           {isRegisterMode ? (
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Full Name</Text>
+              <Text style={styles.label}>{t("fullName")}</Text>
               <TextInput
                 value={values.name}
                 onChangeText={(value) => updateField("name", value)}
-                placeholder="Enter your full name"
+                placeholder={t("fullNamePlaceholder")}
                 placeholderTextColor={colors.textMuted}
                 style={styles.input}
                 autoCapitalize="words"
@@ -149,11 +147,11 @@ export default function AuthForm({
           ) : null}
 
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Email</Text>
+            <Text style={styles.label}>{t("email")}</Text>
             <TextInput
               value={values.email}
               onChangeText={(value) => updateField("email", value)}
-              placeholder="you@example.com"
+              placeholder={t("emailAltPlaceholder")}
               placeholderTextColor={colors.textMuted}
               style={styles.input}
               autoCapitalize="none"
@@ -164,11 +162,11 @@ export default function AuthForm({
           </View>
 
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Password</Text>
+            <Text style={styles.label}>{t("password")}</Text>
             <TextInput
               value={values.password}
               onChangeText={(value) => updateField("password", value)}
-              placeholder="Enter your password"
+              placeholder={t("passwordPlaceholder")}
               placeholderTextColor={colors.textMuted}
               style={styles.input}
               secureTextEntry
@@ -178,11 +176,11 @@ export default function AuthForm({
 
           {isRegisterMode ? (
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Phone Number</Text>
+              <Text style={styles.label}>{t("phoneNumber")}</Text>
               <TextInput
                 value={values.phone}
                 onChangeText={(value) => updateField("phone", value)}
-                placeholder="Optional phone number"
+                placeholder={t("phonePlaceholder")}
                 placeholderTextColor={colors.textMuted}
                 style={styles.input}
                 keyboardType="phone-pad"
@@ -193,7 +191,7 @@ export default function AuthForm({
 
           {!isRegisterMode && onForgotPassword ? (
             <Pressable onPress={onForgotPassword} style={styles.forgotPassword}>
-              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+              <Text style={styles.forgotPasswordText}>{t("forgotPasswordLink")}</Text>
             </Pressable>
           ) : null}
 
@@ -222,7 +220,7 @@ export default function AuthForm({
             <>
               <View style={styles.dividerRow}>
                 <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>{googleNote ?? "Or continue with Google"}</Text>
+                <Text style={styles.dividerText}>{googleNote ?? t("orContinueGoogle")}</Text>
                 <View style={styles.dividerLine} />
               </View>
 
