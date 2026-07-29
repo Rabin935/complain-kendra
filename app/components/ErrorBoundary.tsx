@@ -8,6 +8,7 @@ import { Pressable,
   View,
 } from "react-native";
 import { colors } from "../constants/colors";
+import { useTranslation } from "../i18n/LanguageContext";
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -15,6 +16,20 @@ interface ErrorBoundaryProps {
 
 interface ErrorBoundaryState {
   error: Error | null;
+}
+
+function ErrorFallback({ onReset }: { onReset: () => void }) {
+  const { t } = useTranslation("shell");
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.title}>{t("errorTitle")}</Text>
+      <Text style={styles.message}>{t("errorMessage")}</Text>
+      <Pressable style={styles.button} onPress={onReset}>
+        <Text style={styles.buttonText}>{t("tryAgain")}</Text>
+      </Pressable>
+    </View>
+  );
 }
 
 export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
@@ -39,17 +54,7 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
       return this.props.children;
     }
 
-    return (
-      <View style={styles.container}>
-        <Text style={styles.title}>Something went wrong</Text>
-        <Text style={styles.message}>
-          The app hit an unexpected screen error. Your session is still available.
-        </Text>
-        <Pressable style={styles.button} onPress={this.reset}>
-          <Text style={styles.buttonText}>Try again</Text>
-        </Pressable>
-      </View>
-    );
+    return <ErrorFallback onReset={this.reset} />;
   }
 }
 

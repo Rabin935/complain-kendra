@@ -15,6 +15,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../../../constants/colors";
+import { useTranslation } from "../../../i18n/LanguageContext";
+import { useCitizenLabels } from "../../../i18n/useCitizenLabels";
 import { useAuth } from "../../auth/context/AuthContext";
 import {
   fetchCitizenBadges,
@@ -42,49 +44,53 @@ const emptyStats: CitizenStats = {
   badgesEarned: 0,
 };
 
-const fallbackAchievements: Array<{
-  id: string;
-  title: string;
-  icon: IconName;
-  color: string;
-  tint: string;
-  earned: boolean;
-}> = [
-  {
-    id: "civic-hero",
-    title: "Civic Hero",
-    icon: "trophy",
-    color: "#F59E0B",
-    tint: "#FEF3C7",
-    earned: true,
-  },
-  {
-    id: "streak",
-    title: "7-day streak",
-    icon: "fire",
-    color: "#EF4444",
-    tint: "#FEE2E2",
-    earned: true,
-  },
-  {
-    id: "top-voted",
-    title: "Top voted",
-    icon: "star",
-    color: "#6038B0",
-    tint: "#EEE8FA",
-    earned: true,
-  },
-  {
-    id: "watchful",
-    title: "Watchful",
-    icon: "eye",
-    color: "#3B82F6",
-    tint: "#EEE8FA",
-    earned: false,
-  },
-];
+function getAchievementCards(
+  badges: CitizenBadge[],
+  stats: CitizenStats,
+  t: (key: "civicHero" | "streak" | "topVoted" | "watchful") => string,
+) {
+  const fallbackAchievements: Array<{
+    id: string;
+    title: string;
+    icon: IconName;
+    color: string;
+    tint: string;
+    earned: boolean;
+  }> = [
+    {
+      id: "civic-hero",
+      title: t("civicHero"),
+      icon: "trophy",
+      color: "#F59E0B",
+      tint: "#FEF3C7",
+      earned: true,
+    },
+    {
+      id: "streak",
+      title: t("streak"),
+      icon: "fire",
+      color: "#EF4444",
+      tint: "#FEE2E2",
+      earned: true,
+    },
+    {
+      id: "top-voted",
+      title: t("topVoted"),
+      icon: "star",
+      color: "#6038B0",
+      tint: "#EEE8FA",
+      earned: true,
+    },
+    {
+      id: "watchful",
+      title: t("watchful"),
+      icon: "eye",
+      color: "#3B82F6",
+      tint: "#EEE8FA",
+      earned: false,
+    },
+  ];
 
-function getAchievementCards(badges: CitizenBadge[], stats: CitizenStats) {
   if (!badges.length) {
     return fallbackAchievements.map((achievement) => ({
       ...achievement,
@@ -110,6 +116,10 @@ function getAchievementCards(badges: CitizenBadge[], stats: CitizenStats) {
 export default function ProfileScreen() {
   const navigation = useNavigation<ProfileNavigation>();
   const { logout, loading: authLoading } = useAuth();
+  const { t } = useTranslation("profile");
+  const { t: tc } = useTranslation("common");
+  const { t: tLang } = useTranslation("languageSettings");
+  const { t: tCitizen } = useCitizenLabels();
   const [profile, setProfile] = useState<CitizenProfile | null>(null);
   const [stats, setStats] = useState<CitizenStats>(emptyStats);
   const [badges, setBadges] = useState<CitizenBadge[]>([]);
@@ -134,7 +144,7 @@ export default function ProfileScreen() {
       setStats(emptyStats);
       setBadges([]);
       setSavedIssueCount(0);
-      setError(profileResult.error ?? "Unable to load your profile from the database.");
+      setError(profileResult.error ?? t("profileLoadError"));
       setLoading(false);
       return;
     }
@@ -145,11 +155,11 @@ export default function ProfileScreen() {
     setSavedIssueCount(savedIssuesResult.data.length);
     setError(
       statsResult.error || badgesResult.error || savedIssuesResult.error
-        ? "Some profile sections could not be loaded from the database."
+        ? t("partialLoadError")
         : null,
     );
     setLoading(false);
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void loadProfile();
@@ -161,8 +171,8 @@ export default function ProfileScreen() {
   }
 
   function showAchievements() {
-    const titles = badges.length ? badges.map((badge) => badge.title).join("\n") : "No badges earned yet.";
-    Alert.alert("Achievements", titles);
+    const titles = badges.length ? badges.map((badge) => badge.title).join("\n") : t("noBadgesYet");
+    Alert.alert(t("achievements"), titles);
   }
 
   if (loading) {
@@ -170,7 +180,7 @@ export default function ProfileScreen() {
       <SafeAreaView edges={["top"]} style={styles.safeArea}>
         <View style={styles.loadingState}>
           <ActivityIndicator color={colors.primary} />
-          <Text style={styles.loadingText}>Loading profile...</Text>
+          <Text style={styles.loadingText}>{t("loadingProfile")}</Text>
         </View>
       </SafeAreaView>
     );
@@ -181,17 +191,19 @@ export default function ProfileScreen() {
       <SafeAreaView edges={["top"]} style={styles.safeArea}>
         <View style={styles.loadingState}>
           <MaterialCommunityIcons name="database-alert-outline" size={32} color={colors.error} />
-          <Text style={styles.emptyTitle}>Profile unavailable</Text>
-          <Text style={styles.emptyText}>{error ?? "Unable to load your profile from the database."}</Text>
+          <Text style={styles.emptyTitle}>{t("profileUnavailable")}</Text>
+          <Text style={styles.emptyText}>{error ?? t("profileLoadError")}</Text>
           <Pressable style={styles.retryButton} onPress={() => void loadProfile()}>
-            <Text style={styles.retryText}>Retry</Text>
+            <Text style={styles.retryText}>{tc("retry")}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
     );
   }
 
-  const achievementCards = getAchievementCards(badges, stats);
+  const achievementCards = getAchievementCards(badges, stats, t);
+  const languageLabel =
+    profile.language === "Nepali" ? tLang("nepaliLabel") : tLang("englishLabel");
 
   return (
     <SafeAreaView edges={["top"]} style={styles.safeArea}>
@@ -242,7 +254,7 @@ export default function ProfileScreen() {
               <View style={styles.levelPill}>
                 <MaterialCommunityIcons name="trophy" size={12} color={colors.accentLavender} />
                 <Text style={styles.levelText}>
-                  {profile.levelTitle} · Level {profile.level}
+                  {profile.levelTitle} · {tCitizen("levelNumber", { level: profile.level })}
                 </Text>
               </View>
             </View>
@@ -251,11 +263,11 @@ export default function ProfileScreen() {
 
         <View style={styles.body}>
           <View style={styles.statsCard}>
-            <ProfileStat icon="clipboard-list-outline" color={colors.primary} label="Reports" value={stats.reportsSubmitted} />
+            <ProfileStat icon="clipboard-list-outline" color={colors.primary} label={t("reports")} value={stats.reportsSubmitted} />
             <View style={styles.statDivider} />
-            <ProfileStat icon="check-circle" color={colors.success} label="Resolved" value={stats.resolved} />
+            <ProfileStat icon="check-circle" color={colors.success} label={t("resolved")} value={stats.resolved} />
             <View style={styles.statDivider} />
-            <ProfileStat icon="arrow-up-bold" color={colors.accent} label="Upvotes" value={stats.upvotesReceived} />
+            <ProfileStat icon="arrow-up-bold" color={colors.accent} label={t("upvotes")} value={stats.upvotesReceived} />
           </View>
 
           {error ? (
@@ -266,9 +278,9 @@ export default function ProfileScreen() {
           ) : null}
 
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Achievements</Text>
+            <Text style={styles.sectionTitle}>{t("achievements")}</Text>
             <Pressable style={styles.sectionActionRow} onPress={showAchievements} hitSlop={8}>
-              <Text style={styles.sectionAction}>See all</Text>
+              <Text style={styles.sectionAction}>{tc("seeAll")}</Text>
               <MaterialCommunityIcons name="arrow-right" size={13} color={colors.primary} />
             </Pressable>
           </View>
@@ -301,55 +313,56 @@ export default function ProfileScreen() {
           </ScrollView>
 
           <View style={styles.menu}>
-            <MenuRow icon="account-outline" tint="#6038B018" title="Edit Profile" onPress={() => navigation.navigate("EditProfile")} />
+            <MenuRow icon="account-outline" tint="#6038B018" title={t("editProfile")} onPress={() => navigation.navigate("EditProfile")} />
             <MenuRow
               icon="clipboard-text-outline"
               tint="#3B82F618"
-              title="My Complaints"
+              title={t("myComplaints")}
               value={String(stats.reportsSubmitted)}
               onPress={() => navigation.navigate("MainTabs", { screen: "Mine" })}
             />
             <MenuRow
               icon="bookmark-outline"
               tint="#F59E0B18"
-              title="Saved Issues"
+              title={t("savedIssues")}
               value={String(savedIssueCount)}
               onPress={() => navigation.navigate("SavedIssues")}
             />
             <MenuRow
               icon="trophy-outline"
               tint="#F59E0B18"
-              title="Civic Leaderboard"
+              title={t("civicLeaderboard")}
               onPress={() => navigation.navigate("Leaderboard")}
             />
-            <MenuRow icon="lock-outline" tint="#4A445818" title="Change Password" onPress={() => navigation.navigate("ChangePassword")} />
-            <MenuRow icon="web" tint="#22C55E18" title="Language" value={profile.language} onPress={() => navigation.navigate("LanguageSettings")} />
+            <MenuRow icon="lock-outline" tint="#4A445818" title={t("changePassword")} onPress={() => navigation.navigate("ChangePassword")} />
+            <MenuRow icon="web" tint="#22C55E18" title={t("language")} value={languageLabel} onPress={() => navigation.navigate("LanguageSettings")} />
             <MenuRow
               icon="bell-outline"
               tint="#EF444418"
-              title="Notifications"
+              title={t("notifications")}
               onPress={() => navigation.navigate("MainTabs", { screen: "Notifications" })}
             />
-            <MenuRow icon="help-circle-outline" tint="#6038B018" title="Help & Support" onPress={() => navigation.navigate("HelpSupport")} />
+            <MenuRow icon="help-circle-outline" tint="#6038B018" title={t("helpSupport")} onPress={() => navigation.navigate("HelpSupport")} />
             <MenuRow
               icon="logout"
               tint="#EF444418"
-              title={authLoading ? "Signing out..." : "Log Out"}
+              title={authLoading ? t("signingOut") : t("logOut")}
               danger
               last
               onPress={() => setLogoutVisible(true)}
             />
           </View>
 
-          <Text style={styles.footerText}>ComplainKendra v1.0 · Made for Nepal</Text>
+          <Text style={styles.footerText}>{t("footer")}</Text>
         </View>
       </ScrollView>
 
       <ConfirmationModal
         visible={logoutVisible}
-        title="Logout?"
-        body="You will need to sign in again to track ward updates."
-        confirmLabel="Logout"
+        title={t("logoutTitle")}
+        body={t("logoutBody")}
+        confirmLabel={t("logoutConfirm")}
+        cancelLabel={tc("cancel")}
         onCancel={() => setLogoutVisible(false)}
         onConfirm={() => void confirmLogout()}
       />
@@ -429,6 +442,7 @@ function ConfirmationModal({
   title,
   body,
   confirmLabel,
+  cancelLabel,
   onCancel,
   onConfirm,
 }: {
@@ -436,6 +450,7 @@ function ConfirmationModal({
   title: string;
   body: string;
   confirmLabel: string;
+  cancelLabel: string;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -447,7 +462,7 @@ function ConfirmationModal({
           <Text style={styles.modalBody}>{body}</Text>
           <View style={styles.modalActions}>
             <Pressable style={styles.modalCancel} onPress={onCancel}>
-              <Text style={styles.modalCancelText}>Cancel</Text>
+              <Text style={styles.modalCancelText}>{cancelLabel}</Text>
             </Pressable>
             <Pressable style={styles.modalPrimary} onPress={onConfirm}>
               <Text style={styles.modalPrimaryText}>{confirmLabel}</Text>

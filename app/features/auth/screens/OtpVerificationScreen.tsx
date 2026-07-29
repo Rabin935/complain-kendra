@@ -18,6 +18,7 @@ import {
 } from "react-native";
 import { colors } from "../../../constants/colors";
 import { shadows } from "../../../constants/theme";
+import { useTranslation } from "../../../i18n/LanguageContext";
 import { getApiErrorMessage } from "../../../../src/lib/api";
 import { sendOtp, verifyOtp } from "../services/auth.service";
 import type { AuthStackParamList } from "../types/auth.types";
@@ -27,7 +28,7 @@ type OtpVerificationProps = NativeStackScreenProps<AuthStackParamList, "OtpVerif
 const OTP_LENGTH = 6;
 const RESEND_SECONDS = 60;
 
-function formatMobileNumber(phone?: string): string {
+function formatMobileNumber(phone: string | undefined, fallback: string): string {
   const digits = phone?.replace(/\D/g, "") ?? "";
   const localNumber = digits.startsWith("977") ? digits.slice(3) : digits;
 
@@ -35,10 +36,11 @@ function formatMobileNumber(phone?: string): string {
     return `+977 ${localNumber.slice(0, 2)} ${localNumber.slice(2, 6)} ${localNumber.slice(6)}`;
   }
 
-  return phone || "your registered mobile";
+  return phone || fallback;
 }
 
 export default function OtpVerificationScreen({ navigation, route }: OtpVerificationProps) {
+  const { t } = useTranslation("auth");
   const inputRef = useRef<TextInput>(null);
   const [otp, setOtp] = useState("");
   const [secondsLeft, setSecondsLeft] = useState(RESEND_SECONDS);
@@ -48,7 +50,7 @@ export default function OtpVerificationScreen({ navigation, route }: OtpVerifica
   const [error, setError] = useState<string | null>(null);
   const [verified, setVerified] = useState(false);
   const email = route.params.email;
-  const mobileNumber = formatMobileNumber(route.params.phone);
+  const mobileNumber = formatMobileNumber(route.params.phone, t("registeredMobile"));
 
   const digits = useMemo(
     () => Array.from({ length: OTP_LENGTH }, (_, index) => otp[index] ?? ""),
@@ -111,7 +113,7 @@ export default function OtpVerificationScreen({ navigation, route }: OtpVerifica
 
   async function handleVerify() {
     if (!canVerify) {
-      setError("Enter the 6 digit verification code.");
+      setError(t("enterSixDigitCode"));
       return;
     }
 
@@ -146,9 +148,9 @@ export default function OtpVerificationScreen({ navigation, route }: OtpVerifica
           >
             <MaterialCommunityIcons name="arrow-left" size={20} color={colors.text} />
           </Pressable>
-          <Text style={styles.headerTitle}>Verify Mobile</Text>
+          <Text style={styles.headerTitle}>{t("verifyMobile")}</Text>
           <View style={styles.stepPill}>
-            <Text style={styles.stepText}>Step 2/2</Text>
+            <Text style={styles.stepText}>{t("stepTwoOfTwo")}</Text>
           </View>
         </View>
 
@@ -173,18 +175,18 @@ export default function OtpVerificationScreen({ navigation, route }: OtpVerifica
                 />
               </LinearGradient>
             </View>
-            <Text style={styles.title}>Enter verification code</Text>
-            <Text style={styles.subtitle}>We sent a 6-digit code to</Text>
+            <Text style={styles.title}>{t("enterVerificationCode")}</Text>
+            <Text style={styles.subtitle}>{t("sentCodeTo")}</Text>
             <View style={styles.destinationRow}>
               <Text numberOfLines={1} style={styles.destination}>{mobileNumber}</Text>
               <Pressable onPress={() => navigation.replace("Register")} hitSlop={8}>
-                <Text style={styles.changeText}>Change</Text>
+                <Text style={styles.changeText}>{t("change")}</Text>
               </Pressable>
             </View>
           </View>
 
           {route.params.message ? <Text style={styles.noticeText}>{route.params.message}</Text> : null}
-          {devOtp ? <Text style={styles.devText}>Development OTP: {devOtp}</Text> : null}
+          {devOtp ? <Text style={styles.devText}>{t("devOtp", { otp: devOtp })}</Text> : null}
 
           <Pressable style={styles.otpRow} onPress={() => inputRef.current?.focus()}>
             {digits.map((digit, index) => (
@@ -225,19 +227,19 @@ export default function OtpVerificationScreen({ navigation, route }: OtpVerifica
           {verified ? (
             <View style={styles.successBox}>
               <MaterialCommunityIcons name="check-circle-outline" size={18} color={colors.success} />
-              <Text style={styles.successText}>OTP verified. Taking you to login...</Text>
+              <Text style={styles.successText}>{t("otpVerified")}</Text>
             </View>
           ) : null}
 
           <View style={styles.resendRow}>
-            <Text style={styles.timerText}>Didn't receive code? </Text>
+            <Text style={styles.timerText}>{t("didntReceiveCode")} </Text>
             <Pressable onPress={() => void handleResend()} disabled={!canResend} hitSlop={8}>
               <Text style={[styles.resendText, !canResend ? styles.resendTextDisabled : null]}>
                 {resending
-                  ? "Sending..."
+                  ? t("sending")
                   : secondsLeft > 0
-                    ? `Resend in 0:${String(secondsLeft).padStart(2, "0")}`
-                    : "Resend code"}
+                    ? t("resendIn", { time: `0:${String(secondsLeft).padStart(2, "0")}` })
+                    : t("resendCode")}
               </Text>
             </Pressable>
           </View>
@@ -255,7 +257,7 @@ export default function OtpVerificationScreen({ navigation, route }: OtpVerifica
             >
               {loading ? <ActivityIndicator color={colors.surface} /> : null}
               <Text style={styles.verifyText}>
-                {loading ? "Verifying..." : "Verify & Continue"}
+                {loading ? t("verifying") : t("verifyContinue")}
               </Text>
               {loading ? null : (
                 <MaterialCommunityIcons name="check-circle-outline" size={18} color="#FFFFFF" />
@@ -265,7 +267,7 @@ export default function OtpVerificationScreen({ navigation, route }: OtpVerifica
 
           <View style={styles.dividerRow}>
             <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>OR USE EMAIL</Text>
+            <Text style={styles.dividerText}>{t("orUseEmail")}</Text>
             <View style={styles.dividerLine} />
           </View>
 
@@ -278,7 +280,7 @@ export default function OtpVerificationScreen({ navigation, route }: OtpVerifica
               <MaterialCommunityIcons name="email-outline" size={19} color="#2563EB" />
             </View>
             <View style={styles.emailCopy}>
-              <Text style={styles.emailTitle}>Send code to email</Text>
+              <Text style={styles.emailTitle}>{t("sendCodeToEmail")}</Text>
               <Text numberOfLines={1} style={styles.emailValue}>{email}</Text>
             </View>
             <MaterialCommunityIcons name="chevron-right" size={18} color={colors.textMuted} />

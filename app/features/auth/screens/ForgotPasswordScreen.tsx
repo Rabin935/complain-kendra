@@ -14,16 +14,17 @@ import {
 } from "react-native";
 import { colors } from "../../../constants/colors";
 import { radii, shadows } from "../../../constants/theme";
+import { useTranslation } from "../../../i18n/LanguageContext";
 import { useAuth } from "../context/AuthContext";
 import type { AuthStackParamList } from "../types/auth.types";
 
 type ForgotPasswordScreenProps = NativeStackScreenProps<AuthStackParamList, "ForgotPassword">;
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const successMessage = "If your email exists, a reset link has been sent";
 
 export default function ForgotPasswordScreen({ navigation }: ForgotPasswordScreenProps) {
   const { forgotPassword, loading } = useAuth();
+  const { t } = useTranslation("auth");
   const [email, setEmail] = useState("");
   const [focused, setFocused] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -34,13 +35,13 @@ export default function ForgotPasswordScreen({ navigation }: ForgotPasswordScree
 
     if (!normalizedEmail) {
       setInfoMessage(null);
-      setErrorMessage("Email is required.");
+      setErrorMessage(t("emailRequired"));
       return;
     }
 
     if (!emailPattern.test(normalizedEmail)) {
       setInfoMessage(null);
-      setErrorMessage("Enter a valid email address.");
+      setErrorMessage(t("emailInvalid"));
       return;
     }
 
@@ -48,10 +49,10 @@ export default function ForgotPasswordScreen({ navigation }: ForgotPasswordScree
 
     try {
       await forgotPassword({ email: normalizedEmail });
-      setInfoMessage(successMessage);
+      setInfoMessage(t("resetSent"));
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Unable to send a reset link right now.";
+        error instanceof Error ? error.message : t("resetSendError");
       setInfoMessage(null);
       setErrorMessage(message);
     }
@@ -75,7 +76,7 @@ export default function ForgotPasswordScreen({ navigation }: ForgotPasswordScree
           >
             <MaterialCommunityIcons name="arrow-left" size={20} color={colors.text} />
           </Pressable>
-          <Text style={styles.headerTitle}>Reset Password</Text>
+          <Text style={styles.headerTitle}>{t("resetPassword")}</Text>
         </View>
 
         <View style={styles.content}>
@@ -90,18 +91,15 @@ export default function ForgotPasswordScreen({ navigation }: ForgotPasswordScree
                 <MaterialCommunityIcons name="lock-reset" size={44} color={colors.primary} />
               </LinearGradient>
             </View>
-            <Text style={styles.title}>Forgot password?</Text>
-            <Text style={styles.subtitle}>
-              No worries. Enter the email you registered with and we&apos;ll send a secure reset
-              link.
-            </Text>
+            <Text style={styles.title}>{t("forgotPasswordTitle")}</Text>
+            <Text style={styles.subtitle}>{t("forgotPasswordBody")}</Text>
           </View>
 
           {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
           {infoMessage ? <Text style={styles.successText}>{infoMessage}</Text> : null}
 
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Email Address</Text>
+            <Text style={styles.label}>{t("emailAddress")}</Text>
             <View style={[styles.inputShell, focused && styles.inputShellFocused]}>
               <MaterialCommunityIcons
                 name="email-outline"
@@ -117,7 +115,7 @@ export default function ForgotPasswordScreen({ navigation }: ForgotPasswordScree
                 }}
                 onFocus={() => setFocused(true)}
                 onBlur={() => setFocused(false)}
-                placeholder="you@example.com"
+                placeholder={t("emailAltPlaceholder")}
                 placeholderTextColor={colors.textMuted}
                 style={styles.input}
                 autoCapitalize="none"
@@ -147,7 +145,7 @@ export default function ForgotPasswordScreen({ navigation }: ForgotPasswordScree
                 <ActivityIndicator color={colors.surface} />
               ) : (
                 <>
-                  <Text style={styles.primaryButtonText}>Send Reset Link</Text>
+                  <Text style={styles.primaryButtonText}>{t("sendResetLink")}</Text>
                   <MaterialCommunityIcons name="send" size={18} color="#FFFFFF" />
                 </>
               )}
@@ -157,10 +155,8 @@ export default function ForgotPasswordScreen({ navigation }: ForgotPasswordScree
           <View style={styles.inboxCard}>
             <MaterialCommunityIcons name="email-check-outline" size={22} color={colors.primary} />
             <View style={styles.inboxCopy}>
-              <Text style={styles.inboxTitle}>Check your inbox</Text>
-              <Text style={styles.inboxText}>
-                Reset link expires in 30 minutes. Don&apos;t forget to check spam.
-              </Text>
+              <Text style={styles.inboxTitle}>{t("checkInbox")}</Text>
+              <Text style={styles.inboxText}>{t("resetLinkExpiry")}</Text>
             </View>
           </View>
 
@@ -168,13 +164,13 @@ export default function ForgotPasswordScreen({ navigation }: ForgotPasswordScree
             onPress={() => navigation.navigate("ResetPassword")}
             style={({ pressed }) => [styles.tokenLink, pressed && styles.pressed]}
           >
-            <Text style={styles.tokenText}>Already have a reset token? Enter it</Text>
+            <Text style={styles.tokenText}>{t("haveResetToken")}</Text>
           </Pressable>
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Remember password?</Text>
+            <Text style={styles.footerText}>{t("rememberPassword")}</Text>
             <Pressable onPress={() => navigation.replace("Login")}>
-              <Text style={styles.footerLink}>Sign In</Text>
+              <Text style={styles.footerLink}>{t("signIn")}</Text>
             </Pressable>
           </View>
         </View>

@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../../../constants/colors";
+import { useTranslation } from "../../../i18n/LanguageContext";
 import { useAuth } from "../../auth/context/AuthContext";
 import {
   deleteCitizenAccount,
@@ -33,6 +34,8 @@ const SUPPORTED_TYPES = new Set(["image/jpeg", "image/jpg", "image/png"]);
 export default function EditProfileScreen() {
   const navigation = useNavigation<EditProfileNavigation>();
   const { logout } = useAuth();
+  const { t } = useTranslation("editProfile");
+  const { t: tc } = useTranslation("common");
   const [profile, setProfile] = useState<CitizenProfile | null>(null);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -49,7 +52,7 @@ export default function EditProfileScreen() {
 
   const memberSince = useMemo(() => {
     if (!profile?.createdAt) {
-      return "Not available";
+      return t("notAvailable");
     }
 
     return new Date(profile.createdAt).toLocaleDateString(undefined, {
@@ -57,7 +60,7 @@ export default function EditProfileScreen() {
       day: "numeric",
       year: "numeric",
     });
-  }, [profile?.createdAt]);
+  }, [profile?.createdAt, t]);
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
@@ -65,7 +68,7 @@ export default function EditProfileScreen() {
     const result = await fetchCitizenProfile();
 
     if (result.source !== "api" || !result.data.id) {
-      setError(result.error ?? "Unable to load profile.");
+      setError(result.error ?? t("loadError"));
       setLoading(false);
       return;
     }
@@ -91,12 +94,12 @@ export default function EditProfileScreen() {
     const type = asset.mimeType ?? (asset.uri.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg");
 
     if (!SUPPORTED_TYPES.has(type.toLowerCase())) {
-      setError("Profile picture must be JPG, JPEG, or PNG.");
+      setError(t("imageError"));
       return null;
     }
 
     if (asset.fileSize && asset.fileSize > MAX_PHOTO_SIZE) {
-      setError("Profile picture must be 5 MB or smaller.");
+      setError(t("imageError"));
       return null;
     }
 
@@ -137,15 +140,15 @@ export default function EditProfileScreen() {
     const last = lastName.trim();
 
     if (first.length < 2 || first.length > 40) {
-      return "First name must be between 2 and 40 characters.";
+      return t("nameRequired");
     }
 
     if (last.length < 2 || last.length > 40) {
-      return "Last name must be between 2 and 40 characters.";
+      return t("nameRequired");
     }
 
     if (bio.length > 250) {
-      return "Bio must be 250 characters or fewer.";
+      return t("bioTooLong");
     }
 
     return null;
@@ -171,10 +174,10 @@ export default function EditProfileScreen() {
       });
       setProfile(updated);
       setAvatar(null);
-      showToast("Profile updated successfully.");
+      showToast(t("updateSuccess"));
       setTimeout(() => navigation.goBack(), 900);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Unable to update profile.");
+      setError(caught instanceof Error ? caught.message : t("updateError"));
     } finally {
       setSaving(false);
     }
@@ -182,12 +185,12 @@ export default function EditProfileScreen() {
 
   async function confirmDelete() {
     if (deleteText !== "DELETE") {
-      setError("Type DELETE before confirming account deletion.");
+      setError(t("deleteTypeError"));
       return;
     }
 
     if (!deletePassword.trim()) {
-      setError("Password confirmation is required.");
+      setError(t("deletePasswordError"));
       return;
     }
 
@@ -202,7 +205,7 @@ export default function EditProfileScreen() {
       setDeleteVisible(false);
       await logout();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Unable to delete account.");
+      setError(caught instanceof Error ? caught.message : t("deleteError"));
     } finally {
       setDeleting(false);
     }
@@ -213,7 +216,7 @@ export default function EditProfileScreen() {
       <SafeAreaView edges={["top"]} style={styles.safeArea}>
         <View style={styles.centerState}>
           <ActivityIndicator color={colors.primary} />
-          <Text style={styles.centerText}>Loading profile...</Text>
+          <Text style={styles.centerText}>{t("loading")}</Text>
         </View>
       </SafeAreaView>
     );
@@ -227,7 +230,7 @@ export default function EditProfileScreen() {
         <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
           <MaterialCommunityIcons name="arrow-left" size={22} color={colors.text} />
         </Pressable>
-        <Text style={styles.title}>Edit Profile</Text>
+        <Text style={styles.title}>{t("title")}</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -256,31 +259,31 @@ export default function EditProfileScreen() {
               <MaterialCommunityIcons name="camera-outline" size={18} color={colors.surface} />
             </View>
           </Pressable>
-          <Text style={styles.photoHelp}>JPG, JPEG, or PNG. Maximum 5 MB.</Text>
+          <Text style={styles.photoHelp}>{t("photoHint")}</Text>
         </View>
 
         <View style={styles.card}>
-          <Field label="First Name" value={firstName} onChangeText={setFirstName} />
-          <Field label="Last Name" value={lastName} onChangeText={setLastName} />
+          <Field label={t("firstName")} value={firstName} onChangeText={setFirstName} />
+          <Field label={t("lastName")} value={lastName} onChangeText={setLastName} />
           <ReadonlyField
-            label="Mobile Number"
-            value={profile?.phone || "Not available"}
-            helper="Mobile number can only be changed by a Ward Officer or Administrator."
+            label={t("mobileNumber")}
+            value={profile?.phone || t("notAvailable")}
+            helper={t("mobileLocked")}
           />
           <ReadonlyField
-            label="Email Address"
-            value={profile?.email || "Not available"}
-            helper="Email address can only be changed by a Ward Officer or Administrator."
+            label={t("emailAddress")}
+            value={profile?.email || t("notAvailable")}
+            helper={t("emailLocked")}
           />
           <View style={styles.fieldBlock}>
             <View style={styles.fieldHeader}>
-              <Text style={styles.label}>Bio</Text>
+              <Text style={styles.label}>{t("bio")}</Text>
               <Text style={styles.counter}>{bio.length}/250</Text>
             </View>
             <TextInput
               value={bio}
               onChangeText={(value) => setBio(value.slice(0, 250))}
-              placeholder="Tell ward officers anything useful about you."
+              placeholder={t("bioPlaceholder")}
               placeholderTextColor={colors.textMuted}
               multiline
               style={[styles.input, styles.bioInput]}

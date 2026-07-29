@@ -13,9 +13,12 @@ import StartupSplashScreen from "./app/components/StartupSplashScreen";
 import GoogleWebAuthProvider from "./app/features/auth/providers/GoogleWebAuthProvider";
 import { AuthProvider } from "./app/features/auth/context/AuthContext";
 import { RealtimeProvider } from "./app/features/realtime/context/RealtimeContext";
+import LanguageSync from "./app/i18n/LanguageSync";
+import { LanguageProvider, useTranslation } from "./app/i18n/LanguageContext";
 import AppNavigator from "./app/navigation/AppNavigator";
 
-export default function App() {
+function AppContent() {
+  const { t } = useTranslation("app");
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -24,7 +27,7 @@ export default function App() {
   });
 
   if (!fontsLoaded) {
-    return <StartupSplashScreen message="Loading app fonts..." />;
+    return <StartupSplashScreen message={t("loadingFonts")} />;
   }
 
   return (
@@ -32,6 +35,7 @@ export default function App() {
       <SafeAreaProvider>
         <GoogleWebAuthProvider>
           <AuthProvider>
+            <LanguageSync />
             <RealtimeProvider>
               <StatusBar style="dark" />
               <AppNavigator />
@@ -41,5 +45,13 @@ export default function App() {
         </GoogleWebAuthProvider>
       </SafeAreaProvider>
     </ErrorBoundary>
+  );
+}
+
+export default function App() {
+  return (
+    <LanguageProvider>
+      <AppContent />
+    </LanguageProvider>
   );
 }

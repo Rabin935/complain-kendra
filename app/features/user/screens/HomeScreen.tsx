@@ -18,8 +18,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../../../constants/colors";
-import { useRealtimeInvalidation } from "../../realtime/hooks/useRealtimeInvalidation";
-import { categoryMeta } from "../data/citizenSampleData";
+import { useTranslation } from "../../../i18n/LanguageContext";
+import { useCitizenLabels } from "../../../i18n/useCitizenLabels";
 import {
   fetchCitizenProfile,
   fetchCitizenStats,
@@ -35,7 +35,8 @@ import type {
   CitizenStats,
 } from "../types/citizen.types";
 import type { UserStackParamList, UserTabParamList } from "../types/user.types";
-import { formatDistance, statusColors, statusLabels } from "../utils/citizenUi";
+import { formatDistance, statusColors } from "../utils/citizenUi";
+import { useRealtimeInvalidation } from "../../realtime/hooks/useRealtimeInvalidation";
 
 type HomeNavigation = NavigationProp<UserTabParamList & UserStackParamList>;
 
@@ -73,16 +74,19 @@ function hasUsableCoordinates(profile: CitizenProfile): boolean {
   );
 }
 
-function formatProfileLocation(profile: CitizenProfile): string {
+function formatProfileLocation(profile: CitizenProfile, fallback: string): string {
   return (
     [profile.location.area, profile.location.ward, profile.location.city]
       .filter(Boolean)
-      .join(" - ") || "Location not set"
+      .join(" - ") || fallback
   );
 }
 
 export default function HomeScreen() {
   const navigation = useNavigation<HomeNavigation>();
+  const { t } = useTranslation("home");
+  const { t: tc } = useTranslation("common");
+  const { categoryMeta, statusLabels, t: tCitizen } = useCitizenLabels();
   const [profile, setProfile] = useState<CitizenProfile | null>(null);
   const [stats, setStats] = useState<CitizenStats>(emptyStats);
   const [nearbyComplaints, setNearbyComplaints] = useState<CitizenComplaint[]>([]);
@@ -127,7 +131,7 @@ export default function HomeScreen() {
       setStats(emptyStats);
       setNotifications([]);
       setNearbyComplaints([]);
-      setError(profileResult.error ?? "Unable to load your profile from the database.");
+      setError(profileResult.error ?? t("profileLoadError"));
       setLoading(false);
       setRefreshing(false);
       return;
@@ -171,10 +175,10 @@ export default function HomeScreen() {
       notificationResult.error,
     ].filter(Boolean);
 
-    setError(liveErrors.length ? "Couldn't load ward updates. Try again." : null);
+    setError(liveErrors.length ? t("wardLoadError") : null);
     setLoading(false);
     setRefreshing(false);
-  }, [gpsEnabled]);
+  }, [gpsEnabled, t]);
 
   useEffect(() => {
     void loadDashboard();
@@ -206,7 +210,7 @@ export default function HomeScreen() {
       <SafeAreaView edges={["top"]} style={styles.safeArea}>
         <View style={styles.loadingState}>
           <ActivityIndicator color={colors.primary} />
-          <Text style={styles.loadingText}>Loading your profile...</Text>
+          <Text style={styles.loadingText}>{t("loadingProfile")}</Text>
         </View>
       </SafeAreaView>
     );
@@ -217,10 +221,10 @@ export default function HomeScreen() {
       <SafeAreaView edges={["top"]} style={styles.safeArea}>
         <View style={styles.loadingState}>
           <MaterialCommunityIcons name="database-alert-outline" size={32} color={colors.error} />
-          <Text style={styles.emptyTitle}>Profile unavailable</Text>
-          <Text style={styles.emptyText}>{error ?? "Unable to load your profile from the database."}</Text>
+          <Text style={styles.emptyTitle}>{t("profileUnavailable")}</Text>
+          <Text style={styles.emptyText}>{error ?? t("profileLoadError")}</Text>
           <Pressable style={styles.primaryButton} onPress={refreshDashboard}>
-            <Text style={styles.primaryButtonText}>Retry</Text>
+            <Text style={styles.primaryButtonText}>{tc("retry")}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -258,7 +262,7 @@ export default function HomeScreen() {
                 <Text style={styles.avatarText}>{profile.initials}</Text>
               </View>
               <View style={styles.headerCopy}>
-                <Text style={styles.greeting}>Good morning,</Text>
+                <Text style={styles.greeting}>{t("greeting")}</Text>
                 <Text style={styles.userName} numberOfLines={1}>{profile.name}</Text>
               </View>
             </View>
@@ -272,7 +276,7 @@ export default function HomeScreen() {
           <View style={styles.locationPill}>
             <MaterialCommunityIcons name="map-marker" size={12} color={colors.accentLavender} />
             <Text style={styles.locationText}>
-              {formatProfileLocation(profile)}
+              {formatProfileLocation(profile, tCitizen("locationNotSet"))}
             </Text>
           </View>
 
@@ -281,7 +285,7 @@ export default function HomeScreen() {
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholder="Search complaints or areas..."
+              placeholder={t("searchPlaceholder")}
               placeholderTextColor={colors.textMuted}
               style={styles.searchInput}
             />
@@ -296,7 +300,7 @@ export default function HomeScreen() {
             <MaterialCommunityIcons name="wifi-alert" size={20} color={colors.error} />
             <Text style={styles.errorText}>{error}</Text>
             <Pressable style={styles.retryChip} onPress={refreshDashboard}>
-              <Text style={styles.retryChipText}>Retry</Text>
+              <Text style={styles.retryChipText}>{tc("retry")}</Text>
             </Pressable>
           </View>
         ) : null}
@@ -311,18 +315,18 @@ export default function HomeScreen() {
             </>
           ) : (
             <>
-              <StatCard label="Pending" value={stats.pending} icon="clock-outline" accent={colors.warning} />
-              <StatCard label="In Progress" value={stats.inProgress} icon="loading" accent={colors.info} />
-              <StatCard label="Resolved" value={stats.resolved} icon="check-circle" accent={colors.success} />
-              <StatCard label="In your ward" value={stats.wardTotal} icon="map-outline" accent={colors.primary} />
+              <StatCard label={t("statPending")} value={stats.pending} icon="clock-outline" accent={colors.warning} />
+              <StatCard label={t("statInProgress")} value={stats.inProgress} icon="loading" accent={colors.info} />
+              <StatCard label={t("statResolved")} value={stats.resolved} icon="check-circle" accent={colors.success} />
+              <StatCard label={t("statInWard")} value={stats.wardTotal} icon="map-outline" accent={colors.primary} />
             </>
           )}
         </View>
 
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Quick Report</Text>
+          <Text style={styles.sectionTitle}>{t("quickReport")}</Text>
           <Pressable style={styles.viewAllRow} onPress={() => openReport("other")}>
-            <Text style={styles.viewAll}>See all</Text>
+            <Text style={styles.viewAll}>{tc("seeAll")}</Text>
             <MaterialCommunityIcons name="arrow-right" size={13} color={colors.primary} />
           </Pressable>
         </View>
@@ -349,9 +353,9 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Recent Near You</Text>
+          <Text style={styles.sectionTitle}>{t("recentNearYou")}</Text>
           <Pressable style={styles.viewAllRow} onPress={() => navigation.navigate("Browse")}>
-            <Text style={styles.viewAll}>Browse all</Text>
+            <Text style={styles.viewAll}>{t("browseAll")}</Text>
             <MaterialCommunityIcons name="arrow-right" size={13} color={colors.primary} />
           </Pressable>
         </View>
@@ -359,18 +363,20 @@ export default function HomeScreen() {
         {!gpsEnabled ? (
           <View style={styles.emptyCard}>
             <MaterialCommunityIcons name="crosshairs-gps" size={36} color={colors.primary} />
-            <Text style={styles.emptyTitle}>Location is disabled</Text>
+            <Text style={styles.emptyTitle}>{t("locationDisabledTitle")}</Text>
             <Text style={styles.emptyText}>
-              Enable GPS to show complaints near {profile.location.area || "your saved location"}.
+              {t("locationDisabledBody", {
+                area: profile.location.area || t("yourSavedLocation"),
+              })}
             </Text>
             <Pressable style={styles.primaryButton} onPress={() => setGpsEnabled(true)}>
-              <Text style={styles.primaryButtonText}>Enable Location</Text>
+              <Text style={styles.primaryButtonText}>{t("enableLocation")}</Text>
             </Pressable>
           </View>
         ) : loading ? (
           <View style={styles.feedSkeleton}>
             <ActivityIndicator color={colors.primary} />
-            <Text style={styles.loadingText}>Loading ward updates...</Text>
+            <Text style={styles.loadingText}>{t("loadingWardUpdates")}</Text>
           </View>
         ) : filteredNearby.length ? (
           <View style={styles.feedList}>
@@ -385,8 +391,8 @@ export default function HomeScreen() {
         ) : (
           <View style={styles.emptyCard}>
             <MaterialCommunityIcons name="map-marker-check-outline" size={36} color={colors.primary} />
-            <Text style={styles.emptyTitle}>No recent complaints near you</Text>
-            <Text style={styles.emptyText}>Your 2km radius is quiet right now.</Text>
+            <Text style={styles.emptyTitle}>{t("noNearbyTitle")}</Text>
+            <Text style={styles.emptyText}>{t("noNearbyBody")}</Text>
           </View>
         )}
 
@@ -397,7 +403,7 @@ export default function HomeScreen() {
             color={colors.primary}
           />
           <Text style={styles.locationToggleText}>
-            {gpsEnabled ? "Hide nearby location" : "Use saved location"}
+            {gpsEnabled ? t("hideNearbyLocation") : t("useSavedLocation")}
           </Text>
         </Pressable>
       </ScrollView>
@@ -447,6 +453,7 @@ function ComplaintPreview({
   complaint: CitizenComplaint;
   onPress: () => void;
 }) {
+  const { categoryMeta, statusLabels } = useCitizenLabels();
   const meta = categoryMeta[complaint.category];
 
   return (

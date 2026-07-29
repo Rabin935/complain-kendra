@@ -14,16 +14,18 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../../../constants/colors";
+import { useTranslation } from "../../../i18n/LanguageContext";
+import { useCitizenLabels } from "../../../i18n/useCitizenLabels";
 import { useAuth } from "../../auth/context/AuthContext";
 import { fetchLeaderboard } from "../services/citizen.service";
 import type { CitizenLeaderboardEntry } from "../types/citizen.types";
 
 type Period = "weekly" | "monthly" | "all";
 
-const periods: Array<{ label: string; value: Period }> = [
-  { label: "Weekly", value: "weekly" },
-  { label: "Monthly", value: "monthly" },
-  { label: "All time", value: "all" },
+const periods: Array<{ labelKey: "weekly" | "monthly" | "allTime"; value: Period }> = [
+  { labelKey: "weekly", value: "weekly" },
+  { labelKey: "monthly", value: "monthly" },
+  { labelKey: "allTime", value: "all" },
 ];
 
 const avatarColors = [
@@ -72,9 +74,11 @@ function Avatar({
 function PodiumPerson({
   entry,
   index,
+  pointsShort,
 }: {
   entry: CitizenLeaderboardEntry;
   index: number;
+  pointsShort: string;
 }) {
   const winner = entry.rank === 1;
   const medalColor = entry.rank === 1 ? "#FBBF24" : entry.rank === 2 ? "#CBD5E1" : "#FB923C";
@@ -91,7 +95,7 @@ function PodiumPerson({
       <Text style={[styles.podiumName, winner ? styles.podiumWinnerName : null]} numberOfLines={1}>
         {entry.name.split(" ")[0]}
       </Text>
-      <Text style={styles.podiumPoints}>{entry.points.toLocaleString()} {winner ? "pts" : ""}</Text>
+      <Text style={styles.podiumPoints}>{entry.points.toLocaleString()} {winner ? pointsShort : ""}</Text>
     </View>
   );
 }
@@ -99,6 +103,9 @@ function PodiumPerson({
 export default function LeaderboardScreen() {
   const navigation = useNavigation();
   const { user } = useAuth();
+  const { t } = useTranslation("leaderboard");
+  const { t: tc } = useTranslation("common");
+  const { t: tCitizen } = useCitizenLabels();
   const [period, setPeriod] = useState<Period>("monthly");
   const [leaders, setLeaders] = useState<CitizenLeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -125,7 +132,9 @@ export default function LeaderboardScreen() {
   const podium = [topThree[1], topThree[0], topThree[2]].filter(
     (entry): entry is CitizenLeaderboardEntry => Boolean(entry),
   );
-  const periodLabel = periods.find((item) => item.value === period)?.label ?? "All time";
+  const periodLabel = periods.find((item) => item.value === period)
+    ? t(periods.find((item) => item.value === period)!.labelKey)
+    : t("allTime");
 
   return (
     <SafeAreaView edges={["top"]} style={styles.safeArea}>
@@ -151,8 +160,8 @@ export default function LeaderboardScreen() {
               <MaterialCommunityIcons name="arrow-left" size={21} color="#FFFFFF" />
             </Pressable>
             <View style={styles.headerCopy}>
-              <Text style={styles.eyebrow}>CIVIC HEROES</Text>
-              <Text style={styles.title}>Leaderboard</Text>
+              <Text style={styles.eyebrow}>{t("heroesLabel")}</Text>
+              <Text style={styles.title}>{t("title")}</Text>
             </View>
             <View style={styles.headerButton}>
               <MaterialCommunityIcons name="information-outline" size={20} color="#FFFFFF" />
@@ -168,7 +177,7 @@ export default function LeaderboardScreen() {
                   style={[styles.periodChip, selected ? styles.periodChipActive : null]}
                   onPress={() => setPeriod(item.value)}
                 >
-                  <Text style={[styles.periodText, selected ? styles.periodTextActive : null]}>{item.label}</Text>
+                  <Text style={[styles.periodText, selected ? styles.periodTextActive : null]}>{t(item.labelKey)}</Text>
                 </Pressable>
               );
             })}
@@ -176,7 +185,9 @@ export default function LeaderboardScreen() {
 
           {!loading && podium.length ? (
             <View style={styles.podium}>
-              {podium.map((entry, index) => <PodiumPerson key={entry.id} entry={entry} index={index} />)}
+              {podium.map((entry, index) => (
+                <PodiumPerson key={entry.id} entry={entry} index={index} pointsShort={t("pointsShort")} />
+              ))}
             </View>
           ) : (
             <View style={styles.heroLoader}>
@@ -189,13 +200,13 @@ export default function LeaderboardScreen() {
           {current ? (
             <View style={styles.currentCard}>
               <LinearGradient colors={[colors.primary, colors.primaryDeep]} style={styles.currentRank}>
-                <Text style={styles.currentRankLabel}>RANK</Text>
+                <Text style={styles.currentRankLabel}>{t("rank")}</Text>
                 <Text style={styles.currentRankNumber}>{current.rank}</Text>
               </LinearGradient>
               <View style={styles.flex}>
-                <Text style={styles.currentTitle}>You're climbing!</Text>
+                <Text style={styles.currentTitle}>{t("climbing")}</Text>
                 <Text style={styles.currentHint}>
-                  {current.points.toLocaleString()} pts · {current.levelTitle}
+                  {t("yourPoints", { points: current.points.toLocaleString(), levelTitle: current.levelTitle })}
                 </Text>
               </View>
               <MaterialCommunityIcons name="trending-up" size={25} color={colors.success} />
@@ -203,20 +214,20 @@ export default function LeaderboardScreen() {
           ) : null}
 
           <View style={styles.listHeading}>
-            <Text style={styles.listHeadingText}>{periodLabel} · Community</Text>
+            <Text style={styles.listHeadingText}>{t("community", { period: periodLabel })}</Text>
             <View style={styles.scopeAction}>
               <MaterialCommunityIcons name="map-marker-outline" size={15} color={colors.primary} />
-              <Text style={styles.scopeText}>All wards</Text>
+              <Text style={styles.scopeText}>{t("allWards")}</Text>
             </View>
           </View>
 
           {error && leaders.length === 0 ? (
             <View style={styles.state}>
               <MaterialCommunityIcons name="cloud-alert-outline" size={30} color={colors.error} />
-              <Text style={styles.stateTitle}>Leaderboard unavailable</Text>
+              <Text style={styles.stateTitle}>{t("unavailable")}</Text>
               <Text style={styles.stateText}>{error}</Text>
               <Pressable style={styles.retry} onPress={() => void load()}>
-                <Text style={styles.retryText}>Try Again</Text>
+                <Text style={styles.retryText}>{tc("retry")}</Text>
               </Pressable>
             </View>
           ) : null}
@@ -224,8 +235,8 @@ export default function LeaderboardScreen() {
           {!loading && !error && leaders.length === 0 ? (
             <View style={styles.state}>
               <MaterialCommunityIcons name="trophy-outline" size={34} color={colors.textMuted} />
-              <Text style={styles.stateTitle}>No rankings yet</Text>
-              <Text style={styles.stateText}>Citizens will appear here after earning points in this period.</Text>
+              <Text style={styles.stateTitle}>{t("emptyTitle")}</Text>
+              <Text style={styles.stateText}>{t("emptyBody")}</Text>
             </View>
           ) : null}
 
@@ -239,17 +250,17 @@ export default function LeaderboardScreen() {
                   <View style={styles.flex}>
                     <View style={styles.nameRow}>
                       <Text style={styles.rowName} numberOfLines={1}>{entry.name}</Text>
-                      {isMe ? <Text style={styles.you}>YOU</Text> : null}
+                      {isMe ? <Text style={styles.you}>{t("you")}</Text> : null}
                     </View>
                     <Text style={styles.rowMeta} numberOfLines={1}>
-                      {entry.ward ?? "Ward not set"} · Level {entry.level}
+                      {entry.ward ?? tCitizen("wardNotSet")} · {tCitizen("levelNumber", { level: entry.level })}
                     </Text>
                   </View>
                   <View style={styles.score}>
                     <Text style={styles.scoreValue}>{entry.points.toLocaleString()}</Text>
                     <View style={styles.gain}>
                       <MaterialCommunityIcons name="arrow-up" size={11} color={colors.success} />
-                      <Text style={styles.gainText}>points</Text>
+                      <Text style={styles.gainText}>{t("points")}</Text>
                     </View>
                   </View>
                 </View>

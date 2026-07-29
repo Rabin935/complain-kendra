@@ -21,6 +21,8 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../../../constants/colors";
 import { radii, shadows } from "../../../constants/theme";
+import { useTranslation } from "../../../i18n/LanguageContext";
+import { useCitizenLabels } from "../../../i18n/useCitizenLabels";
 import { useRealtime } from "../../realtime/context/RealtimeContext";
 import { useRealtimeInvalidation } from "../../realtime/hooks/useRealtimeInvalidation";
 import { useAuth } from "../../auth/context/AuthContext";
@@ -46,9 +48,7 @@ import type { UserStackParamList } from "../../user/types/user.types";
 import {
   formatCompactDate,
   priorityColors,
-  priorityLabels,
   statusColors,
-  statusLabels,
 } from "../../user/utils/citizenUi";
 
 type ComplaintDetailProps = NativeStackScreenProps<UserStackParamList, "ComplaintDetail">;
@@ -56,6 +56,9 @@ type ComplaintDetailProps = NativeStackScreenProps<UserStackParamList, "Complain
 export default function ComplaintDetailScreen({ navigation, route }: ComplaintDetailProps) {
   const { complaintId } = route.params;
   const { user } = useAuth();
+  const { t } = useTranslation("complaintDetail");
+  const { t: tc } = useTranslation("common");
+  const { statusLabels, priorityLabels, t: tCitizen } = useCitizenLabels();
   const { joinComplaint } = useRealtime();
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
@@ -125,7 +128,7 @@ export default function ComplaintDetailScreen({ navigation, route }: ComplaintDe
       setDetail(response);
       setFollowing(false);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Unable to load complaint details.");
+      setError(loadError instanceof Error ? loadError.message : t("notFound"));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -164,7 +167,7 @@ export default function ComplaintDetailScreen({ navigation, route }: ComplaintDe
             }
           : current,
       );
-      setError(upvoteError instanceof Error ? upvoteError.message : "Unable to upvote complaint.");
+      setError(upvoteError instanceof Error ? upvoteError.message : t("upvoteError"));
     } finally {
       setUpvoting(false);
     }
@@ -207,7 +210,7 @@ export default function ComplaintDetailScreen({ navigation, route }: ComplaintDe
             }
           : current,
       );
-      setError(followError instanceof Error ? followError.message : "Unable to update follow state.");
+      setError(followError instanceof Error ? followError.message : t("followError"));
     } finally {
       setFollowing(false);
     }
@@ -248,7 +251,7 @@ export default function ComplaintDetailScreen({ navigation, route }: ComplaintDe
       setDeleteError(
         deleteComplaintError instanceof Error
           ? deleteComplaintError.message
-          : "Unable to delete complaint. Please try again.",
+          : t("deleteError"),
       );
     } finally {
       setDeleting(false);
@@ -278,7 +281,7 @@ export default function ComplaintDetailScreen({ navigation, route }: ComplaintDe
       );
       setCommentDraft("");
     } catch (commentError) {
-      setError(commentError instanceof Error ? commentError.message : "Unable to add comment.");
+      setError(commentError instanceof Error ? commentError.message : t("commentError"));
     } finally {
       setCommenting(false);
     }
@@ -299,7 +302,7 @@ export default function ComplaintDetailScreen({ navigation, route }: ComplaintDe
       setRatingComment("");
       setError(null);
     } catch (rateError) {
-      setError(rateError instanceof Error ? rateError.message : "Unable to save rating.");
+      setError(rateError instanceof Error ? rateError.message : t("ratingError"));
     } finally {
       setRatingSaving(false);
     }
@@ -310,7 +313,7 @@ export default function ComplaintDetailScreen({ navigation, route }: ComplaintDe
       <SafeAreaView edges={["top"]} style={styles.safeArea}>
         <View style={styles.loadingState}>
           <ActivityIndicator color={colors.primary} />
-          <Text style={styles.loadingText}>Loading complaint detail...</Text>
+          <Text style={styles.loadingText}>{t("loading")}</Text>
         </View>
       </SafeAreaView>
     );
@@ -321,16 +324,18 @@ export default function ComplaintDetailScreen({ navigation, route }: ComplaintDe
       <SafeAreaView edges={["top"]} style={styles.safeArea}>
         <View style={styles.errorState}>
           <MaterialCommunityIcons name="alert-circle-outline" size={42} color={colors.error} />
-          <Text style={styles.errorTitle}>{error ?? "Complaint not found."}</Text>
+          <Text style={styles.errorTitle}>{error ?? t("notFound")}</Text>
           <Pressable style={styles.retryButton} onPress={() => void loadDetail()}>
-            <Text style={styles.retryButtonText}>Retry</Text>
+            <Text style={styles.retryButtonText}>{tc("retry")}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
     );
   }
 
-  const reporterName = complaint.reporterPrivate ? "Private citizen" : complaint.reporterName ?? sampleProfile.name;
+  const reporterName = complaint.reporterPrivate
+    ? tCitizen("privateCitizen")
+    : complaint.reporterName ?? sampleProfile.name;
   const isOwnComplaint = Boolean(user?.id && complaint.reporterId && user.id === complaint.reporterId);
 
   return (
@@ -456,13 +461,13 @@ export default function ComplaintDetailScreen({ navigation, route }: ComplaintDe
           ) : null}
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>AI Analysis</Text>
+          <Text style={styles.sectionTitle}>{t("aiAnalysis")}</Text>
           {complaint.aiAnalysis ? (
             <View style={styles.analysisCard}>
               <View style={styles.analysisRow}>
-                <AnalysisChip label="Verified" value={complaint.aiVerified ? "Yes" : "No"} />
-                <AnalysisChip label="Priority" value={complaint.aiAnalysis.priority} />
-                <AnalysisChip label="ETA" value={`${complaint.aiAnalysis.etaDays} days`} />
+                <AnalysisChip label={t("verified")} value={complaint.aiVerified ? t("yes") : t("no")} />
+                <AnalysisChip label={t("priority")} value={priorityLabels[complaint.priority] ?? complaint.aiAnalysis.priority} />
+                <AnalysisChip label={t("eta")} value={t("days", { count: complaint.aiAnalysis.etaDays })} />
               </View>
               <Text style={styles.analysisText}>{complaint.aiSummary ?? complaint.aiAnalysis.summary}</Text>
               <Text style={styles.analysisMeta}>
@@ -477,13 +482,13 @@ export default function ComplaintDetailScreen({ navigation, route }: ComplaintDe
         </View>
 
         <View style={styles.statsRow}>
-          <StatPill icon="arrow-up-bold-outline" label="Upvotes" value={`${complaint.upvotes}`} />
-          <StatPill icon="comment-outline" label="Comments" value={`${complaint.comments}`} />
-          <StatPill icon="bookmark-outline" label="Followers" value={`${complaint.followers}`} />
+          <StatPill icon="arrow-up-bold-outline" label={t("upvotes")} value={`${complaint.upvotes}`} />
+          <StatPill icon="comment-outline" label={t("comments")} value={`${complaint.comments}`} />
+          <StatPill icon="bookmark-outline" label={t("followersLabel")} value={`${complaint.followers}`} />
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Status Timeline</Text>
+          <Text style={styles.sectionTitle}>{t("statusTimeline")}</Text>
           <View style={styles.timelineCard}>
             {timeline.map((item, index) => (
               <TimelineRow
@@ -514,28 +519,28 @@ export default function ComplaintDetailScreen({ navigation, route }: ComplaintDe
             </View>
           ) : (
             <View style={styles.emptyInline}>
-              <Text style={styles.emptyInlineText}>No comments yet.</Text>
+              <Text style={styles.emptyInlineText}>{t("noComments")}</Text>
             </View>
           )}
           <View style={styles.commentComposer}>
             <TextInput
               value={commentDraft}
               onChangeText={setCommentDraft}
-              placeholder="Add a public comment..."
+              placeholder={t("commentPlaceholder")}
               placeholderTextColor={colors.textMuted}
               multiline
               style={styles.commentInput}
             />
             <Pressable style={styles.commentButton} onPress={() => void handleAddComment()} disabled={commenting}>
               {commenting ? <ActivityIndicator color={colors.surface} /> : null}
-              <Text style={styles.commentButtonText}>{commenting ? "Posting..." : "Post"}</Text>
+              <Text style={styles.commentButtonText}>{commenting ? t("posting") : t("post")}</Text>
             </Pressable>
           </View>
         </View>
 
         {complaint.status === "resolved" ? (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Rate Resolution</Text>
+            <Text style={styles.sectionTitle}>{t("rateResolution")}</Text>
             <View style={styles.ratingCard}>
               <View style={styles.starRow}>
                 {[1, 2, 3, 4, 5].map((value) => (
@@ -551,14 +556,14 @@ export default function ComplaintDetailScreen({ navigation, route }: ComplaintDe
               <TextInput
                 value={ratingComment}
                 onChangeText={setRatingComment}
-                placeholder="Optional feedback for the officer..."
+                placeholder={t("ratingPlaceholder")}
                 placeholderTextColor={colors.textMuted}
                 multiline
                 style={styles.commentInput}
               />
               <Pressable style={styles.commentButton} onPress={() => void handleRateResolution()} disabled={ratingSaving}>
                 {ratingSaving ? <ActivityIndicator color={colors.surface} /> : null}
-                <Text style={styles.commentButtonText}>{ratingSaving ? "Saving..." : "Submit rating"}</Text>
+                <Text style={styles.commentButtonText}>{ratingSaving ? t("saving") : t("submitRating")}</Text>
               </Pressable>
             </View>
           </View>
@@ -606,7 +611,7 @@ export default function ComplaintDetailScreen({ navigation, route }: ComplaintDe
                   color={colors.surface}
                 />
                 <Text style={styles.followUpdatesText}>
-                  {complaint.followed ? "Following" : "Follow Updates"}
+                  {complaint.followed ? t("following") : t("followUpdates")}
                 </Text>
               </>
             )}
@@ -627,10 +632,8 @@ export default function ComplaintDetailScreen({ navigation, route }: ComplaintDe
             <View style={styles.deleteModalIcon}>
               <MaterialCommunityIcons name="trash-can-outline" size={26} color={colors.error} />
             </View>
-            <Text style={styles.deleteModalTitle}>Delete complaint?</Text>
-            <Text style={styles.deleteModalText}>
-              This permanently removes your complaint and cannot be undone.
-            </Text>
+            <Text style={styles.deleteModalTitle}>{t("deleteTitle")}</Text>
+            <Text style={styles.deleteModalText}>{t("deleteBody")}</Text>
             {deleteError ? <Text style={styles.deleteModalError}>{deleteError}</Text> : null}
             <View style={styles.deleteModalActions}>
               <Pressable
@@ -638,7 +641,7 @@ export default function ComplaintDetailScreen({ navigation, route }: ComplaintDe
                 onPress={() => setDeleteConfirmVisible(false)}
                 disabled={deleting}
               >
-                <Text style={styles.deleteCancelText}>Cancel</Text>
+                <Text style={styles.deleteCancelText}>{tc("cancel")}</Text>
               </Pressable>
               <Pressable
                 style={[styles.deleteConfirmButton, deleting ? styles.deleteDisabled : null]}
@@ -648,7 +651,7 @@ export default function ComplaintDetailScreen({ navigation, route }: ComplaintDe
                 {deleting ? (
                   <ActivityIndicator size="small" color={colors.surface} />
                 ) : (
-                  <Text style={styles.deleteConfirmText}>Delete</Text>
+                  <Text style={styles.deleteConfirmText}>{t("deleteConfirm")}</Text>
                 )}
               </Pressable>
             </View>

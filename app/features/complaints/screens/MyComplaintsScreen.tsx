@@ -18,7 +18,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../../../constants/colors";
-import { categoryMeta } from "../../user/data/citizenSampleData";
+import { useTranslation } from "../../../i18n/LanguageContext";
+import { useCitizenLabels } from "../../../i18n/useCitizenLabels";
 import { fetchMyComplaints } from "../../user/services/citizen.service";
 import type {
   CitizenComplaint,
@@ -28,18 +29,17 @@ import type { UserStackParamList, UserTabParamList } from "../../user/types/user
 import {
   formatCompactDate,
   statusColors,
-  statusLabels,
 } from "../../user/utils/citizenUi";
 
 type StatusFilter = CitizenComplaintStatus | "all";
 type MineNavigation = NavigationProp<UserTabParamList & UserStackParamList>;
 type FilterCounts = Record<"all" | "pending" | "in_progress" | "resolved", number>;
 
-const statusFilters: { label: string; value: StatusFilter }[] = [
-  { label: "All", value: "all" },
-  { label: "Pending", value: "pending" },
-  { label: "Progress", value: "in_progress" },
-  { label: "Resolved", value: "resolved" },
+const statusFilters: { labelKey: "filterAll" | "filterPending" | "filterProgress" | "filterResolved"; value: StatusFilter }[] = [
+  { labelKey: "filterAll", value: "all" },
+  { labelKey: "filterPending", value: "pending" },
+  { labelKey: "filterProgress", value: "in_progress" },
+  { labelKey: "filterResolved", value: "resolved" },
 ];
 const categoryEmojis: Record<CitizenComplaint["category"], string> = {
   road: "🚧",
@@ -52,6 +52,9 @@ const categoryEmojis: Record<CitizenComplaint["category"], string> = {
 
 export default function MyComplaintsScreen() {
   const navigation = useNavigation<MineNavigation>();
+  const { t } = useTranslation("myComplaints");
+  const { t: tc } = useTranslation("common");
+  const { statusLabels } = useCitizenLabels();
   const [complaints, setComplaints] = useState<CitizenComplaint[]>([]);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [filterCounts, setFilterCounts] = useState<FilterCounts>({
@@ -106,12 +109,12 @@ export default function MyComplaintsScreen() {
       );
       setPage(nextPage);
       setHasMore(nextPage < 2 && nextComplaints.length >= 3);
-      setError(result.error && nextComplaints.length === 0 ? "Couldn't load your complaints." : null);
+      setError(result.error && nextComplaints.length === 0 ? t("loadError") : null);
       setLoading(false);
       setRefreshing(false);
       setLoadingMore(false);
     },
-    [statusFilter],
+    [statusFilter, t],
   );
 
   useEffect(() => {
@@ -134,11 +137,11 @@ export default function MyComplaintsScreen() {
             : complaint,
         ),
       );
-      setLiveMessage("Live update: AI analysis synced for pending complaints.");
+      setLiveMessage(t("liveBanner"));
     }, 9000);
 
     return () => clearTimeout(timeout);
-  }, []);
+  }, [t]);
 
   function refreshComplaints() {
     setRefreshing(true);
@@ -158,14 +161,14 @@ export default function MyComplaintsScreen() {
   }
 
   function rateResolution(complaint: CitizenComplaint) {
-    Alert.alert("Rate Resolution", `Thanks for reviewing ${complaint.complaintNo}.`);
+    Alert.alert(t("rateResolution"), t("rateThanks", { complaintNo: complaint.complaintNo }));
   }
 
   if (loading) {
     return (
       <SafeAreaView edges={["top"]} style={styles.safeArea}>
         <View style={styles.header}>
-          <Text style={styles.title}>My Complaints</Text>
+          <Text style={styles.title}>{t("title")}</Text>
         </View>
         <View style={styles.skeletonList}>
           <ComplaintSkeleton />
@@ -183,7 +186,7 @@ export default function MyComplaintsScreen() {
           <MaterialCommunityIcons name="alert-circle-outline" size={42} color={colors.error} />
           <Text style={styles.centerTitle}>{error}</Text>
           <Pressable style={styles.primaryButton} onPress={() => void loadComplaints(1)}>
-            <Text style={styles.primaryButtonText}>Retry</Text>
+            <Text style={styles.primaryButtonText}>{tc("retry")}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -217,7 +220,7 @@ export default function MyComplaintsScreen() {
                   statusFilter === item.value ? styles.statusChipTextActive : null,
                 ]}
               >
-                {item.label}
+                {t(item.labelKey)}
               </Text>
               <View
                 style={[
@@ -294,11 +297,8 @@ export default function MyComplaintsScreen() {
                 />
                 <View style={styles.orangeDot} />
               </View>
-              <Text style={styles.emptyTitle}>No complaints yet</Text>
-              <Text style={styles.emptyText}>
-                See an issue in your neighborhood? Report it in under a minute — we&apos;ll handle
-                the rest.
-              </Text>
+              <Text style={styles.emptyTitle}>{t("emptyTitle")}</Text>
+              <Text style={styles.emptyText}>{t("emptyBody")}</Text>
               <Pressable style={styles.emptyPrimaryShell} onPress={() => navigation.navigate("Report")}>
                 <LinearGradient
                   colors={["#7B4FC8", "#6038B0"]}
@@ -306,13 +306,13 @@ export default function MyComplaintsScreen() {
                   end={{ x: 0.5, y: 1 }}
                   style={styles.emptyPrimary}
                 >
-                  <Text style={styles.emptyPrimaryText}>Report Your First Issue</Text>
+                  <Text style={styles.emptyPrimaryText}>{t("reportFirst")}</Text>
                   <MaterialCommunityIcons name="arrow-right" size={18} color="#FFFFFF" />
                 </LinearGradient>
               </Pressable>
               <Pressable style={styles.browseLink} onPress={() => navigation.navigate("Browse")}>
                 <MaterialCommunityIcons name="web" size={15} color={colors.primary} />
-                <Text style={styles.browseLinkText}>Browse issues near you</Text>
+                <Text style={styles.browseLinkText}>{t("browseNearby")}</Text>
               </Pressable>
               <View style={styles.tipCard}>
                 <View style={styles.tipIcon}>
@@ -323,20 +323,18 @@ export default function MyComplaintsScreen() {
                   />
                 </View>
                 <View style={styles.tipCopy}>
-                  <Text style={styles.tipTitle}>Pro tip</Text>
-                  <Text style={styles.tipText}>
-                    Reports with photos get resolved 3× faster on average.
-                  </Text>
+                  <Text style={styles.tipTitle}>{t("proTip")}</Text>
+                  <Text style={styles.tipText}>{t("proTipBody")}</Text>
                 </View>
               </View>
             </View>
           ) : (
             <View style={styles.emptyCard}>
               <MaterialCommunityIcons name="filter-remove-outline" size={42} color={colors.primary} />
-              <Text style={styles.emptyTitle}>No complaints found for this status</Text>
-              <Text style={styles.emptyText}>Choose another filter or return to all complaints.</Text>
+              <Text style={styles.emptyTitle}>{t("filteredEmptyTitle")}</Text>
+              <Text style={styles.emptyText}>{t("filteredEmptyBody")}</Text>
               <Pressable style={styles.primaryButton} onPress={() => setStatusFilter("all")}>
-                <Text style={styles.primaryButtonText}>Show All Complaints</Text>
+                <Text style={styles.primaryButtonText}>{t("showAll")}</Text>
               </Pressable>
             </View>
           )
@@ -351,6 +349,7 @@ export default function MyComplaintsScreen() {
         renderItem={({ item }) => (
           <ComplaintCard
             complaint={item}
+            statusLabels={statusLabels}
             onOpen={() => openComplaint(item)}
             onRate={() => rateResolution(item)}
           />
@@ -374,13 +373,17 @@ function dedupeComplaints(items: CitizenComplaint[]): CitizenComplaint[] {
 
 function ComplaintCard({
   complaint,
+  statusLabels,
   onOpen,
   onRate,
 }: {
   complaint: CitizenComplaint;
+  statusLabels: Record<CitizenComplaintStatus, string>;
   onOpen: () => void;
   onRate: () => void;
 }) {
+  const { t } = useTranslation("myComplaints");
+  const { categoryMeta } = useCitizenLabels();
   const meta = categoryMeta[complaint.category];
 
   return (
@@ -421,7 +424,7 @@ function ComplaintCard({
 
       <View style={styles.progressBlock}>
         <View style={styles.progressTop}>
-          <Text style={styles.progressLabel}>Progress</Text>
+          <Text style={styles.progressLabel}>{t("progress")}</Text>
           <Text style={styles.progressValue}>{complaint.progress}%</Text>
         </View>
         <View style={styles.progressTrack}>
@@ -443,7 +446,7 @@ function ComplaintCard({
         <MaterialCommunityIcons name="comment-outline" size={13} color={colors.textMuted} />
         <Text style={styles.footerMutedText}>{complaint.comments}</Text>
         <View style={styles.footerSpacer} />
-        <Text style={styles.viewText}>View</Text>
+        <Text style={styles.viewText}>{t("view")}</Text>
         <MaterialCommunityIcons name="chevron-right" size={15} color={colors.primary} />
       </View>
     </Pressable>

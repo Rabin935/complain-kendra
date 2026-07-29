@@ -7,6 +7,7 @@ import { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../../../constants/colors";
+import { useTranslation } from "../../../i18n/LanguageContext";
 import type { UserStackParamList } from "../types/user.types";
 
 type HelpNavigation = NavigationProp<UserStackParamList>;
@@ -15,49 +16,53 @@ type IconName = React.ComponentProps<typeof MaterialCommunityIcons>["name"];
 const supportEmail = "help@ck.np";
 const supportPhone = "1660-01-CK";
 
-const categories: Array<{
+const categoryDefs: Array<{
   icon: IconName;
   color: string;
-  title: string;
+  titleKey: "categoryGettingStarted" | "categoryFilingReports" | "categoryAiAnalysis" | "categoryAccount" | "categoryPrivacy" | "categoryCivicPoints";
   count: number;
   background: string;
 }> = [
-  { icon: "rocket-launch-outline", color: "#6038B0", title: "Getting Started", count: 8, background: "#EEE8FA" },
-  { icon: "clipboard-text-outline", color: "#2563EB", title: "Filing Reports", count: 12, background: "#DBEAFE" },
-  { icon: "lightning-bolt", color: "#D97706", title: "AI Analysis", count: 6, background: "#FEF3C7" },
-  { icon: "account-outline", color: "#16A34A", title: "Account", count: 9, background: "#DCFCE7" },
-  { icon: "lock-outline", color: "#DC2626", title: "Privacy", count: 5, background: "#FEE2E2" },
-  { icon: "circle-multiple-outline", color: "#6038B0", title: "Civic Points", count: 4, background: "#EEE8FA" },
+  { icon: "rocket-launch-outline", color: "#6038B0", titleKey: "categoryGettingStarted", count: 8, background: "#EEE8FA" },
+  { icon: "clipboard-text-outline", color: "#2563EB", titleKey: "categoryFilingReports", count: 12, background: "#DBEAFE" },
+  { icon: "lightning-bolt", color: "#D97706", titleKey: "categoryAiAnalysis", count: 6, background: "#FEF3C7" },
+  { icon: "account-outline", color: "#16A34A", titleKey: "categoryAccount", count: 9, background: "#DCFCE7" },
+  { icon: "lock-outline", color: "#DC2626", titleKey: "categoryPrivacy", count: 5, background: "#FEE2E2" },
+  { icon: "circle-multiple-outline", color: "#6038B0", titleKey: "categoryCivicPoints", count: 4, background: "#EEE8FA" },
 ];
 
-const faqs = [
-  {
-    question: "How long until my complaint is reviewed?",
-    answer:
-      "Most complaints are acknowledged within 24 hours by your ward office. AI verification & routing happens instantly.",
-    helpful: 42,
-  },
-  {
-    question: "Can I edit a complaint after submitting?",
-    answer:
-      "You can update a complaint while it is pending. Once ward review begins, contact support to request a correction.",
-  },
-  {
-    question: "How are Civic Points earned?",
-    answer:
-      "Earn Civic Points by submitting verified reports, adding helpful evidence, and participating responsibly.",
-  },
-  {
-    question: "What if AI mis-classifies my report?",
-    answer:
-      "You can correct the suggested category before submitting. Ward officers can also reclassify a report during review.",
-  },
-];
+const faqKeys = [
+  { questionKey: "faqReviewQ", answerKey: "faqReviewA", helpful: 42 },
+  { questionKey: "faqEditQ", answerKey: "faqEditA" },
+  { questionKey: "faqPointsQ", answerKey: "faqPointsA" },
+  { questionKey: "faqAiQ", answerKey: "faqAiA" },
+] as const;
 
 export default function HelpSupportScreen() {
   const navigation = useNavigation<HelpNavigation>();
+  const { t } = useTranslation("help");
+  const { t: tc } = useTranslation("common");
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [query, setQuery] = useState("");
+
+  const faqs = useMemo(
+    () =>
+      faqKeys.map((item) => ({
+        question: t(item.questionKey),
+        answer: t(item.answerKey),
+        helpful: "helpful" in item ? item.helpful : undefined,
+      })),
+    [t],
+  );
+
+  const categories = useMemo(
+    () =>
+      categoryDefs.map((item) => ({
+        ...item,
+        title: t(item.titleKey),
+      })),
+    [t],
+  );
 
   const visibleFaqs = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -67,7 +72,7 @@ export default function HelpSupportScreen() {
         question.toLowerCase().includes(normalized) ||
         answer.toLowerCase().includes(normalized),
     );
-  }, [query]);
+  }, [faqs, query]);
 
   const openChat = () => {
     void Linking.openURL(
@@ -79,13 +84,13 @@ export default function HelpSupportScreen() {
     <SafeAreaView edges={["top"]} style={styles.safeArea}>
       <View style={styles.header}>
         <Pressable
-          accessibilityLabel="Go back"
+          accessibilityLabel={t("goBack")}
           style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
           onPress={() => navigation.goBack()}
         >
           <MaterialCommunityIcons name="arrow-left" size={20} color={colors.text} />
         </Pressable>
-        <Text style={styles.title}>Help & Support</Text>
+        <Text style={styles.title}>{t("title")}</Text>
       </View>
 
       <ScrollView
@@ -96,10 +101,10 @@ export default function HelpSupportScreen() {
         <View style={styles.searchBox}>
           <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
           <TextInput
-            accessibilityLabel="Search help articles"
+            accessibilityLabel={t("searchPlaceholder")}
             value={query}
             onChangeText={setQuery}
-            placeholder="Search help articles..."
+            placeholder={t("searchPlaceholder")}
             placeholderTextColor={colors.textMuted}
             returnKeyType="search"
             style={styles.searchInput}
@@ -118,14 +123,14 @@ export default function HelpSupportScreen() {
               <MaterialCommunityIcons name="message-text-outline" size={22} color="#FFFFFF" />
             </View>
             <View style={styles.chatCopy}>
-              <Text style={styles.chatTitle}>Chat with us</Text>
-              <Text style={styles.chatMeta}>Avg response · 4 min · Mon-Fri 9–6</Text>
+              <Text style={styles.chatTitle}>{t("chatTitle")}</Text>
+              <Text style={styles.chatMeta}>{t("chatSubtitle")}</Text>
             </View>
             <MaterialCommunityIcons name="arrow-right" size={20} color="#FFFFFF" />
           </LinearGradient>
         </Pressable>
 
-        <Text style={styles.sectionTitle}>Browse by category</Text>
+        <Text style={styles.sectionTitle}>{t("browseCategory")}</Text>
         <View style={styles.categoryGrid}>
           {categories.map((item) => (
             <Pressable
@@ -138,16 +143,16 @@ export default function HelpSupportScreen() {
               </View>
               <View>
                 <Text style={styles.categoryTitle}>{item.title}</Text>
-                <Text style={styles.categoryCount}>{item.count} articles</Text>
+                <Text style={styles.categoryCount}>{t("articles", { count: item.count })}</Text>
               </View>
             </Pressable>
           ))}
         </View>
 
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitleInline}>Popular questions</Text>
+          <Text style={styles.sectionTitleInline}>{t("popularQuestions")}</Text>
           <Pressable onPress={() => setQuery("")}>
-            <Text style={styles.seeAll}>See all</Text>
+            <Text style={styles.seeAll}>{tc("seeAll")}</Text>
           </Pressable>
         </View>
 
@@ -184,7 +189,7 @@ export default function HelpSupportScreen() {
                             size={12}
                             color={colors.textMuted}
                           />
-                          <Text style={styles.helpful}>Helpful ({faq.helpful})</Text>
+                          <Text style={styles.helpful}>{t("helpful", { count: faq.helpful })}</Text>
                         </View>
                       ) : null}
                     </View>
@@ -194,8 +199,8 @@ export default function HelpSupportScreen() {
             })
           ) : (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>No matching questions</Text>
-              <Text style={styles.emptyText}>Try another keyword or browse a category.</Text>
+              <Text style={styles.emptyTitle}>{t("emptySearchTitle")}</Text>
+              <Text style={styles.emptyText}>{t("emptySearchBody")}</Text>
             </View>
           )}
         </View>
@@ -204,7 +209,7 @@ export default function HelpSupportScreen() {
           <ContactOption
             icon="phone"
             tintColor="#16A34A"
-            title="Call"
+            title={t("call")}
             detail={supportPhone}
             color="#22C55E18"
             onPress={() => void Linking.openURL("tel:+97716600125")}
@@ -212,7 +217,7 @@ export default function HelpSupportScreen() {
           <ContactOption
             icon="email-outline"
             tintColor="#2563EB"
-            title="Email"
+            title={t("email")}
             detail={supportEmail}
             color="#2563EB18"
             onPress={() => void Linking.openURL(`mailto:${supportEmail}`)}
@@ -220,7 +225,7 @@ export default function HelpSupportScreen() {
           <ContactOption
             icon="whatsapp"
             tintColor="#16A34A"
-            title="WhatsApp"
+            title={t("whatsapp")}
             detail="+977 98…"
             color="#16A34A18"
             onPress={() => void Linking.openURL("https://wa.me/9779800000000")}

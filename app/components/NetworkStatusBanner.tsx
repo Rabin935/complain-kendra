@@ -7,6 +7,7 @@ import { Platform,
   View,
 } from "react-native";
 import { colors } from "../constants/colors";
+import { useTranslation } from "../i18n/LanguageContext";
 
 function getInitialOnlineState(): boolean {
   if (Platform.OS !== "web" || typeof navigator === "undefined") {
@@ -17,6 +18,7 @@ function getInitialOnlineState(): boolean {
 }
 
 export default function NetworkStatusBanner() {
+  const { t } = useTranslation("shell");
   const [online, setOnline] = useState(getInitialOnlineState);
 
   useEffect(() => {
@@ -42,7 +44,7 @@ export default function NetworkStatusBanner() {
 
   return (
     <View style={styles.banner}>
-      <Text style={styles.text}>You are offline. Some actions will be unavailable until the connection returns.</Text>
+      <Text style={styles.text}>{t("offlineMessage")}</Text>
     </View>
   );
 }

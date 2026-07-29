@@ -14,6 +14,7 @@ import {
   View,
 } from "react-native";
 import { colors } from "../../../constants/colors";
+import { useTranslation } from "../../../i18n/LanguageContext";
 import { useAuth } from "../context/AuthContext";
 import type { AuthStackParamList } from "../types/auth.types";
 
@@ -39,6 +40,7 @@ export default function ResetPasswordScreen({
   route,
 }: ResetPasswordScreenProps) {
   const { resetPassword, loading } = useAuth();
+  const { t } = useTranslation("auth");
   const [token, setToken] = useState(route.params?.token?.trim() ?? "");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -61,25 +63,25 @@ export default function ResetPasswordScreen({
 
     if (!normalizedToken) {
       setSuccessMessage(null);
-      setErrorMessage("Reset token is required.");
+      setErrorMessage(t("resetTokenRequired"));
       return;
     }
 
     if (!newPassword) {
       setSuccessMessage(null);
-      setErrorMessage("New password is required.");
+      setErrorMessage(t("newPasswordRequired"));
       return;
     }
 
     if (newPassword.length < 6) {
       setSuccessMessage(null);
-      setErrorMessage("New password must be at least 6 characters.");
+      setErrorMessage(t("passwordMinLength"));
       return;
     }
 
     if (newPassword !== confirmPassword) {
       setSuccessMessage(null);
-      setErrorMessage("Passwords do not match.");
+      setErrorMessage(t("passwordsDoNotMatch"));
       return;
     }
 
@@ -96,7 +98,7 @@ export default function ResetPasswordScreen({
       setConfirmPassword("");
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Unable to reset your password right now.";
+        error instanceof Error ? error.message : t("resetPasswordError");
       setSuccessMessage(null);
       setErrorMessage(message);
     }
@@ -113,19 +115,16 @@ export default function ResetPasswordScreen({
       >
         <View style={styles.card}>
           <View style={styles.header}>
-            <Text style={styles.badge}>Complain-kendra</Text>
-            <Text style={styles.title}>Reset your password</Text>
-            <Text style={styles.subtitle}>
-              Paste the reset token from your email for now. Deep-link autofill will plug into
-              this same screen later.
-            </Text>
+            <Text style={styles.badge}>{t("brandName")}</Text>
+            <Text style={styles.title}>{t("resetYourPassword")}</Text>
+            <Text style={styles.subtitle}>{t("resetSubtitle")}</Text>
           </View>
 
           {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
           {successMessage ? <Text style={styles.successText}>{successMessage}</Text> : null}
 
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Reset Token</Text>
+            <Text style={styles.label}>{t("resetToken")}</Text>
             <TextInput
               value={token}
               onChangeText={(value) => {
@@ -133,7 +132,7 @@ export default function ResetPasswordScreen({
                 setErrorMessage(null);
                 setSuccessMessage(null);
               }}
-              placeholder="Paste your reset token"
+              placeholder={t("resetTokenPlaceholder")}
               placeholderTextColor={colors.textMuted}
               style={[styles.input, styles.tokenInput]}
               autoCapitalize="none"
@@ -144,7 +143,7 @@ export default function ResetPasswordScreen({
           </View>
 
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>New Password</Text>
+            <Text style={styles.label}>{t("newPassword")}</Text>
             <TextInput
               value={newPassword}
               onChangeText={(value) => {
@@ -152,7 +151,7 @@ export default function ResetPasswordScreen({
                 setErrorMessage(null);
                 setSuccessMessage(null);
               }}
-              placeholder="Enter your new password"
+              placeholder={t("newPasswordPlaceholder")}
               placeholderTextColor={colors.textMuted}
               style={styles.input}
               secureTextEntry
@@ -161,7 +160,7 @@ export default function ResetPasswordScreen({
           </View>
 
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Confirm Password</Text>
+            <Text style={styles.label}>{t("confirmPassword")}</Text>
             <TextInput
               value={confirmPassword}
               onChangeText={(value) => {
@@ -169,7 +168,7 @@ export default function ResetPasswordScreen({
                 setErrorMessage(null);
                 setSuccessMessage(null);
               }}
-              placeholder="Re-enter your new password"
+              placeholder={t("confirmPasswordPlaceholder")}
               placeholderTextColor={colors.textMuted}
               style={styles.input}
               secureTextEntry
@@ -191,7 +190,7 @@ export default function ResetPasswordScreen({
             {loading ? (
               <ActivityIndicator color={colors.surface} />
             ) : (
-              <Text style={styles.primaryButtonText}>Reset Password</Text>
+              <Text style={styles.primaryButtonText}>{t("resetPassword")}</Text>
             )}
           </Pressable>
 
@@ -202,13 +201,13 @@ export default function ResetPasswordScreen({
               pressed ? styles.secondaryButtonPressed : null,
             ]}
           >
-            <Text style={styles.secondaryButtonText}>Back to Login</Text>
+            <Text style={styles.secondaryButtonText}>{t("backToLogin")}</Text>
           </Pressable>
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Need a new token?</Text>
+            <Text style={styles.footerText}>{t("needNewToken")}</Text>
             <Pressable onPress={() => navigation.navigate("ForgotPassword")}>
-              <Text style={styles.footerLink}>Send another reset link</Text>
+              <Text style={styles.footerLink}>{t("sendAnotherResetLink")}</Text>
             </Pressable>
           </View>
         </View>

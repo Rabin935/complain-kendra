@@ -47,3 +47,6 @@ GoogleService-Info.plist
 /android
 
 .src/api/data
+
+# Uploaded complaint media (keep out of Metro watch / git)
+src/api/uploads/
